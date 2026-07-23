@@ -178,10 +178,8 @@ steps:
     model: gpt-5.6-sol
     reads: ["docs/specs/**"]
     fallback:
-      agent: workbench
-      provider: openrouter
-      model: anthropic/claude-sonnet
-      max_cost_usd: 2.00
+      agent: grok
+      model: grok-4.5
 
   - id: implementation
     role: implementer
@@ -191,6 +189,7 @@ steps:
   - id: validation
     role: code-reviewer
     agent: codex
+    model: gpt-5.6-sol
     on_findings: implementation
     max_iterations: 3
 ```
