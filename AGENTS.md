@@ -2,35 +2,62 @@
 
 ## Project Structure & Module Organization
 
-This repository is currently an empty scaffold. As the project is initialized, keep implementation code under `src/`, automated tests under `tests/`, and static files under `assets/`. Place developer scripts in `scripts/` and architectural or operational documentation in `docs/`.
-
-Organize `src/` by feature or domain rather than by file type. Keep tests close in shape to the code they cover; for example, `src/editor/session.ts` should correspond to `tests/editor/session.test.ts`. Avoid adding generated output, dependency directories, or local editor state to version control.
+Keep the planned Cargo workspace in `crates/` and the thin VS Code client in
+`extensions/vscode/`. Store specifications and decisions in `docs/`, scripts in
+`scripts/`, and README media in `assets/`. The terminal UI lives in the separate
+Grok Build fork described in
+`docs/architecture/grok-build-terminal-integration.md`; do not vendor it here.
+Place Rust unit tests beside modules and integration tests in each crate's
+`tests/` directory.
 
 ## Build, Test, and Development Commands
 
-No build system or package manager is configured yet. When adding one, expose a small, predictable command set and document it in `README.md`. Prefer commands such as:
+The Speckit plan must define the toolchain before scaffolding. Expected checks:
 
-- `make dev` — start the local development environment.
-- `make test` — run the complete automated test suite.
-- `make lint` — check formatting and static-analysis rules.
-- `make build` — produce a release-ready artifact.
+- `cargo fmt --all -- --check` — verify Rust formatting.
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings` — lint Rust.
+- `cargo test --workspace` — run the Rust suite.
 
-Keep these entry points stable even if the underlying tools change.
+Add extension and fork commands after their toolchains are selected. Test the
+terminal through the ACP bridge and a pinned fork revision.
 
 ## Coding Style & Naming Conventions
 
-Follow the formatter and linter native to the selected language, and commit their configuration with the first source files. Use spaces for indentation unless the formatter requires otherwise. Name files and modules consistently: `kebab-case` for general files, `PascalCase` for exported types or components, and `camelCase` for functions and variables. Prefer focused modules and explicit names over abbreviations.
+Use `rustfmt` and Clippy defaults. Rust modules and functions use `snake_case`;
+types and traits use `PascalCase`. TypeScript values use `camelCase`.
 
 ## Testing Guidelines
 
-Every behavior change or bug fix should include an automated test. Name tests after the unit or behavior they verify, using the framework’s standard suffix (for example, `*.test.ts` or `test_*.py`). Cover success paths, expected failures, and meaningful edge cases. Run the full suite before requesting review.
+Cover every behavior change or bug fix. Use fake provider adapters; default
+tests must not consume paid models. Contract-test both client protocols. Grok
+Build syncs require upstream pager tests, ACP contracts, PTY tests, snapshots,
+and a reviewed `git range-diff`.
+
+## Specification & Architecture Gate
+
+Once `doc/arch/speckit.toml` exists, follow the active Speckit phase. Do not
+write product code before `speckit next` reaches `implement`, or bypass a
+failing `speckit validate`. Workflows, credentials, and policies belong in the
+Rust core, not presentation clients. Route stable roles and model aliases
+through capability contracts; keep provider-specific logic inside adapters.
+
+The Grok Build fork follows a separate downstream patch-stack policy:
+`main` is an exact upstream mirror, `workbench` contains the minimal integration
+commits, and feature branches target `workbench`. Never place Workbench changes
+on the fork's `main` or move orchestration into the pager.
 
 ## Commit & Pull Request Guidelines
 
-There is no Git history from which to infer a convention. Until the project establishes one, use concise imperative subjects with a Conventional Commit prefix, such as `feat: add workspace selector` or `fix: preserve unsaved tabs`.
+Use imperative Conventional Commit subjects, for example
+`feat: add workflow session view`. Pull requests must link the issue, explain
+the change, list verification and risks, and include screenshots for UI work.
 
-Pull requests should explain the problem, summarize the solution, link the relevant issue, and list verification performed. Include screenshots or recordings for visible UI changes. Keep each pull request narrowly scoped and call out configuration changes, migrations, risks, and follow-up work.
+Upstream-sync pull requests must name both Grok Build commits, include the
+`git range-diff`, and report pager and Workbench backend tests. Never
+auto-merge them.
 
 ## Repository Identity & Confidentiality
 
-Use `Renato Figueiredo <renato.tadeu.figueiredo@gmail.com>` for project commits. Do not add references to the user's employers, clients, or unrelated organizations in code, documentation, comments, commits, examples, or generated artifacts. Never commit credentials, subscription tokens, API keys, local session databases, or provider authentication state.
+Use `Renato Figueiredo <renato.tadeu.figueiredo@gmail.com>` for commits. Do not
+reference employers, clients, or unrelated organizations. Never commit secrets,
+API keys, provider sessions, or local session databases.

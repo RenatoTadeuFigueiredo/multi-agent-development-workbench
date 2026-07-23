@@ -30,6 +30,38 @@ Relevant reports include:
 - Cross-session data leakage.
 - Secret persistence in logs, events, or artifacts.
 - Supply-chain or update-channel compromise.
+- Malicious or unauthenticated access to the local daemon, ACP bridge, or MCP
+  gateway.
+- Upstream terminal changes that bypass Workbench capabilities, approvals, or
+  policy.
 - Unauthorized external actions performed by an agent.
 
 General support questions and non-security bugs should use the public issue tracker.
+
+## Trust Boundaries
+
+The Grok-derived terminal client is an unprivileged presentation client. It
+must not read provider credentials or execute multi-provider workflows by
+itself. It connects to `workbench agent stdio`, which authenticates to the
+local daemon and exposes only negotiated ACP capabilities.
+
+The official `grok` executable remains a separate provider process and owns its
+subscription authentication. Workbench launches provider sessions with
+automatic updates disabled for the lifetime of the workflow. Provider and
+terminal updates are pinned, tested, reviewed, and promoted independently.
+
+MCP packages, endpoints, credentials, and role-specific allowlists are managed
+by the Workbench MCP gateway. Version-controlled manifests may reference
+keychain entries or environment variable names but must never contain secret
+values.
+
+Repository configuration is untrusted input. It may narrow user policy but
+cannot grant tools, credentials, environments, or mutation rights denied by a
+higher-precedence security policy. Configuration parsing, alias resolution,
+provider registration, capability claims, and session migration must fail
+closed. Stored configuration snapshots and routing plans must be redacted
+before persistence or export.
+
+Upstream Grok Build synchronization is treated as a supply-chain change. The
+mirror commit, downstream patch stack, licenses, build output, ACP contracts,
+PTY behavior, and snapshots must be reviewed before release.

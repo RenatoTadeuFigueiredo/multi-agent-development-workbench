@@ -7,7 +7,7 @@
 <p align="center">
   <img alt="Status do projeto: fase de design" src="https://img.shields.io/badge/status-fase%20de%20design-8B5CF6">
   <img alt="Linguagem do núcleo: Rust" src="https://img.shields.io/badge/core-Rust-DEA584?logo=rust&logoColor=111827">
-  <img alt="Protocolo: ACP" src="https://img.shields.io/badge/protocolo-ACP-0891B2">
+  <img alt="Interface principal: VS Code" src="https://img.shields.io/badge/interface-VS%20Code-007ACC?logo=visualstudiocode&logoColor=white">
   <img alt="Licença: Apache 2.0" src="https://img.shields.io/github/license/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=2563EB">
   <img alt="Último commit" src="https://img.shields.io/github/last-commit/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=475569">
 </p>
@@ -35,7 +35,13 @@
 
 O Workbench de Desenvolvimento Multiagente oferecerá um único local para planejar, executar, revisar e supervisionar trabalhos de desenvolvimento realizados por diferentes agentes de IA. Ele coordenará Claude, Codex, Grok e modelos acessados pelo OpenRouter de acordo com papéis explícitos. Os agentes nativos preservarão as assinaturas e autenticações já utilizadas com cada fornecedor, enquanto o OpenRouter oferecerá acesso opcional, cobrado por uso, a um catálogo mais amplo de modelos.
 
-A interface principal será o **Zed**, escolhido por sua performance nativa, suporte a Markdown e Mermaid, experiência com agentes paralelos e integração com o Agent Client Protocol (ACP). O mesmo mecanismo de orquestração também disponibilizará uma interface leve de terminal para trabalho remoto, automações e ambientes nos quais um editor gráfico não seja necessário.
+A interface principal será o **Visual Studio Code**, aproveitando suas sessões
+agênticas, agentes personalizados, subagentes, handoffs, APIs de extensão,
+ferramentas Git e preview nativo de Markdown e Mermaid. Uma extensão fina em
+TypeScript conectará essa experiência ao núcleo Rust independente de
+fornecedor. Um cliente de terminal derivado do pager open source do Grok Build
+se conectará ao mesmo daemon por uma ponte ACP estreita, enquanto a
+compatibilidade ACP permitirá que outros editores reutilizem o núcleo.
 
 O objetivo não é criar outro modelo de IA. É criar um plano de controle independente de fornecedor que faça diferentes agentes existentes trabalharem como uma única equipe de engenharia, com responsabilidades e resultados auditáveis.
 
@@ -43,7 +49,7 @@ O objetivo não é criar outro modelo de IA. É criar um plano de controle indep
 
 | Um workspace | Roteamento por papéis | Acesso flexível | Portável entre editores |
 |---|---|---|---|
-| Prompts, progresso, artefatos, diffs e intervenções permanecem juntos. | Claude especifica, Codex revisa, Grok implementa e os workflows continuam configuráveis. | Utilize assinaturas nativas ou modelos por API através do OpenRouter. | Comece no Zed, continue no terminal e migre por adaptadores ACP. |
+| Prompts, progresso, artefatos, diffs e intervenções permanecem juntos. | Claude especifica, Codex revisa, Grok implementa e os workflows continuam configuráveis. | Utilize assinaturas nativas ou modelos por API através do OpenRouter. | Comece no VS Code, continue no terminal e conecte outros editores por ACP. |
 
 **Princípios centrais:** independência de fornecedor · transferências explícitas · controle humano · sessões duráveis · execução auditável · especificação antes da implementação.
 
@@ -78,15 +84,17 @@ O usuário poderá interromper, comentar, pausar, retomar ou redirecionar o work
 
 ## Interfaces
 
-### Workbench no Zed
+### Workbench no VS Code
 
-O Zed será o ambiente principal de trabalho:
+O VS Code será o ambiente principal de trabalho:
 
-- Uma única visualização para projeto, Git, terminais e threads de agentes.
-- Conversa unificada para prompts, status, resultados e intervenções.
+- Interfaces nativas de Chat e Agents para prompts, status, sessões e intervenções.
+- Agentes personalizados, subagentes e handoffs para trabalho interativo orientado por papéis.
 - Preview nativo de Markdown com renderização de Mermaid.
-- Revisão das diferenças e dos artefatos de especificação gerados.
+- Código, Git, diffs, testes, depuração e terminais integrados.
 - Worktrees Git isoladas e opcionais para tarefas concorrentes.
+
+A extensão do Workbench acrescentará a visão determinística que o VS Code não oferece sozinho: etapas vinculadas a fornecedores, ciclos condicionais, aprovações, histórico durável e auditoria entre fornecedores. Ela utilizará APIs públicas estáveis e um protocolo local versionado; a lógica dos workflows e fornecedores permanecerá em Rust.
 
 As especificações serão armazenadas como arquivos normais do repositório, por exemplo:
 
@@ -107,33 +115,51 @@ Os revisores poderão editar os documentos diretamente ou adicionar blocos visí
 
 ### Interface de terminal
 
-A aplicação de terminal utilizará as mesmas sessões, workflows e políticas:
+A aplicação de terminal reutilizará o pager maduro do Grok Build para edição de
+prompts, scrollback, Markdown e Mermaid, diffs, aprovações, tarefas, mouse e
+comportamento do terminal. Ela será construída a partir do
+[fork do Grok Build do Workbench](https://github.com/RenatoTadeuFigueiredo/grok-build)
+e disponibilizará as mesmas sessões, workflows e políticas do VS Code:
 
 ```bash
-workbench start workflows/feature.yaml
+workbench
+workbench run workflows/feature.yaml
 workbench status
 workbench attach <session-id>
-workbench pause
-workbench resume
+workbench pause <session-id>
+workbench resume <session-id>
+workbench cancel <session-id>
+workbench daemon
 workbench serve-acp
 ```
 
-Uma TUI interativa e uma saída estruturada com streaming permitirão o uso em terminais locais, SSH, scripts e pipelines de CI.
+O binário de terminal será um cliente de apresentação, não o orquestrador. Ele
+iniciará `workbench agent stdio`, que traduzirá ACP para o protocolo local
+versionado do daemon. O executável oficial `grok` continuará sendo um runtime
+de provider separado para o trabalho coberto pelo SuperGrok. Uma TUI interativa
+e uma saída estruturada com streaming permitirão o uso em terminais locais,
+SSH, scripts e pipelines de CI.
 
 ## Arquitetura
 
 ```mermaid
 flowchart TB
-    Z[Cliente ACP do Zed] --> O[Núcleo de orquestração]
-    J[Cliente ACP da JetBrains] --> O
-    V[Adaptador ACP/AHP do VS Code] --> O
-    T[TUI de terminal] --> O
-    H[CLI headless] --> O
+    V[Extensão do VS Code] -->|Protocolo local versionado| D[Daemon do Workbench]
+    T[TUI do Workbench derivada do Grok] -->|ACP stdio| B[Ponte de terminal do Workbench]
+    B -->|Protocolo local versionado| D
+    H[CLI headless] --> D
+    Z[Cliente ACP do Zed] --> X[Servidor ACP]
+    J[Cliente ACP da JetBrains] --> X
+    X --> D
+    D --> Q[Roteador de intenções]
+    Q --> O[Núcleo de orquestração]
 
     O --> P[Políticas e permissões]
     O --> S[Sessões e eventos]
     O --> A[Gerenciador de artefatos]
     O --> W[Máquina de estados dos workflows]
+    O --> M[Gateway MCP central]
+    O --> C[Registro de configurações e capacidades]
 
     W --> CA[Adaptador Claude Code]
     W --> CO[Adaptador Codex CLI/ACP]
@@ -146,55 +172,90 @@ flowchart TB
     OA --> OR[API do OpenRouter]
 ```
 
-Toda a lógica da aplicação e os binários próprios serão implementados em Rust como um pequeno conjunto de componentes testáveis de forma independente:
+Toda a lógica de orquestração e da aplicação, além de todos os binários próprios, será implementada em Rust como um pequeno conjunto de componentes testáveis de forma independente. O cliente fino do VS Code será a única exceção de runtime planejada:
 
 - **Mecanismo de workflows:** etapas determinísticas, transições, novas tentativas e ciclos de revisão.
+- **Roteador de intenções:** destinos explícitos, contexto ativo, consultas
+  determinísticas e classificação pelo coordenador sem transmissões implícitas.
+- **Registro de configurações:** configuração em camadas, aliases estáveis de
+  papéis e modelos, verificação de capacidades, lock e snapshots das sessões.
 - **Adaptadores de fornecedores:** ciclo de vida dos processos, detecção de autenticação, retomada de sessões, cancelamento e normalização de eventos.
 - **Gerenciador de políticas:** instruções compartilhadas, permissões de ferramentas e regras de aprovação.
 - **Armazenamento de eventos:** histórico durável das sessões e trilha de auditoria, inicialmente com SQLite.
 - **Gerenciador de artefatos:** especificações, planos, decisões, diferenças e relatórios de validação.
-- **Servidor ACP:** integração com o Zed e outros editores compatíveis.
-- **TUI/CLI:** acesso portátil ao mesmo núcleo, sem duplicar comportamentos.
+- **Ponte do editor:** protocolo local versionado entre a extensão do VS Code e o daemon Rust.
+- **Extensão do VS Code:** adaptador fino de apresentação e comandos, sem lógica de orquestração.
+- **Servidor ACP:** compatibilidade com Zed, JetBrains e outros clientes ACP.
+- **Ponte ACP de terminal:** apresenta as sessões do daemon como um agente ACP
+  com negociação de capacidades para o pager derivado do fork.
+- **Cliente de terminal derivado do Grok:** reutiliza o comportamento de
+  apresentação upstream sem controlar workflows, credenciais ou políticas.
+- **Gateway MCP:** instala, versiona, supervisiona, filtra e audita servidores
+  MCP compartilhados por todos os providers compatíveis.
+- **CLI headless:** acesso portátil para scripts e CI ao mesmo núcleo.
 - **Runtime de agente genérico:** tool calling, gerenciamento de contexto, streaming, limites de custo e aprovações para modelos acessados por API.
 
 ## Implementação em Rust
 
-O projeto será um workspace Cargo que produzirá um único binário portátil chamado `workbench`:
+O repositório do plano de controle será um workspace Cargo que produzirá o
+daemon, a CLI headless, os adaptadores de providers e a ponte de terminal:
 
 ```text
 crates/
 ├── workbench-core/          # Workflows e modelo de domínio
+├── workbench-config/        # Schema em camadas, aliases, locks e snapshots
+├── workbench-routing/       # Intenções, seleção de papéis e explicabilidade
 ├── workbench-agent/         # Loop genérico do agente e ferramentas
-├── workbench-acp/           # Cliente e servidor ACP
+├── workbench-acp/           # Cliente/servidor ACP de providers e editores
+├── workbench-daemon/        # Ponte local do editor e host de processos
 ├── workbench-providers/     # Adaptadores Claude, Codex e Grok
 ├── workbench-openrouter/    # Adaptador da API do OpenRouter
 ├── workbench-storage/       # SQLite e artefatos
 ├── workbench-policy/        # Regras, permissões e aprovações
-├── workbench-tui/           # Interface de terminal
+├── workbench-mcp/           # Registro, lock, gateway e políticas de MCP
+├── workbench-terminal/      # Ponte ACP consumida pelo pager derivado do Grok
 ├── workbench-cli/           # Comandos e execução headless
 └── workbench-testkit/       # Agentes falsos e fixtures de integração
+extensions/
+└── vscode/                   # Cliente TypeScript fino para o daemon Rust
 ```
 
-O mesmo executável oferecerá modos interativo, headless, editor e background:
+Os binários do Workbench oferecerão modos interativo, headless, editor e
+background:
 
 ```bash
-workbench                         # Abrir a interface de terminal
+workbench                         # Abrir a TUI derivada do Grok
 workbench run workflow.yaml       # Executar em modo headless
-workbench serve-acp               # Conectar Zed ou JetBrains
-workbench daemon                  # Manter as sessões em execução
+workbench daemon                  # Atender o VS Code e manter as sessões em execução
+workbench agent stdio             # Ponte ACP utilizada pelo pager de terminal
+workbench serve-acp               # Conectar Zed, JetBrains ou outro cliente ACP
 workbench status                  # Inspecionar sessões ativas
 ```
 
-O SDK oficial do ACP para Rust ficará isolado em `workbench-acp`, impedindo que mudanças no protocolo afetem o modelo de domínio. As CLIs dos fornecedores e os editores continuarão sendo processos externos; uma futura extensão específica para VS Code poderá exigir um adaptador fino em TypeScript, mas não conterá lógica de orquestração.
+A extensão do VS Code será o único componente próprio planejado fora de Rust, pois extensões do VS Code executam em um host TypeScript/JavaScript. Ela continuará sendo um cliente substituível: exibirá o estado, encaminhará comandos, abrirá artefatos e transmitirá eventos do `workbench daemon`. O SDK oficial do ACP para Rust ficará isolado em `workbench-acp`, impedindo que mudanças no protocolo afetem o modelo de domínio.
 
-## Configuração dos workflows
+O código de apresentação do terminal será mantido separadamente no fork do
+Grok Build. Sua branch `main` espelhará exatamente o upstream; a branch
+`workbench` carregará a patch stack mínima do backend externo. O repositório
+principal do Workbench fixará um commit testado do fork em vez de vendorizar o
+pager.
 
-Os workflows serão declarativos e versionados no repositório:
+## Configuração e roteamento
+
+Providers, aliases de modelos, papéis, roteamento, políticas e workflows serão
+declarativos. Os workflows utilizarão papéis estáveis em vez de modelos
+específicos de fornecedores:
 
 ```yaml
-name: feature-delivery
+version: 1
 
 providers:
+  claude:
+    type: subscription-cli
+  codex:
+    type: subscription-cli
+  grok:
+    type: subscription-cli
   openrouter:
     type: api
     api_key: keychain:openrouter
@@ -202,38 +263,84 @@ providers:
       zero_data_retention: true
       data_collection: deny
 
-steps:
-  - id: specification
-    role: product-architect
-    agent: claude
-    model: fable-5
-    writes: ["docs/specs/**"]
-
-  - id: spec-review
-    role: critical-reviewer
-    agent: codex
+models:
+  coordinator:
+    provider: codex
     model: gpt-5.6-sol
-    reads: ["docs/specs/**"]
-    fallback:
-      agent: grok
-      model: grok-4.5
-
-  - id: implementation
-    role: implementer
-    agent: grok
+  specification:
+    provider: claude
+    model: fable-5
+  review:
+    provider: codex
+    model: gpt-5.6-sol
+  implementation:
+    provider: grok
+    model: grok-4.5
+  review-fallback:
+    provider: grok
     model: grok-4.5
 
-  - id: validation
-    role: code-reviewer
-    agent: codex
-    model: gpt-5.6-sol
-    on_findings: implementation
-    max_iterations: 3
+roles:
+  workspace-coordinator:
+    model: coordinator
+    tools: [repository, git, sessions, gitlab]
+  product-architect:
+    model: specification
+  critical-reviewer:
+    model: review
+    fallback:
+      model: review-fallback
+  implementer:
+    model: implementation
+  code-reviewer:
+    model: review
+
+routing:
+  default_role: workspace-coordinator
+  confidence_threshold: 0.85
+  automatic_execution:
+    read_only: true
+    mutations: require_approval
+
+workflows:
+  feature-delivery:
+    steps:
+      - id: specification
+        role: product-architect
+      - id: spec-review
+        role: critical-reviewer
+      - id: implementation
+        role: implementer
+      - id: validation
+        role: code-reviewer
+        on_findings: implementation
+        max_iterations: 3
 ```
 
-Identificadores de modelos, papéis dos agentes, concorrência, aprovações, timeouts e comportamentos alternativos permanecerão configuráveis, em vez de serem incorporados diretamente ao código da aplicação.
+As configurações serão resolvidas a partir dos padrões seguros embutidos, da
+configuração do usuário, de `.workbench/workbench.yaml` e dos overrides
+explícitos da sessão. `.workbench/workbench.lock` poderá fixar adaptadores,
+modelos, MCPs e dados de compatibilidade. Os segredos permanecerão no keychain.
 
-Os modelos do OpenRouter passarão por uma verificação de capacidades antes de serem atribuídos. O Workbench diferenciará modelos apenas de chat daqueles adequados para trabalho como agentes de código, verificando tool calling, saída estruturada, tamanho de contexto, política de privacidade, disponibilidade e limites de custo configurados.
+Toda mensagem livre chegará primeiro ao daemon. Destinos explícitos e o
+contexto do workflow terão precedência, seguidos por consultas determinísticas
+de status/histórico e pelo coordenador configurado. Antes do envio, a interface
+mostrará intenção, papel, modelo resolvido, ferramentas, fontes de dados,
+permissões e confiança. Mensagens nunca serão transmitidas implicitamente para
+vários providers.
+
+Todos os providers implementarão o mesmo contrato de capacidades. Adicionar um
+modelo a um adaptador existente ou API compatível exigirá apenas configuração;
+um novo protocolo exigirá um adaptador Rust isolado. Remover um provider
+validará aliases e fallbacks afetados sem tornar o histórico ilegível. Sessões
+ativas manterão um snapshot sem segredos, portanto mudanças de modelo valerão
+para novas sessões, salvo migração explícita.
+
+A verificação de capacidades diferenciará modelos de chat de agentes de código
+avaliando tool calling, saída estruturada, contexto, privacidade,
+disponibilidade, custos, retomada de sessões e compatibilidade de protocolo. A
+decisão completa está em
+[`docs/architecture/configuration-routing-and-providers.md`](docs/architecture/configuration-routing-and-providers.md).
 
 ## Regras e contexto compartilhados
 
@@ -246,6 +353,26 @@ O orquestrador resolverá um conjunto canônico de instruções para cada etapa:
 5. Solicitação atual do usuário.
 
 As instruções resultantes ficarão visíveis antes da execução e serão incluídas em cada transferência. Configurações nativas dos fornecedores continuarão sendo suportadas, mas eventuais conflitos serão informados em vez de resolvidos silenciosamente.
+
+## MCPs e ferramentas compartilhadas
+
+O daemon controlará um manifesto e um lockfile MCP canônicos. Instalar ou
+atualizar um servidor compartilhado uma única vez fixará a versão do pacote ou
+imagem, checksum, transporte, referência de credencial e política. Os agentes
+compatíveis se conectarão a um único Gateway MCP do Workbench e receberão
+allowlists de ferramentas específicas para cada papel.
+
+Servidores MCP HTTP remotos compartilharão naturalmente um único endpoint.
+Servidores stdio locais serão iniciados e supervisionados pelo gateway, evitando
+que cada provider baixe ou execute versões diferentes. Credenciais permanecerão
+no keychain do sistema ou no ambiente e nunca serão gravadas no manifesto.
+
+Ferramentas nativas, como o editor de arquivos, shell ou mecanismo de patch de
+cada agente, continuarão específicas do provider. Capacidades que precisem se
+comportar da mesma maneira em Claude, Codex, Grok e agentes do OpenRouter serão
+expostas como ferramentas MCP gerenciadas pelo Workbench. O gateway registrará
+chamadas, aplicará políticas de aprovação, removerá segredos dos logs e isolará
+sessões.
 
 ## Autenticação e cobrança
 
@@ -260,16 +387,24 @@ Os agentes nativos utilizarão as assinaturas existentes; o OpenRouter será uma
 
 As credenciais permanecerão sob responsabilidade das CLIs dos fornecedores ou do keychain do sistema operacional e não poderão ser copiadas para arquivos de workflow ou para o banco de sessões. A interface distinguirá claramente o uso das assinaturas do uso por API e mostrará o consumo de tokens e o custo do OpenRouter por etapa.
 
+O terminal do Workbench derivado do Grok não reutilizará nem acessará o
+armazenamento de credenciais da assinatura Grok. Somente o processo oficial e
+não modificado do provider `grok` autenticará no SuperGrok.
+
+As sessões nativas de agentes externos do VS Code e as extensões oficiais dos fornecedores representam formas diferentes de cobrança. O Workbench utilizará por padrão os fluxos oficiais de autenticação do Claude Code, Codex e Grok Build para não substituir silenciosamente uma assinatura existente por cobrança do GitHub Copilot. Sessões via Copilot e modelos BYOK do VS Code continuarão disponíveis quando selecionados explicitamente.
+
 ## Portabilidade entre editores
 
-O Zed será a primeira interface, não a fundação do produto. Workflows, sessões, adaptadores, regras e artefatos pertencerão ao núcleo Rust e continuarão utilizáveis sem um editor.
+O VS Code será a primeira interface, não a fundação do produto. Workflows, sessões, adaptadores, regras e artefatos pertencerão ao núcleo Rust e continuarão utilizáveis sem um editor.
 
-- **Zed:** conectará diretamente a `workbench serve-acp`.
-- **JetBrains:** utilizará seu cliente ACP nativo e o mesmo comando de servidor.
-- **VS Code:** utilizará uma extensão cliente ACP ou um futuro adaptador fino de ACP para AHP.
-- **Terminal/CI:** utilizará a TUI ou a CLI headless sem depender de editor.
+- **VS Code:** utilizará a extensão própria e a ponte local exposta por `workbench daemon`.
+- **Terminal:** utilizará o pager do Workbench derivado do Grok por meio de
+  `workbench agent stdio`, sem depender de editor.
+- **CI e scripts:** utilizarão a CLI headless e a saída estruturada de eventos.
+- **Zed:** conectará ao endpoint opcional de compatibilidade `workbench serve-acp`.
+- **JetBrains:** utilizará seu cliente ACP e o mesmo endpoint de compatibilidade.
 
-Recursos específicos, como apresentação de diffs, painéis, worktrees e diálogos de permissão, poderão ter aparências diferentes. A negociação de capacidades fornecerá degradação segura, enquanto os artefatos Markdown e o log de eventos permanecerão como fontes portáteis da verdade. Nenhuma lógica de workflow ou fornecedor poderá ser implementada dentro de uma extensão do Zed.
+Recursos específicos, como apresentação de diffs, painéis, worktrees e diálogos de permissão, poderão ter aparências diferentes. A negociação de capacidades fornecerá degradação segura, enquanto os artefatos Markdown e o log de eventos permanecerão como fontes portáteis da verdade. Nenhuma lógica de workflow, fornecedor, credencial ou política poderá ser implementada dentro da extensão do VS Code.
 
 ## Segurança e controle de alterações
 
@@ -282,17 +417,42 @@ Recursos específicos, como apresentação de diffs, painéis, worktrees e diál
 
 ## Estratégia de performance
 
-O Zed evita o custo básico de uma IDE baseada em Electron, enquanto o núcleo de orquestração em Rust reduz a sobrecarga adicional. Os processos dos fornecedores serão iniciados sob demanda e permanecerão ativos somente enquanto forem úteis. Limites de concorrência, buffers de eventos limitados, atualizações incrementais de artefatos e verificações de integridade impedirão que agentes inativos consumam recursos indefinidamente.
+O VS Code possui um custo básico de recursos superior ao de um editor nativo, mas elimina a necessidade de construir um editor, uma interface de sessões agênticas, um cliente Git, um depurador, uma interface de testes e um renderizador de Markdown. A extensão será ativada sob demanda, reutilizará a interface nativa do VS Code quando possível e evitará um processo permanente de webview. O daemon Rust e os processos dos fornecedores serão iniciados somente quando necessários.
 
-O editor representa apenas parte do custo total: CLIs dos modelos, servidores de linguagem, testes, contêineres e ferramentas de build continuarão sendo processos separados. Por isso, os testes de aceitação de performance medirão o workflow completo, e não apenas o tempo de inicialização do editor.
+Limites de concorrência, buffers de eventos limitados, atualizações incrementais de artefatos e verificações de integridade impedirão que agentes inativos consumam recursos indefinidamente. Os testes de aceitação medirão a ativação da extensão, memória ociosa, responsividade do streaming de eventos e o workflow multiagente completo, não apenas a inicialização do editor.
+
+O caminho de terminal evitará recriar um framework de terminal maduro.
+Reutilizaremos a entrada, renderização, scrollback e comportamento PTY do pager
+do Grok, mantendo o daemon e os providers em processos separados. Os testes de
+performance do terminal cobrirão inicialização, memória, streaming de alto
+volume, latência de cancelamento e reconexão.
 
 ## Estratégia open source
 
-O mecanismo de orquestração permanecerá independente de qualquer editor ou fornecedor de modelos. O ACP será a fronteira de integração, permitindo adicionar novos clientes e agentes sem reescrever o mecanismo de workflows.
+O mecanismo de orquestração permanecerá independente de qualquer editor ou fornecedor de modelos. Um protocolo local versionado será a fronteira principal do cliente VS Code, enquanto o ACP continuará sendo uma fronteira de interoperabilidade para editores e agentes compatíveis. Ambos terminarão em adaptadores sobre os mesmos serviços da aplicação em Rust.
 
-O [Grok Build](https://github.com/xai-org/grok-build) utiliza a licença Apache-2.0 e oferece implementações de referência úteis para TUI em Rust, execução headless, sessões, ferramentas e ACP. Componentes poderão ser reutilizados com as atribuições necessárias, mas o produto não deverá depender de um fork profundo do Grok Build, pois seu repositório público é sincronizado periodicamente a partir do monorepo de origem.
+A extensão do VS Code utilizará APIs públicas estáveis e continuará substituível de forma independente. O MVP não dependerá de APIs privadas ou propostas do VS Code para comportamentos centrais do workflow.
 
-O [SDK oficial do ACP para Rust](https://github.com/agentclientprotocol/rust-sdk) fornecerá tipos do protocolo, transportes, clientes, agentes e proxies. O OpenRouter será integrado diretamente por sua API HTTP a partir do Rust, sem introduzir um runtime de agente em TypeScript.
+O [Grok Build](https://github.com/xai-org/grok-build) utiliza a licença
+Apache-2.0 e fornece o pager de terminal usado como fundação da TUI do
+Workbench. O
+[fork do Workbench](https://github.com/RenatoTadeuFigueiredo/grok-build)
+seguirá um modelo upstream-first com patch stack:
+
+- `main` será um espelho somente fast-forward de `xai-org/grok-build:main`;
+- `workbench` conterá um backend ACP externo pequeno e revisado;
+- branches de produto nascerão de e voltarão para `workbench`;
+- atualizações upstream serão aplicadas por rebase em uma branch temporária de
+  sincronização, revisadas com `git range-diff` e nunca terão merge automático;
+- tags de release e commits upstream testados serão imutáveis.
+
+O patch preservará o backend original do Grok e reutilizará sua arquitetura de
+ações, efeitos, renderização, scrollback, permissões, tarefas e testes. A lógica
+de workflows não poderá ser implementada no fork. A decisão completa, limites
+do patch, gates de compatibilidade e política de rollback estão documentados em
+[`docs/architecture/grok-build-terminal-integration.md`](docs/architecture/grok-build-terminal-integration.md).
+
+O [SDK oficial do ACP para Rust](https://github.com/agentclientprotocol/rust-sdk) fornecerá tipos do protocolo, transportes, clientes, agentes e proxies. O OpenRouter será integrado diretamente por sua API HTTP a partir do Rust, sem colocar um runtime de agente dentro da extensão do VS Code.
 
 Este repositório utiliza a [Licença Apache 2.0](LICENSE). Componentes de terceiros reutilizados ou modificados deverão preservar os respectivos arquivos de copyright, licença e avisos.
 
@@ -304,33 +464,49 @@ A primeira versão utilizável incluirá:
 2. Runtime de agente genérico em Rust e adaptador OpenRouter com controles de capacidade e custo.
 3. Workflows sequenciais de especificação, revisão, implementação e validação.
 4. Sessões persistentes com pausa, retomada, cancelamento e nova tentativa.
-5. Integração com o Zed por meio de um único agente ACP personalizado.
-6. TUI de terminal e saída JSON em modo headless.
+5. Extensão fina do VS Code para prompts, progresso do workflow, artefatos, aprovações e controle de sessões.
+6. Cliente de terminal derivado do Grok conectado pela ponte ACP do Workbench,
+   além de saída JSON em modo headless.
 7. Artefatos Markdown, diagramas Mermaid e aprovações configuráveis.
-8. Resolução central de instruções e políticas de permissão.
-9. Testes automatizados de adaptadores, workflows, recuperação e ponta a ponta.
+8. Resolução central de instruções, ciclo de vida dos MCPs, permissões de
+   ferramentas e políticas de aprovação.
+9. Configuração em camadas, roteamento de intenções explicável, aliases de
+   modelos, descoberta de capacidades e remoção segura de providers.
+10. Testes automatizados de adaptadores, workflows, compatibilidade do terminal,
+   recuperação e ponta a ponta.
 
-Branches paralelas de funcionalidades, workers remotos, editor visual de workflows, colaboração entre equipes, análises e adaptadores nativos de editor além do ACP serão capacidades posteriores.
+Branches paralelas de funcionalidades, workers remotos, editor visual de workflows, colaboração entre equipes, análises, integração profunda com a janela Agents do VS Code e extensões específicas para outros editores serão capacidades posteriores.
 
 ## Validações realizadas
 
 - A execução headless, a saída estruturada e a retomada de sessões do Codex foram validadas localmente.
 - A execução headless, a saída estruturada, a retomada de sessões e o ACP nativo do Grok foram validados localmente.
+- O Grok Build 0.2.111 concluiu uma inicialização ACP v1 por meio de
+  `grok --no-auto-update agent stdio` e anunciou capacidades de sessão, prompt,
+  autenticação e MCP sem invocar um modelo.
 - Um ciclo de implementação e revisão entre Codex e Grok foi concluído com sucesso; o revisor detectou um defeito de caso extremo, o Grok realizou a correção e a validação final foi aprovada.
+- O fork do Grok Build do Workbench foi verificado como um espelho exato do
+  upstream antes da definição do modelo da branch downstream `workbench`.
+- A inspeção do código confirmou que o pager atual inicia apenas seu GrokShell
+  em processo; portanto, o backend ACP externo limitado é um spike obrigatório
+  de implementação.
 - O Claude requer uma nova autenticação local da conta antes da conclusão do teste ponta a ponta com os três fornecedores.
 - A integração com OpenRouter e a verificação das capacidades dos modelos ainda deverão ser validadas no protótipo em Rust.
+- As capacidades públicas do VS Code para agentes, extensões, fornecedores de modelos, Markdown e Mermaid foram avaliadas; a ponte fina entre a extensão e o daemon ainda precisa de um protótipo local.
 
 ## Critérios de sucesso
 
 O MVP será considerado bem-sucedido quando um usuário puder enviar uma única solicitação de funcionalidade e:
 
-- Acompanhar todas as etapas por uma única thread no Zed ou sessão de terminal.
+- Acompanhar todas as etapas por uma única conversa do Workbench no VS Code ou sessão de terminal.
 - Inspecionar e comentar as especificações renderizadas antes ou durante a execução.
 - Concluir automaticamente ao menos um ciclo de implementação, revisão e correção.
 - Aplicar as mesmas regras do repositório aos agentes nativos e aos acessados por API.
 - Retomar o trabalho com segurança após reiniciar o editor ou ocorrer uma falha no fornecedor.
 - Distinguir o consumo das assinaturas do custo da API do OpenRouter em cada etapa.
-- Abrir a mesma sessão persistida pelo Zed e pela interface de terminal.
+- Abrir a mesma sessão persistida pelo VS Code e pela interface de terminal.
+- Substituir o modelo de um papel sem alterar o workflow e explicar cada
+  decisão automática de roteamento antes da execução.
 - Revisar uma trilha completa de prompts, decisões, comandos, edições e resultados.
 
 ## Prontidão do projeto
@@ -342,9 +518,15 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 | Políticas de contribuição e relato de vulnerabilidades | Pronto | `CONTRIBUTING.md` e `SECURITY.md` |
 | Instruções compartilhadas do repositório | Pronto | `AGENTS.md` |
 | Codificação, quebras de linha e templates de colaboração do GitHub | Pronto | Configuração do repositório |
+| Decisão de integração do terminal Grok Build e política de atualização | Pronto | `docs/architecture/grok-build-terminal-integration.md` |
+| Decisão de configuração, roteamento e modularidade de providers | Pronto | `docs/architecture/configuration-routing-and-providers.md` |
 | Scaffold e constituição do Speckit | Próximo | `speckit init multi-agent-development-workbench --here --github-ci --license Apache-2.0` |
 | Primeira feature ativa e corpus de especificações validado | Pendente | Workflow do Speckit |
 | Workspace Cargo, política de toolchain Rust, CI e dependências | Pendente | Fase de planejamento do Speckit |
+| Protótipo da API entre extensão do VS Code e daemon | Pendente | Fase de planejamento do Speckit |
+| Spike do backend ACP externo e rebase entre dois snapshots do fork | Pendente | Fase de planejamento do Speckit |
+| Spike do manifesto, lockfile e Gateway MCP central | Pendente | Fase de planejamento do Speckit |
+| Spike do schema de configuração, roteador e registro de providers | Pendente | Fase de planejamento do Speckit |
 
 As configurações específicas de build em Rust foram intencionalmente adiadas até que o plano do Speckit defina os limites do workspace, a versão mínima suportada do Rust, as plataformas-alvo, a política de dependências e a matriz de CI. Isso evita escolhas especulativas de toolchain antes da existência dos requisitos.
 
@@ -360,21 +542,40 @@ Cada fase produzirá artefatos Markdown revisáveis, e `speckit validate` dever�
 
 ## Próximos passos
 
-1. Aprovar esta visão e os limites propostos para o MVP.
-2. Inicializar o Speckit e criar a primeira feature ativa para o núcleo de orquestração.
-3. Refazer a autenticação do Claude Code e concluir o teste de compatibilidade com os três fornecedores.
-4. Produzir um protótipo fino em Rust que cubra ACP, eventos dos fornecedores e tool calling pelo OpenRouter.
-5. Implementar somente as fases e tarefas aprovadas pelo Speckit.
-6. Disponibilizar o primeiro corte vertical no Zed e no terminal e executar um piloto inicial em um repositório não crítico.
+1. Inicializar o Speckit e criar a primeira feature ativa para o núcleo de
+   orquestração, protocolos de clientes e fronteiras de confiança.
+2. Implementar o spike limitado do backend ACP externo do Grok Build na branch
+   `workbench` do fork e reaplicá-lo em dois snapshots upstream.
+3. Definir o protocolo local estável, o schema de configuração em camadas, o
+   plano de roteamento, o contrato de capacidades dos providers, o manifesto
+   MCP central e a versão mínima suportada do VS Code.
+4. Refazer a autenticação do Claude Code e concluir o teste de compatibilidade
+   com os três fornecedores.
+5. Produzir protótipos finos para a extensão do VS Code, eventos dos
+   fornecedores, ponte de terminal, Gateway MCP e tool calling pelo OpenRouter
+   durante a fase aprovada do Speckit.
+6. Implementar somente as fases e tarefas aprovadas pelo Speckit.
+7. Disponibilizar o primeiro corte vertical no VS Code e no terminal e executar
+   um piloto inicial em um repositório não crítico.
 
 ## Referências
 
-- [Agentes externos do Zed](https://zed.dev/docs/ai/external-agents)
-- [Agentes paralelos no Zed](https://zed.dev/docs/ai/parallel-agents)
+- [Agentes no VS Code](https://code.visualstudio.com/docs/agents/overview)
+- [Agentes personalizados e handoffs no VS Code](https://code.visualstudio.com/docs/agent-customization/custom-agents)
+- [Subagentes no VS Code](https://code.visualstudio.com/docs/agents/subagents)
+- [Agentes externos no VS Code](https://code.visualstudio.com/docs/agents/agent-types/third-party-agents)
+- [API de participantes do Chat do VS Code](https://code.visualstudio.com/api/extension-guides/ai/chat)
+- [Modelos e BYOK no VS Code](https://code.visualstudio.com/docs/agent-customization/language-models)
+- [Markdown e Mermaid no VS Code](https://code.visualstudio.com/docs/languages/markdown)
 - [Agent Client Protocol](https://agentclientprotocol.com/)
 - [SDK do ACP para Rust](https://github.com/agentclientprotocol/rust-sdk)
 - [Documentação do Grok Build](https://docs.x.ai/build/overview)
 - [Código-fonte do Grok Build](https://github.com/xai-org/grok-build)
+- [Fork do Grok Build do Workbench](https://github.com/RenatoTadeuFigueiredo/grok-build)
+- [Decisão de integração do terminal Grok Build](docs/architecture/grok-build-terminal-integration.md)
+- [Decisão de configuração, roteamento e modularidade de providers](docs/architecture/configuration-routing-and-providers.md)
 - [API do OpenRouter](https://openrouter.ai/docs/quickstart)
+- [Claude Code para VS Code](https://code.claude.com/docs/en/ide-integrations)
+- [Autenticação do Codex](https://learn.chatgpt.com/docs/auth)
+- [Agentes externos do Zed](https://zed.dev/docs/ai/external-agents)
 - [Suporte ACP da JetBrains](https://blog.jetbrains.com/ai/2026/02/koog-x-acp-connect-an-agent-to-your-ide-and-more/)
-- [Cliente ACP para VS Code](https://github.com/formulahendry/vscode-acp)
