@@ -17,12 +17,19 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 - [Specification](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md): requirements, security, acceptance, and scope
 - [Technical plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md): crate boundaries, protocols, storage, tests, and risks
 - [Decision](doc/arch/adr/0001-build-the-workbench-orchestration-kernel-foundation-as-a.md): provider-independent daemon rationale
+- [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export
 - [Executable scenarios](doc/arch/specs/features/build-the-workbench-orchestration-kernel-foundation-as-a.feature): Gherkin acceptance contract
+- [Local protocol](doc/arch/contracts/workbench-local-protocol.yaml): versioned command, reply, event, and error envelopes
+- [Protocol semantics](doc/arch/domain/local-protocol-semantics.md): preconditions, idempotency, retries, and replay
+- [Session lifecycle](doc/arch/statecharts/session-lifecycle.md): legal controls, uncertainty, and deletion transitions
 
 ## Architecture
 
 - [Configuration and routing](docs/architecture/configuration-routing-and-providers.md): roles, aliases, providers, and routing order
 - [Terminal integration](docs/architecture/grok-build-terminal-integration.md): Grok Build fork and ACP boundary
+- [Headless CLI](doc/arch/domain/cli-surface.md): commands, JSON output, and stable exit codes
+- [Local operations](doc/arch/operations/operations.md): runtime layout, recovery, and backup
+- [Local SLOs](doc/arch/slo/service-level-objectives.md): durability, latency, and security gates
 - [Observability](doc/arch/observability/observability.md): metrics, logs, traces, and privacy rules
 - [Privacy threats](doc/arch/threat-model/privacy-threat-model.md): LINDDUN analysis and mitigations
 

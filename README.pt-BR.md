@@ -186,14 +186,16 @@ flowchart TB
 
 Toda a lógica de orquestração e da aplicação, além de todos os binários próprios, será implementada em Rust como um pequeno conjunto de componentes testáveis de forma independente. O cliente fino do VS Code será a única exceção de runtime planejada:
 
-- **Mecanismo de workflows:** etapas determinísticas, transições, novas tentativas e ciclos de revisão.
+- **Mecanismo de workflows:** etapas determinísticas, transições, novas
+  tentativas controladas por política e ciclos de revisão.
 - **Roteador de intenções:** destinos explícitos, contexto ativo, consultas
   determinísticas e classificação pelo coordenador sem transmissões implícitas.
 - **Registro de configurações:** configuração em camadas, aliases estáveis de
   papéis e modelos, verificação de capacidades, lock e snapshots das sessões.
 - **Adaptadores de fornecedores:** ciclo de vida dos processos, detecção de autenticação, retomada de sessões, cancelamento e normalização de eventos.
 - **Gerenciador de políticas:** instruções compartilhadas, permissões de ferramentas e regras de aprovação.
-- **Armazenamento de eventos:** histórico durável das sessões e trilha de auditoria, inicialmente com SQLite.
+- **Armazenamento de eventos:** histórico durável e criptografado das sessões e
+  trilha de auditoria, inicialmente com SQLite.
 - **Gerenciador de artefatos:** especificações, planos, decisões, diferenças e relatórios de validação.
 - **Ponte do editor:** protocolo local versionado entre a extensão do VS Code e o daemon Rust.
 - **Extensão do VS Code:** adaptador fino de apresentação e comandos, sem lógica de orquestração.
@@ -270,7 +272,7 @@ providers:
     type: subscription-cli
   openrouter:
     type: api
-    api_key: keychain:openrouter
+    credential_ref: platform:openrouter
     privacy:
       zero_data_retention: true
       data_collection: deny
@@ -278,19 +280,19 @@ providers:
 models:
   coordinator:
     provider: codex
-    model: gpt-5.6-sol
+    runtime_model: gpt-5.6-sol
   specification:
     provider: claude
-    model: fable-5
+    runtime_model: fable-5
   review:
     provider: codex
-    model: gpt-5.6-sol
+    runtime_model: gpt-5.6-sol
   implementation:
     provider: grok
-    model: grok-4.5
+    runtime_model: grok-4.5
   review-fallback:
     provider: grok
-    model: grok-4.5
+    runtime_model: grok-4.5
 
 roles:
   workspace-coordinator:
@@ -300,8 +302,7 @@ roles:
     model: specification
   critical-reviewer:
     model: review
-    fallback:
-      model: review-fallback
+    fallback_models: [review-fallback]
   implementer:
     model: implementation
   code-reviewer:
@@ -310,9 +311,11 @@ roles:
 routing:
   default_role: workspace-coordinator
   confidence_threshold: 0.85
-  automatic_execution:
-    read_only: true
-    mutations: require_approval
+
+policies:
+  default_tool_mode: read-only
+  global_deny: []
+  production_mutations: approval-required
 
 workflows:
   feature-delivery:
@@ -329,10 +332,17 @@ workflows:
         max_iterations: 3
 ```
 
+Este é um exemplo da camada do repositório. Os padrões seguros preenchem campos
+vazios omitidos dos papéis e as ferramentas embutidas; a configuração resolvida
+é totalmente explícita e deve obedecer ao schema versionado.
+
 As configurações serão resolvidas a partir dos padrões seguros embutidos, da
 configuração do usuário, de `.workbench/workbench.yaml` e dos overrides
-explícitos da sessão. `.workbench/workbench.lock` poderá fixar adaptadores,
-modelos, MCPs e dados de compatibilidade. Os segredos permanecerão no keychain.
+explícitos da sessão. Um `.workbench/workbench.lock` determinístico fixará
+adaptadores, modelos, MCPs e dados de compatibilidade fora da sessão. Overrides
+de sessão criarão um lock vinculado sem reescrever esse arquivo-base. Os
+segredos permanecerão no keychain, e os dados sensíveis das sessões serão
+criptografados com chaves individuais.
 
 Toda mensagem livre chegará primeiro ao daemon. Destinos explícitos e o
 contexto do workflow terão precedência, seguidos por consultas determinísticas
@@ -475,7 +485,8 @@ A primeira versão utilizável incluirá:
 1. Adaptadores para Claude, Codex e Grok com autenticação pelas assinaturas.
 2. Runtime de agente genérico em Rust e adaptador OpenRouter com controles de capacidade e custo.
 3. Workflows sequenciais de especificação, revisão, implementação e validação.
-4. Sessões persistentes com pausa, retomada, cancelamento e nova tentativa.
+4. Sessões persistentes criptografadas com pausa, retomada, cancelamento e
+   reconciliação humana após resultados incertos.
 5. Extensão fina do VS Code para prompts, progresso do workflow, artefatos, aprovações e controle de sessões.
 6. Cliente de terminal derivado do Grok conectado pela ponte ACP do Workbench,
    além de saída JSON em modo headless.
@@ -543,8 +554,9 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 
 O plano já define os limites iniciais do workspace, protocolo local, estratégia
 de persistência, abordagem de testes e Rust 1.95.0 para o CI das
-especificações. Os pins das dependências do produto e o suporte a plataformas
-só serão registrados quando a feature ativa chegar a `implement`.
+especificações. A feature 001 suporta macOS e Linux; os arquivos reais do
+toolchain e os pins das dependências do produto só serão adicionados quando a
+feature ativa chegar a `implement`.
 
 ## Desenvolvimento orientado por especificações
 

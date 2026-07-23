@@ -185,14 +185,16 @@ flowchart TB
 
 All orchestration and application logic, plus every first-party binary, will be implemented in Rust as a small set of independently testable components. The thin VS Code client is the only planned runtime exception:
 
-- **Workflow engine:** deterministic stages, transitions, retries, and review loops.
+- **Workflow engine:** deterministic stages, transitions, policy-gated retries,
+  and review loops.
 - **Intent router:** explicit targets, contextual routing, deterministic queries,
   and coordinator-assisted classification without implicit broadcasts.
 - **Configuration registry:** layered configuration, stable role and model
   aliases, capability preflight, lock data, and session snapshots.
 - **Provider adapters:** process lifecycle, authentication detection, session resume, cancellation, and normalized events.
 - **Policy broker:** shared instructions, tool permissions, and approval rules.
-- **Event store:** durable session history and audit trail, initially backed by SQLite.
+- **Event store:** encrypted durable session history and audit trail, initially
+  backed by SQLite.
 - **Artifact manager:** specifications, plans, decisions, diffs, and validation reports.
 - **Editor bridge:** versioned local protocol between the VS Code extension and Rust daemon.
 - **VS Code extension:** thin presentation and command adapter with no orchestration logic.
@@ -267,7 +269,7 @@ providers:
     type: subscription-cli
   openrouter:
     type: api
-    api_key: keychain:openrouter
+    credential_ref: platform:openrouter
     privacy:
       zero_data_retention: true
       data_collection: deny
@@ -275,19 +277,19 @@ providers:
 models:
   coordinator:
     provider: codex
-    model: gpt-5.6-sol
+    runtime_model: gpt-5.6-sol
   specification:
     provider: claude
-    model: fable-5
+    runtime_model: fable-5
   review:
     provider: codex
-    model: gpt-5.6-sol
+    runtime_model: gpt-5.6-sol
   implementation:
     provider: grok
-    model: grok-4.5
+    runtime_model: grok-4.5
   review-fallback:
     provider: grok
-    model: grok-4.5
+    runtime_model: grok-4.5
 
 roles:
   workspace-coordinator:
@@ -297,8 +299,7 @@ roles:
     model: specification
   critical-reviewer:
     model: review
-    fallback:
-      model: review-fallback
+    fallback_models: [review-fallback]
   implementer:
     model: implementation
   code-reviewer:
@@ -307,9 +308,11 @@ roles:
 routing:
   default_role: workspace-coordinator
   confidence_threshold: 0.85
-  automatic_execution:
-    read_only: true
-    mutations: require_approval
+
+policies:
+  default_tool_mode: read-only
+  global_deny: []
+  production_mutations: approval-required
 
 workflows:
   feature-delivery:
@@ -326,10 +329,16 @@ workflows:
         max_iterations: 3
 ```
 
+This is a repository-layer example. Safe built-ins supply omitted empty role
+fields and the built-in tool definitions; the resolved configuration is fully
+explicit and must satisfy the committed schema.
+
 Configuration resolves from built-in safe defaults, user configuration,
 `.workbench/workbench.yaml`, and explicit session overrides. A
-`.workbench/workbench.lock` can pin resolved adapter, model, MCP, and
-compatibility data. Secrets remain in the system keychain.
+deterministic `.workbench/workbench.lock` pins the non-session adapter, model,
+MCP, and compatibility data. Session overrides create a linked session lock
+without rewriting that base file. Secrets remain in the system keychain and
+sensitive session payloads are encrypted with per-session keys.
 
 Every free-form message reaches the daemon first. Explicit targets and active
 workflow context take precedence, followed by deterministic status/history
@@ -468,7 +477,8 @@ The first usable release will include:
 1. Claude, Codex, and Grok process adapters using subscription authentication.
 2. A generic Rust agent runtime and OpenRouter adapter with capability and cost controls.
 3. Sequential specification, review, implementation, and validation workflows.
-4. Persistent sessions with pause, resume, cancel, and retry.
+4. Encrypted persistent sessions with pause, resume, cancel, and
+   human-controlled reconciliation after uncertain outcomes.
 5. A thin VS Code extension for prompts, workflow progress, artifacts, approvals, and session control.
 6. A Grok-derived terminal client connected through the Workbench ACP bridge,
    plus headless JSON output.
@@ -536,8 +546,8 @@ The MVP is successful when a user can submit one feature request and:
 
 The plan now defines the initial workspace boundaries, local protocol,
 persistence strategy, test approach, and Rust 1.95.0 specification CI
-toolchain. Product dependency pins and platform support are committed only when
-the active feature reaches `implement`.
+toolchain. Feature 001 supports macOS and Linux; actual toolchain and product
+dependency files are added only when the active feature reaches `implement`.
 
 ## Specification-First Delivery
 

@@ -41,9 +41,10 @@ package schemas
 // #RouteDestination contains the independently configurable executor mapping.
 // DDD role: ValueObject
 #RouteDestination: {
-    role:       #RoleId
-    modelAlias: #ModelAlias
-    provider:   #ProviderId
+    role:         #RoleId
+    modelAlias:   #ModelAlias
+    provider:     #ProviderId
+    runtimeModel: #NonEmptyText
 }
 
 // #RouteContext contains the capabilities and inputs granted to the executor.

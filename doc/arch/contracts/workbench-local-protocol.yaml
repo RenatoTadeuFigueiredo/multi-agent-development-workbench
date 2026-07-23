@@ -1,0 +1,426 @@
+asyncapi: 3.0.0
+info:
+  title: Workbench Local Client Protocol
+  version: 1.0.0
+  description: >-
+    Same-user, newline-framed JSON protocol used by headless clients and future
+    presentation adapters to control one local Workbench daemon.
+defaultContentType: application/json
+servers:
+  local:
+    host: localhost
+    protocol: workbench-ipc
+    description: Unix domain socket owned by the current macOS or Linux user.
+channels:
+  clientCommands:
+    address: workbench.client.commands
+    messages:
+      command:
+        $ref: '#/components/messages/ClientCommand'
+  serverReplies:
+    address: workbench.server.replies
+    messages:
+      reply:
+        $ref: '#/components/messages/ServerReply'
+  sessionEvents:
+    address: workbench.session.events
+    messages:
+      event:
+        $ref: '#/components/messages/SessionEvent'
+operations:
+  sendCommand:
+    action: send
+    channel:
+      $ref: '#/channels/clientCommands'
+  receiveReply:
+    action: receive
+    channel:
+      $ref: '#/channels/serverReplies'
+  receiveSessionEvent:
+    action: receive
+    channel:
+      $ref: '#/channels/sessionEvents'
+components:
+  messages:
+    ClientCommand:
+      name: ClientCommand
+      payload:
+        $ref: '#/components/schemas/ClientCommand'
+    ServerReply:
+      name: ServerReply
+      payload:
+        $ref: '#/components/schemas/ServerReply'
+    SessionEvent:
+      name: SessionEvent
+      payload:
+        $ref: '#/components/schemas/SessionEvent'
+  schemas:
+    ClientCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - protocol
+        - request_id
+        - method
+        - params
+      properties:
+        protocol:
+          const: workbench/1
+        request_id:
+          type: string
+          format: uuid
+        method:
+          enum:
+            - initialize
+            - status.get
+            - session.create
+            - session.get
+            - session.attach
+            - session.prompt
+            - session.pause
+            - session.resume
+            - session.redirect
+            - session.cancel
+            - session.approval.resolve
+            - session.reconcile
+            - session.export
+            - session.delete
+        session_id:
+          type: string
+          format: uuid
+        params:
+          oneOf:
+            - $ref: '#/components/schemas/InitializeParams'
+            - $ref: '#/components/schemas/CreateSessionParams'
+            - $ref: '#/components/schemas/AttachSessionParams'
+            - $ref: '#/components/schemas/PromptParams'
+            - $ref: '#/components/schemas/EmptyParams'
+            - $ref: '#/components/schemas/RedirectParams'
+            - $ref: '#/components/schemas/ApprovalParams'
+            - $ref: '#/components/schemas/Reconciliation'
+            - $ref: '#/components/schemas/ExportParams'
+            - $ref: '#/components/schemas/DeleteParams'
+      allOf:
+        - if:
+            properties:
+              method:
+                enum:
+                  - initialize
+                  - status.get
+                  - session.create
+            required:
+              - method
+          then:
+            not:
+              required:
+                - session_id
+          else:
+            required:
+              - session_id
+    ServerReply:
+      type: object
+      additionalProperties: false
+      required:
+        - protocol
+        - request_id
+        - ok
+      properties:
+        protocol:
+          const: workbench/1
+        request_id:
+          type: string
+          format: uuid
+        ok:
+          type: boolean
+        result:
+          type: object
+        error:
+          $ref: '#/components/schemas/ProtocolError'
+      allOf:
+        - if:
+            properties:
+              ok:
+                const: true
+            required:
+              - ok
+          then:
+            required:
+              - result
+            not:
+              required:
+                - error
+          else:
+            required:
+              - error
+            not:
+              required:
+                - result
+    ProtocolError:
+      type: object
+      additionalProperties: false
+      required:
+        - code
+        - message
+        - retryable
+        - correlation_id
+      properties:
+        code:
+          enum:
+            - invalid_request
+            - unsupported_version
+            - frame_too_large
+            - unauthorized_peer
+            - session_not_found
+            - invalid_transition
+            - capability_unavailable
+            - policy_denied
+            - approval_required
+            - provider_unavailable
+            - provider_timeout
+            - outcome_unknown
+            - client_lagged
+            - storage_unavailable
+            - key_store_unavailable
+            - internal
+        message:
+          type: string
+          minLength: 1
+          maxLength: 512
+        retryable:
+          type: boolean
+        correlation_id:
+          type: string
+          format: uuid
+    SessionEvent:
+      type: object
+      additionalProperties: false
+      required:
+        - protocol
+        - event_id
+        - session_id
+        - sequence
+        - kind
+        - occurred_at
+        - data
+      properties:
+        protocol:
+          const: workbench/1
+        event_id:
+          type: string
+          format: uuid
+        session_id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+        causation_request_id:
+          type: string
+          format: uuid
+        kind:
+          enum:
+            - session_created
+            - configuration_resolved
+            - input_recorded
+            - routing_planned
+            - clarification_requested
+            - approval_requested
+            - approval_recorded
+            - dispatch_planned
+            - dispatch_started
+            - dispatch_acknowledged
+            - provider_event
+            - tool_event
+            - pause_requested
+            - session_paused
+            - session_resumed
+            - session_redirected
+            - cancel_requested
+            - cancel_confirmed
+            - outcome_unknown
+            - outcome_reconciled
+            - session_completed
+            - session_failed
+            - session_cancelled
+            - session_abandoned
+            - session_exported
+            - session_deletion_requested
+            - session_deleted
+        occurred_at:
+          type: string
+          format: date-time
+        data:
+          type: object
+    Reconciliation:
+      type: object
+      additionalProperties: false
+      required:
+        - attempt_id
+        - resolution
+      properties:
+        attempt_id:
+          type: string
+          format: uuid
+        resolution:
+          enum:
+            - retry
+            - accept_result
+            - abandon
+        evidence:
+          type: string
+          maxLength: 4096
+    ApprovalParams:
+      type: object
+      additionalProperties: false
+      required:
+        - approval_id
+        - decision
+      properties:
+        approval_id:
+          type: string
+          format: uuid
+        decision:
+          enum:
+            - grant
+            - deny
+    InitializeParams:
+      type: object
+      additionalProperties: false
+      required:
+        - client_name
+        - client_version
+        - supported_protocols
+      properties:
+        client_name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        client_version:
+          type: string
+          minLength: 1
+          maxLength: 128
+        supported_protocols:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            maxLength: 32
+    CreateSessionParams:
+      type: object
+      additionalProperties: false
+      required:
+        - persistent
+      properties:
+        persistent:
+          const: true
+        configuration_overrides:
+          type: object
+    AttachSessionParams:
+      type: object
+      additionalProperties: false
+      required:
+        - after_sequence
+      properties:
+        after_sequence:
+          type: integer
+          minimum: 0
+    PromptParams:
+      type: object
+      additionalProperties: false
+      required:
+        - text
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 1048576
+        explicit_target:
+          type: string
+          pattern: '^[a-z][a-z0-9-]{0,62}$'
+    EmptyParams:
+      type: object
+      maxProperties: 0
+    RedirectParams:
+      type: object
+      additionalProperties: false
+      required:
+        - instruction
+      properties:
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 1048576
+    ExportParams:
+      type: object
+      additionalProperties: false
+      required:
+        - output_path
+        - age_recipients
+      properties:
+        output_path:
+          type: string
+          minLength: 1
+          maxLength: 4096
+        age_recipients:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 512
+    DeleteParams:
+      type: object
+      additionalProperties: false
+      required:
+        - confirm_session_id
+      properties:
+        confirm_session_id:
+          type: string
+          format: uuid
+x-workbench-framing:
+  encoding: newline-delimited-json
+  maxFrameBytes: 8388608
+  maxClientQueueEvents: 1024
+  maxClientQueueBytes: 8388608
+  delivery: at-least-once
+  deduplication:
+    - event_id
+    - session_id
+    - sequence
+  commandIdempotency:
+    key: request_id
+    durableMethods:
+      - session.create
+      - session.prompt
+      - session.pause
+      - session.resume
+      - session.redirect
+      - session.cancel
+      - session.approval.resolve
+      - session.reconcile
+      - session.export
+      - session.delete
+x-workbench-security:
+  transport: same-user-local-ipc
+  supportedPlatforms:
+    - macos
+    - linux
+  peerVerification: required
+  failureMode: fail-closed
+x-workbench-parameter-schema-by-method:
+  initialize: '#/components/schemas/InitializeParams'
+  status.get: '#/components/schemas/EmptyParams'
+  session.create: '#/components/schemas/CreateSessionParams'
+  session.get: '#/components/schemas/EmptyParams'
+  session.attach: '#/components/schemas/AttachSessionParams'
+  session.prompt: '#/components/schemas/PromptParams'
+  session.pause: '#/components/schemas/EmptyParams'
+  session.resume: '#/components/schemas/EmptyParams'
+  session.redirect: '#/components/schemas/RedirectParams'
+  session.cancel: '#/components/schemas/EmptyParams'
+  session.approval.resolve: '#/components/schemas/ApprovalParams'
+  session.reconcile: '#/components/schemas/Reconciliation'
+  session.export: '#/components/schemas/ExportParams'
+  session.delete: '#/components/schemas/DeleteParams'

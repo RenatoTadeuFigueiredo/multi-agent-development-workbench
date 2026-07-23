@@ -22,13 +22,15 @@ Initial instruments:
 | `workbench.policy.decision` | counter | decisions | Allowed, denied, or approval-required actions |
 | `workbench.control.duration` | histogram | milliseconds | Pause, resume, redirect, and cancel latency |
 | `workbench.replay.lag` | histogram | events | Events returned after a reconnect cursor |
+| `workbench.storage.decision` | counter | decisions | Encryption, key-store, retention, export, and deletion outcomes |
 
 ## Logs
 
 Records include timestamp, severity, component, event name, outcome, session
-correlation identifier, and error category. Routing plans and policy decisions
-log metadata only. Prompt bodies, model output, tool payloads, credentials,
-provider session tokens, and environment values are excluded by default.
+correlation identifier, and error category. Routing plans, retry decisions,
+uncertain outcomes, and key lifecycle actions log metadata only. Prompt bodies,
+decrypted payloads, ciphertext, nonces, model output, tool payloads,
+credentials, provider session tokens, and environment values are excluded.
 
 ## Tracing
 
@@ -44,12 +46,13 @@ metric labels.
 
 | Label | Bounded Value Set | Signal |
 |-------|-------------------|--------|
-| session_state | created, running, paused, completed, failed, cancelled | session gauge |
+| session_state | ready, running, pausing, paused, awaiting_clarification, awaiting_approval, cancel_requested, outcome_unknown, completed, failed, cancelled, abandoned, deleting | session gauge |
 | route_rule | explicit, workflow, resolver, coordinator, clarification | routing counter |
-| outcome | success, denied, failed, cancelled, timeout | lifecycle instruments |
+| outcome | success, denied, failed, cancelled, abandoned, timeout, outcome_unknown, client_lagged | lifecycle instruments |
 | adapter_kind | subscription-cli, api, acp, fake | provider histogram |
 | control | pause, resume, redirect, cancel | control histogram |
 | policy_result | allowed, approval-required, denied | policy counter |
+| storage_action | encrypt, decrypt, rotate, export, delete | storage counter |
 
 ## OTLP Conventions
 

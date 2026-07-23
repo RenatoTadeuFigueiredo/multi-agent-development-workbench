@@ -31,14 +31,18 @@ actions require explicit human approval.
 Credentials remain in provider-owned stores or the operating-system keychain.
 The daemon grants tools by role and session, defaults integrations to read-only,
 and records approvals and tool activity. Repository configuration cannot widen
-the user's global security policy.
+the user's global security policy. Sensitive persisted payloads use
+per-session envelope encryption rooted in the platform key store; persistent
+operation fails closed when the key store or same-user peer verification is
+unavailable.
 
 ### 5. Durable, reproducible, and testable execution
 
 Sessions use an append-only event history and retain redacted configuration
 snapshots, routing decisions, artifacts, and outcomes. Protocols and schemas are
-versioned. Automated tests use fake adapters by default and must not consume
-paid model quotas.
+versioned, resolved dependencies are captured in a deterministic lock file, and
+uncertain external effects never masquerade as success. Automated tests use
+fake adapters by default and must not consume paid model quotas.
 
 ### 6. Thin, portable clients
 

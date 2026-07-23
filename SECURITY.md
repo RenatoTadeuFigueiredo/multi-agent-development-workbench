@@ -52,15 +52,19 @@ terminal updates are pinned, tested, reviewed, and promoted independently.
 
 MCP packages, endpoints, credentials, and role-specific allowlists are managed
 by the Workbench MCP gateway. Version-controlled manifests may reference
-keychain entries or environment variable names but must never contain secret
-values.
+opaque `platform:` credential entries but must never contain secret values.
+Feature 001 accepts no credentials through environment variables.
 
 Repository configuration is untrusted input. It may narrow user policy but
 cannot grant tools, credentials, environments, or mutation rights denied by a
 higher-precedence security policy. Configuration parsing, alias resolution,
 provider registration, capability claims, and session migration must fail
 closed. Stored configuration snapshots and routing plans must be redacted
-before persistence or export.
+before persistence or export. Sensitive session and artifact payloads use
+per-session envelope encryption; macOS Keychain or Linux Secret Service holds
+the root key and wrapped session-key envelopes. Persistent operation fails
+closed when same-user peer verification or the platform key store is
+unavailable.
 
 Upstream Grok Build synchronization is treated as a supply-chain change. The
 mirror commit, downstream patch stack, licenses, build output, ACP contracts,

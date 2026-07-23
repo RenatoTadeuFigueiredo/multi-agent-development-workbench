@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workbench.local/schemas/session-key-envelope.schema.json",
+  "title": "Platform-Stored Session Key Envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "session_id",
+    "key_id",
+    "root_key_id",
+    "algorithm",
+    "nonce",
+    "wrapped_key"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "session_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "key_id": {
+      "type": "string",
+      "pattern": "^session/[0-9a-f-]{36}/v[1-9][0-9]*$"
+    },
+    "root_key_id": {
+      "const": "workbench/storage-root/v1"
+    },
+    "algorithm": {
+      "const": "xchacha20-poly1305"
+    },
+    "nonce": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "minLength": 32,
+      "maxLength": 32
+    },
+    "wrapped_key": {
+      "type": "string",
+      "contentEncoding": "base64",
+      "minLength": 64,
+      "maxLength": 64
+    }
+  }
+}
