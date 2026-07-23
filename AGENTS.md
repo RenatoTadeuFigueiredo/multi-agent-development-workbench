@@ -1,14 +1,12 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Architecture & Project Structure
 
-Keep the planned Cargo workspace in `crates/` and the thin VS Code client in
-`extensions/vscode/`. Store specifications and decisions in `docs/`, scripts in
-`scripts/`, and README media in `assets/`. The terminal UI lives in the separate
-Grok Build fork described in
+No source tree exists yet. After Speckit reaches implementation, use a Cargo
+workspace for the Rust control plane and a thin TypeScript VS Code extension.
+Keep specifications in `doc/arch/`, supporting notes in `docs/`, scripts in
+`scripts/`, and media in `assets/`. The terminal UI belongs in the separate fork described in
 `docs/architecture/grok-build-terminal-integration.md`; do not vendor it here.
-Place Rust unit tests beside modules and integration tests in each crate's
-`tests/` directory.
 
 ## Build, Test, and Development Commands
 
@@ -18,8 +16,7 @@ The Speckit plan must define the toolchain before scaffolding. Expected checks:
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings` — lint Rust.
 - `cargo test --workspace` — run the Rust suite.
 
-Add extension and fork commands after their toolchains are selected. Test the
-terminal through the ACP bridge and a pinned fork revision.
+Add client commands after their toolchains are selected.
 
 ## Coding Style & Naming Conventions
 
@@ -28,18 +25,20 @@ types and traits use `PascalCase`. TypeScript values use `camelCase`.
 
 ## Testing Guidelines
 
-Cover every behavior change or bug fix. Use fake provider adapters; default
-tests must not consume paid models. Contract-test both client protocols. Grok
-Build syncs require upstream pager tests, ACP contracts, PTY tests, snapshots,
-and a reviewed `git range-diff`.
+Cover every behavior change. Default tests use fake adapters and consume no
+paid models. Contract-test client protocols. Grok Build syncs require upstream
+tests, ACP and PTY coverage, snapshots, and a reviewed `git range-diff`.
 
-## Specification & Architecture Gate
+## Spec-first Protocol
 
-Once `doc/arch/speckit.toml` exists, follow the active Speckit phase. Do not
-write product code before `speckit next` reaches `implement`, or bypass a
-failing `speckit validate`. Workflows, credentials, and policies belong in the
-Rust core, not presentation clients. Route stable roles and model aliases
-through capability contracts; keep provider-specific logic inside adapters.
+Spec-first: `doc/arch/` is the product source of truth. Begin every change with
+`speckit status`, run the phase recommended by `speckit next`, and do not write
+product code before the active feature reaches `implement`. The configured
+guard is the spec-scope write gate; never disable or bypass it to write outside
+the active phase. A failing `speckit validate` blocks commits.
+
+Workflows, credentials, and policies belong in the Rust core. Presentation
+clients stay thin, and provider-specific logic stays inside adapters.
 
 The Grok Build fork follows a separate downstream patch-stack policy:
 `main` is an exact upstream mirror, `workbench` contains the minimal integration
@@ -48,9 +47,9 @@ on the fork's `main` or move orchestration into the pager.
 
 ## Commit & Pull Request Guidelines
 
-Use imperative Conventional Commit subjects, for example
-`feat: add workflow session view`. Pull requests must link the issue, explain
-the change, list verification and risks, and include screenshots for UI work.
+Use imperative Conventional Commits, for example `feat: add session view`.
+Pull requests link the issue, explain changes, list verification and risks, and
+include screenshots for UI work.
 
 Upstream-sync pull requests must name both Grok Build commits, include the
 `git range-diff`, and report pager and Workbench backend tests. Never

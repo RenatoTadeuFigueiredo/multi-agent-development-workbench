@@ -1,0 +1,44 @@
+# Speckit compatibility pipeline.
+#
+# GitHub Actions is the active pipeline for this repository. This file keeps
+# the Speckit corpus portable to a GitLab mirror and satisfies its project
+# baseline. Do not add a container image; GitLab runners own their toolchains.
+
+stages:
+  - lint
+  - test
+  - validate
+  - release
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v/'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS'
+      when: never
+    - if: '$CI_COMMIT_BRANCH'
+
+lint:
+  stage: lint
+  script:
+    - make lint
+
+test:
+  stage: test
+  script:
+    - make test
+
+validate:
+  stage: validate
+  script:
+    - speckit validate
+
+release:
+  stage: release
+  rules:
+    - if: '$CI_COMMIT_TAG'
+  script:
+    - echo "Releasing $CI_COMMIT_TAG"
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    description: 'Automated release for $CI_COMMIT_TAG'

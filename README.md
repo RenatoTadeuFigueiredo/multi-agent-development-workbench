@@ -1,8 +1,6 @@
-<h1 align="center">Multi-Agent Development Workbench</h1>
+# Multi-Agent Development Workbench
 
-<p align="center">
-  <img src="assets/readme-hero.svg" width="100%" alt="Claude, Codex, Grok, and OpenRouter connected to a portable Rust orchestration core">
-</p>
+![Claude, Codex, Grok, and OpenRouter connected to a portable Rust orchestration core](assets/readme-hero.svg)
 
 <p align="center">
   <img alt="Project status: design phase" src="https://img.shields.io/badge/status-design%20phase-8B5CF6">
@@ -29,7 +27,18 @@
 </p>
 
 > [!IMPORTANT]
-> This project is in the design and specification phase. The product has not yet been implemented; the README describes the approved direction for the upcoming Speckit corpus.
+> This project is in the design and specification phase. The product has not yet been implemented; the validated Speckit corpus contains the active requirements and technical plan.
+
+## Table of Contents
+
+- [Executive Summary](#executive-summary)
+- [Proposed Experience](#proposed-experience)
+- [Architecture](#architecture)
+- [Configuration and Routing](#configuration-and-routing)
+- [Delivery Roadmap](#delivery-roadmap)
+- [Speckit source of truth](doc/arch/functional/product-overview.md)
+
+🧭 **Current phase:** feature 001 technical plan complete; task decomposition is next.
 
 ## Executive Summary
 
@@ -99,11 +108,14 @@ The Workbench extension will add the deterministic workflow view that VS Code do
 Specifications will be stored as normal repository files, for example:
 
 ```text
-docs/specs/auth-token-rotation/
-├── spec.md
-├── plan.md
-├── decisions.md
-└── validation.md
+doc/arch/
+├── sdd/001-feature-name/
+│   ├── spec.md
+│   ├── plan.md
+│   └── tasks.md
+├── adr/
+├── schemas/
+└── specs/features/
 ```
 
 Reviewers can edit the documents directly or add visible review blocks:
@@ -513,43 +525,46 @@ The MVP is successful when a user can submit one feature request and:
 | Encoding, line endings, and GitHub collaboration templates | Ready | Repository configuration |
 | Grok Build terminal integration decision and update policy | Ready | `docs/architecture/grok-build-terminal-integration.md` |
 | Configuration, routing, and provider modularity decision | Ready | `docs/architecture/configuration-routing-and-providers.md` |
-| Speckit scaffold and constitution | Next | `speckit init multi-agent-development-workbench --here --github-ci --license Apache-2.0` |
-| First active feature and validated specification corpus | Pending | Speckit workflow |
-| Cargo workspace, Rust toolchain policy, CI, and dependency policy | Pending | Speckit plan phase |
-| VS Code extension-to-daemon API spike | Pending | Speckit plan phase |
-| Fork external-ACP backend and two-snapshot rebase spike | Pending | Speckit plan phase |
-| Central MCP manifest, lockfile, and gateway spike | Pending | Speckit plan phase |
-| Configuration schema, router, and provider registry spike | Pending | Speckit plan phase |
+| Speckit scaffold, constitution, and governance baseline | Ready | `doc/arch/` |
+| First active feature and validated specification corpus | Ready | [Feature 001](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md) |
+| Orchestration-kernel technical plan | Ready | [Feature 001 plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md) |
+| Ordered tasks and cross-artifact analysis | Next | Speckit `tasks` and `analyze` phases |
+| Cargo workspace and executable fake-provider vertical slice | Pending | Speckit `implement` phase |
+| VS Code extension-to-daemon API spike | Pending | Later Speckit feature |
+| Fork external-ACP backend and two-snapshot rebase spike | Pending | Later Speckit feature |
+| Live MCP gateway and production provider adapters | Pending | Later Speckit features |
 
-Rust-specific build configuration is intentionally deferred until the Speckit plan fixes the workspace boundaries, minimum supported Rust version, target platforms, dependency policy, and CI matrix. This avoids committing speculative toolchain choices before the requirements exist.
+The plan now defines the initial workspace boundaries, local protocol,
+persistence strategy, test approach, and Rust 1.95.0 specification CI
+toolchain. Product dependency pins and platform support are committed only when
+the active feature reaches `implement`.
 
 ## Specification-First Delivery
 
-This README defines the product vision, not implementation requirements. Before product code begins, the repository will be initialized for Speckit and the first active feature will follow the complete specification lifecycle:
+This README defines the product vision; `doc/arch/` defines implementation
+requirements. Feature 001 has completed `specify`, `clarify`, and `plan`:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
 ```
 
-Each phase will produce reviewable Markdown artifacts, and `speckit validate` must pass before the specification corpus or feature implementation is considered complete. The initial Speckit feature should define the orchestration kernel, protocol boundaries, failure semantics, security model, and acceptance tests before adapter implementation begins.
+Each phase produces reviewable Markdown artifacts, and `speckit validate` must
+pass before a corpus or implementation commit. The current feature defines the
+kernel, protocol boundaries, failure semantics, security model, fake-provider
+vertical slice, and acceptance tests. No product code is allowed before
+`tasks` and `analyze` complete and `speckit next` reaches `implement`.
 
 ## Next Steps
 
-1. Initialize Speckit and create the first active feature for the orchestration
-   kernel, client protocols, and trust boundaries.
-2. Implement the bounded Grok Build external-ACP spike on the fork's
-   `workbench` branch and replay it across two upstream snapshots.
-3. Define the stable local protocol, layered configuration schema, intent
-   routing plan, provider capability contract, central MCP manifest, and
-   minimum supported VS Code version.
-4. Reauthenticate Claude Code and complete the three-provider compatibility
-   test.
-5. Produce thin spikes for the VS Code extension, provider events, terminal
-   bridge, MCP gateway, and OpenRouter tool calling during the approved Speckit
-   phase.
-6. Implement only the phases and tasks approved through Speckit.
-7. Expose the first vertical slice in VS Code and the terminal, then run an
-   initial pilot on a non-critical repository.
+1. Review feature 001's [specification](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md)
+   and [technical plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md).
+2. Run the Speckit `tasks` and `analyze` phases and keep validation green.
+3. Implement the headless orchestration-kernel slice with fake providers only.
+4. Specify the VS Code client, then the bounded Grok Build external-ACP spike.
+5. Specify and implement live Claude, Codex, Grok, OpenRouter, and MCP adapters
+   independently against the proven core contracts.
+6. Expose shared sessions in VS Code and terminal clients, then pilot the
+   complete workflow on a non-critical repository.
 
 ## References
 

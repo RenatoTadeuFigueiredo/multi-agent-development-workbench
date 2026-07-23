@@ -1,0 +1,28 @@
+# .github/workflows/ci.yml — optional GitHub Actions mirror (ADR-0025).
+#
+# Generated only by `speckit init --github-ci`. The canonical pipeline is
+# GitLab CI (.gitlab-ci.yml); this is a convenience mirror for GitHub-hosted
+# repositories and is intentionally minimal.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  SPECKIT_REV: 66ff12a955a907222d359f359f8eeb9a1dd02fe2
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to a 40-char commit SHA so `speckit validate` stays green out of
+      # the box (ADR-0031, pin.ci.unpinned-action); the comment records the tag.
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal
+      - name: Install Speckit
+        run: cargo +1.95.0 install --locked --git https://github.com/farchanjo/speckit.git --rev "$SPECKIT_REV"
+      - run: make check

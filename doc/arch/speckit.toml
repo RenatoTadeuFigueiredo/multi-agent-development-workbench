@@ -1,0 +1,9 @@
+[project]
+license = "Apache-2.0"
+
+[git]
+email = "renato.tadeu.figueiredo@gmail.com"
+
+[guard]
+mode = "enforce"
+specScopeGlobs = []
