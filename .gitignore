@@ -1,0 +1,10 @@
+# Rust build output
+/target/
+
+# Speckit machine-local state
+/doc/.specify/*.db
+
+# Editor and operating-system state
+.DS_Store
+.idea/
+.vscode/
