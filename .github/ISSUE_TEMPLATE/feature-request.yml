@@ -1,0 +1,58 @@
+name: Feature request
+description: Propose a scoped capability or behavior change.
+title: "feat: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature requests become implementation candidates only after prioritization and the applicable Speckit phases.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Describe the user problem without prescribing a solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Explain the observable result and who benefits.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed approach
+      description: Optional. Describe a possible solution, protocol, or workflow.
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - Given ...
+        - When ...
+        - Then ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope considerations
+      options:
+        - label: I considered editor portability and avoided editor-specific orchestration logic.
+        - label: I considered subscription, API billing, privacy, and provider compatibility.
+        - label: I searched existing issues and specifications for overlap.
+          required: true

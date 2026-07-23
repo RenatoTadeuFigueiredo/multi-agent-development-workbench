@@ -1,6 +1,35 @@
-# Workbench de Desenvolvimento Multiagente
+<h1 align="center">Workbench de Desenvolvimento Multiagente</h1>
 
-> **Status:** Proposta de projeto e descoberta técnica. O produto de orquestração ainda não foi implementado.
+<p align="center">
+  <img src="assets/readme-hero.svg" width="100%" alt="Claude, Codex, Grok e OpenRouter conectados a um núcleo portátil de orquestração em Rust">
+</p>
+
+<p align="center">
+  <img alt="Status do projeto: fase de design" src="https://img.shields.io/badge/status-fase%20de%20design-8B5CF6">
+  <img alt="Linguagem do núcleo: Rust" src="https://img.shields.io/badge/core-Rust-DEA584?logo=rust&logoColor=111827">
+  <img alt="Protocolo: ACP" src="https://img.shields.io/badge/protocolo-ACP-0891B2">
+  <img alt="Licença: Apache 2.0" src="https://img.shields.io/github/license/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=2563EB">
+  <img alt="Último commit" src="https://img.shields.io/github/last-commit/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=475569">
+</p>
+
+<p align="center">
+  <a href="README.md">English</a>
+  ·
+  <a href="README.pt-BR.md"><strong>Português Brasileiro</strong></a>
+  ·
+  <a href="CONTRIBUTING.md">Contribuição</a>
+  ·
+  <a href="SECURITY.md">Segurança</a>
+  ·
+  <a href="LICENSE">Licença</a>
+</p>
+
+<p align="center">
+  <strong>Um único workflow. O modelo certo para cada papel de engenharia.</strong>
+</p>
+
+> [!IMPORTANT]
+> Este projeto está na fase de design e especificação. O produto ainda não foi implementado; este README descreve a direção aprovada para o próximo corpus do Speckit.
 
 ## Resumo executivo
 
@@ -9,6 +38,14 @@ O Workbench de Desenvolvimento Multiagente oferecerá um único local para plane
 A interface principal será o **Zed**, escolhido por sua performance nativa, suporte a Markdown e Mermaid, experiência com agentes paralelos e integração com o Agent Client Protocol (ACP). O mesmo mecanismo de orquestração também disponibilizará uma interface leve de terminal para trabalho remoto, automações e ambientes nos quais um editor gráfico não seja necessário.
 
 O objetivo não é criar outro modelo de IA. É criar um plano de controle independente de fornecedor que faça diferentes agentes existentes trabalharem como uma única equipe de engenharia, com responsabilidades e resultados auditáveis.
+
+## Visão geral
+
+| Um workspace | Roteamento por papéis | Acesso flexível | Portável entre editores |
+|---|---|---|---|
+| Prompts, progresso, artefatos, diffs e intervenções permanecem juntos. | Claude especifica, Codex revisa, Grok implementa e os workflows continuam configuráveis. | Utilize assinaturas nativas ou modelos por API através do OpenRouter. | Comece no Zed, continue no terminal e migre por adaptadores ACP. |
+
+**Princípios centrais:** independência de fornecedor · transferências explícitas · controle humano · sessões duráveis · execução auditável · especificação antes da implementação.
 
 ## Problema
 
@@ -295,6 +332,21 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 - Distinguir o consumo das assinaturas do custo da API do OpenRouter em cada etapa.
 - Abrir a mesma sessão persistida pelo Zed e pela interface de terminal.
 - Revisar uma trilha completa de prompts, decisões, comandos, edições e resultados.
+
+## Prontidão do projeto
+
+| Fundação | Estado | Responsável |
+|---|---|---|
+| Visão do produto, arquitetura e limites do MVP | Pronto | Este README |
+| Licenciamento público e política de avisos de terceiros | Pronto | `LICENSE` e `NOTICE` |
+| Políticas de contribuição e relato de vulnerabilidades | Pronto | `CONTRIBUTING.md` e `SECURITY.md` |
+| Instruções compartilhadas do repositório | Pronto | `AGENTS.md` |
+| Codificação, quebras de linha e templates de colaboração do GitHub | Pronto | Configuração do repositório |
+| Scaffold e constituição do Speckit | Próximo | `speckit init multi-agent-development-workbench --here --github-ci --license Apache-2.0` |
+| Primeira feature ativa e corpus de especificações validado | Pendente | Workflow do Speckit |
+| Workspace Cargo, política de toolchain Rust, CI e dependências | Pendente | Fase de planejamento do Speckit |
+
+As configurações específicas de build em Rust foram intencionalmente adiadas até que o plano do Speckit defina os limites do workspace, a versão mínima suportada do Rust, as plataformas-alvo, a política de dependências e a matriz de CI. Isso evita escolhas especulativas de toolchain antes da existência dos requisitos.
 
 ## Desenvolvimento orientado por especificações
 

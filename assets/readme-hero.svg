@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">Multi-Agent Development Workbench</title>
+  <desc id="desc">Claude, Codex, Grok, and OpenRouter connected to a portable Rust orchestration core.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0B1020"/>
+      <stop offset="0.52" stop-color="#151B38"/>
+      <stop offset="1" stop-color="#241447"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#67E8F9"/>
+      <stop offset="0.5" stop-color="#A78BFA"/>
+      <stop offset="1" stop-color="#F472B6"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#243B67"/>
+      <stop offset="1" stop-color="#392760"/>
+    </linearGradient>
+    <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#FFFFFF" stroke-opacity="0.035"/>
+    </pattern>
+    <filter id="glow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="358" rx="28" fill="url(#background)" stroke="#FFFFFF" stroke-opacity="0.1"/>
+  <rect x="1" y="1" width="1198" height="358" rx="28" fill="url(#grid)"/>
+  <circle cx="1040" cy="56" r="170" fill="#8B5CF6" fill-opacity="0.08"/>
+  <circle cx="145" cy="334" r="210" fill="#22D3EE" fill-opacity="0.055"/>
+
+  <text x="600" y="58" text-anchor="middle" fill="#A5B4FC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="700" letter-spacing="4">OPEN • PORTABLE • PROVIDER-INDEPENDENT</text>
+  <text x="600" y="99" text-anchor="middle" fill="#F8FAFC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="34" font-weight="750" letter-spacing="-0.8">Multi-Agent Development Workbench</text>
+  <text x="600" y="128" text-anchor="middle" fill="#CBD5E1" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="16">One workflow. The right model for every engineering role.</text>
+
+  <path d="M220 225 C300 225 312 231 390 231" fill="none" stroke="url(#accent)" stroke-width="2" stroke-opacity="0.62"/>
+  <path d="M410 187 C456 187 465 205 500 211" fill="none" stroke="url(#accent)" stroke-width="2" stroke-opacity="0.62"/>
+  <path d="M790 187 C744 187 735 205 700 211" fill="none" stroke="url(#accent)" stroke-width="2" stroke-opacity="0.62"/>
+  <path d="M980 225 C900 225 888 231 810 231" fill="none" stroke="url(#accent)" stroke-width="2" stroke-opacity="0.62"/>
+
+  <g filter="url(#shadow)">
+    <rect x="70" y="199" width="150" height="52" rx="14" fill="#131D33" stroke="#67E8F9" stroke-opacity="0.5"/>
+    <circle cx="98" cy="225" r="12" fill="#67E8F9" fill-opacity="0.16" stroke="#67E8F9" stroke-opacity="0.75"/>
+    <text x="98" y="230" text-anchor="middle" fill="#CFFAFE" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" font-weight="700">C</text>
+    <text x="122" y="230" fill="#E2E8F0" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">CLAUDE</text>
+
+    <rect x="260" y="161" width="150" height="52" rx="14" fill="#171C36" stroke="#818CF8" stroke-opacity="0.52"/>
+    <circle cx="288" cy="187" r="12" fill="#818CF8" fill-opacity="0.16" stroke="#818CF8" stroke-opacity="0.75"/>
+    <text x="288" y="192" text-anchor="middle" fill="#E0E7FF" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" font-weight="700">X</text>
+    <text x="312" y="192" fill="#E2E8F0" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">CODEX</text>
+
+    <rect x="790" y="161" width="150" height="52" rx="14" fill="#211935" stroke="#C084FC" stroke-opacity="0.52"/>
+    <circle cx="818" cy="187" r="12" fill="#C084FC" fill-opacity="0.16" stroke="#C084FC" stroke-opacity="0.75"/>
+    <text x="818" y="192" text-anchor="middle" fill="#F3E8FF" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" font-weight="700">G</text>
+    <text x="842" y="192" fill="#E2E8F0" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="14" font-weight="650">GROK 4.5</text>
+
+    <rect x="980" y="199" width="150" height="52" rx="14" fill="#28182E" stroke="#F472B6" stroke-opacity="0.52"/>
+    <circle cx="1008" cy="225" r="12" fill="#F472B6" fill-opacity="0.16" stroke="#F472B6" stroke-opacity="0.75"/>
+    <text x="1008" y="230" text-anchor="middle" fill="#FCE7F3" font-family="ui-monospace, SFMono-Regular, monospace" font-size="12" font-weight="700">O</text>
+    <text x="1032" y="230" fill="#E2E8F0" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13" font-weight="650">OPENROUTER</text>
+  </g>
+
+  <g filter="url(#glow)">
+    <rect x="390" y="184" width="420" height="95" rx="22" fill="url(#core)" stroke="url(#accent)" stroke-width="1.5"/>
+  </g>
+  <circle cx="438" cy="231" r="25" fill="#0F172A" stroke="#A78BFA" stroke-width="1.5"/>
+  <path d="M428 229 L436 237 L450 220" fill="none" stroke="#C4B5FD" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="478" y="224" fill="#F8FAFC" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="17" font-weight="750">RUST ORCHESTRATION CORE</text>
+  <text x="478" y="249" fill="#CBD5E1" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="13">workflows • policies • sessions • audit trail</text>
+
+  <g font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="12" font-weight="650">
+    <rect x="376" y="310" width="126" height="27" rx="13.5" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.12"/>
+    <text x="439" y="328" text-anchor="middle" fill="#CFFAFE">ACP-native</text>
+    <rect x="517" y="310" width="166" height="27" rx="13.5" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.12"/>
+    <text x="600" y="328" text-anchor="middle" fill="#E0E7FF">Editor-portable</text>
+    <rect x="698" y="310" width="126" height="27" rx="13.5" fill="#FFFFFF" fill-opacity="0.07" stroke="#FFFFFF" stroke-opacity="0.12"/>
+    <text x="761" y="328" text-anchor="middle" fill="#FCE7F3">Auditable</text>
+  </g>
+</svg>

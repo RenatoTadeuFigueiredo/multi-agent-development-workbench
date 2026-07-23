@@ -2,6 +2,8 @@
 
 Thank you for helping improve the Multi-Agent Development Workbench.
 
+Participation is governed by `CODE_OF_CONDUCT.md`.
+
 ## Before Starting
 
 1. Read `AGENTS.md` and the English `README.md`.

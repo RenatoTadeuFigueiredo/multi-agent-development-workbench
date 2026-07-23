@@ -1,6 +1,35 @@
-# Multi-Agent Development Workbench
+<h1 align="center">Multi-Agent Development Workbench</h1>
 
-> **Status:** Project proposal and technical discovery. The orchestration product has not yet been implemented.
+<p align="center">
+  <img src="assets/readme-hero.svg" width="100%" alt="Claude, Codex, Grok, and OpenRouter connected to a portable Rust orchestration core">
+</p>
+
+<p align="center">
+  <img alt="Project status: design phase" src="https://img.shields.io/badge/status-design%20phase-8B5CF6">
+  <img alt="Core language: Rust" src="https://img.shields.io/badge/core-Rust-DEA584?logo=rust&logoColor=111827">
+  <img alt="Protocol: ACP" src="https://img.shields.io/badge/protocol-ACP-0891B2">
+  <img alt="License: Apache 2.0" src="https://img.shields.io/github/license/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=2563EB">
+  <img alt="Last commit" src="https://img.shields.io/github/last-commit/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=475569">
+</p>
+
+<p align="center">
+  <a href="README.md"><strong>English</strong></a>
+  ·
+  <a href="README.pt-BR.md">Português Brasileiro</a>
+  ·
+  <a href="CONTRIBUTING.md">Contributing</a>
+  ·
+  <a href="SECURITY.md">Security</a>
+  ·
+  <a href="LICENSE">License</a>
+</p>
+
+<p align="center">
+  <strong>One workflow. The right model for every engineering role.</strong>
+</p>
+
+> [!IMPORTANT]
+> This project is in the design and specification phase. The product has not yet been implemented; the README describes the approved direction for the upcoming Speckit corpus.
 
 ## Executive Summary
 
@@ -9,6 +38,14 @@ The Multi-Agent Development Workbench will provide one place to plan, execute, r
 The primary interface will be **Zed**, selected for its native performance, Markdown and Mermaid support, parallel agent experience, and Agent Client Protocol (ACP) integration. The same orchestration engine will also expose a lightweight terminal interface for remote work, automation, and environments where a graphical editor is unnecessary.
 
 The goal is not to create another AI model. It is to create a provider-independent control plane that makes multiple existing agents behave like one accountable engineering team.
+
+## At a Glance
+
+| One workspace | Role-based routing | Flexible access | Editor-portable |
+|---|---|---|---|
+| Prompts, progress, artifacts, diffs, and interventions stay together. | Claude specifies, Codex reviews, Grok implements, and workflows remain configurable. | Use native subscriptions or API models through OpenRouter. | Start in Zed, continue in the terminal, and migrate through ACP adapters. |
+
+**Core principles:** provider independence · explicit handoffs · human control · durable sessions · auditable execution · specification-first delivery.
 
 ## Problem
 
@@ -295,6 +332,21 @@ The MVP is successful when a user can submit one feature request and:
 - Distinguish subscription consumption from OpenRouter API cost for every stage.
 - Open the same persisted session from Zed and the terminal interface.
 - Review a complete audit trail of prompts, decisions, commands, edits, and results.
+
+## Project Readiness
+
+| Foundation | Status | Owner |
+|---|---|---|
+| Product vision, architecture, and MVP boundary | Ready | This README |
+| Public licensing and third-party notice policy | Ready | `LICENSE` and `NOTICE` |
+| Contribution and vulnerability reporting policies | Ready | `CONTRIBUTING.md` and `SECURITY.md` |
+| Shared repository instructions | Ready | `AGENTS.md` |
+| Encoding, line endings, and GitHub collaboration templates | Ready | Repository configuration |
+| Speckit scaffold and constitution | Next | `speckit init multi-agent-development-workbench --here --github-ci --license Apache-2.0` |
+| First active feature and validated specification corpus | Pending | Speckit workflow |
+| Cargo workspace, Rust toolchain policy, CI, and dependency policy | Pending | Speckit plan phase |
+
+Rust-specific build configuration is intentionally deferred until the Speckit plan fixes the workspace boundaries, minimum supported Rust version, target platforms, dependency policy, and CI matrix. This avoids committing speculative toolchain choices before the requirements exist.
 
 ## Specification-First Delivery
 
