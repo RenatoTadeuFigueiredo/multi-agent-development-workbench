@@ -409,15 +409,7 @@ fn connect_openrouter_providers(
     secrets: Arc<dyn SecretSource>,
     ledger: SessionCostLedger,
     cancellation_deadline: Duration,
-) -> Result<
-    Vec<(
-        String,
-        ProviderId,
-        Arc<dyn ProviderAdapter>,
-        ManagedAdapter,
-    )>,
-    CoreError,
-> {
+) -> Result<Vec<(String, ProviderId, Arc<dyn ProviderAdapter>, ManagedAdapter)>, CoreError> {
     let mut connected = Vec::new();
     let cost = startup.resolved.policies.cost.as_ref();
     for (name, provider) in &startup.resolved.providers {

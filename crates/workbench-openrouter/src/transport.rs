@@ -74,12 +74,9 @@ impl FakeOpenRouterTransport {
         _prompt: &str,
     ) -> Result<TransportResult, OpenRouterError> {
         self.calls.fetch_add(1, Ordering::Relaxed);
-        *self
-            .last_authorization
-            .lock()
-            .map_err(|_| {
-                OpenRouterError::new(OpenRouterErrorKind::Unavailable, "transport unavailable")
-            })? = Some(authorization.to_owned());
+        *self.last_authorization.lock().map_err(|_| {
+            OpenRouterError::new(OpenRouterErrorKind::Unavailable, "transport unavailable")
+        })? = Some(authorization.to_owned());
 
         let mode = self
             .modes

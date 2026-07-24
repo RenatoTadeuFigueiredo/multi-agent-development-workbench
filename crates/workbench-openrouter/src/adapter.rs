@@ -171,7 +171,10 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
             adapter_version: self.adapter_version.clone(),
             protocol: OPENROUTER_CHAT_COMPLETIONS_PROTOCOL.to_owned(),
             authentication: self.auth_status(),
-            capabilities: vec![ProviderCapability::Streaming, ProviderCapability::Cancellation],
+            capabilities: vec![
+                ProviderCapability::Streaming,
+                ProviderCapability::Cancellation,
+            ],
             context_window_tokens: Some(128_000),
         })
     }
@@ -407,4 +410,3 @@ fn clear_active(session: &LocalSession, attempt_id: AttemptId) {
         pending.remove(&attempt_id);
     }
 }
-
