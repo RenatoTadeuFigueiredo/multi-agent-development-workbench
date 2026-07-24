@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workbench.local/schemas/session-event.schema.json",
+  "title": "Encrypted Persisted Session Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "storage_schema_version",
+    "event_id",
+    "session_id",
+    "sequence",
+    "occurred_at",
+    "kind",
+    "payload_encryption"
+  ],
+  "properties": {
+    "storage_schema_version": {
+      "const": 1
+    },
+    "event_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "session_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "causation_request_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "kind": {
+      "$ref": "#/$defs/eventKind"
+    },
+    "attempt_id": {
+      "$ref": "#/$defs/uuid"
+    },
+    "effect_class": {
+      "enum": [
+        "none",
+        "idempotent-read",
+        "idempotent-write",
+        "paid-inference",
+        "non-idempotent-write",
+        "production",
+        "credential"
+      ]
+    },
+    "payload_encryption": {
+      "$ref": "#/$defs/encryptedPayload"
+    }
+  },
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventKind": {
+      "enum": [
+        "session_created",
+        "configuration_resolved",
+        "input_recorded",
+        "routing_planned",
+        "clarification_requested",
+        "approval_requested",
+        "approval_recorded",
+        "dispatch_planned",
+        "dispatch_started",
+        "dispatch_acknowledged",
+        "provider_event",
+        "tool_event",
+        "pause_requested",
+        "session_paused",
+        "session_resumed",
+        "session_redirected",
+        "cancel_requested",
+        "cancel_confirmed",
+        "outcome_unknown",
+        "outcome_reconciled",
+        "session_completed",
+        "session_failed",
+        "session_cancelled",
+        "session_abandoned",
+        "session_exported",
+        "session_deletion_requested"
+      ]
+    },
+    "encryptedPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "algorithm",
+        "key_id",
+        "nonce",
+        "ciphertext"
+      ],
+      "properties": {
+        "algorithm": {
+          "const": "xchacha20-poly1305"
+        },
+        "key_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "nonce": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 32,
+          "maxLength": 32
+        },
+        "ciphertext": {
+          "type": "string",
+          "contentEncoding": "base64",
+          "minLength": 24
+        }
+      }
+    }
+  }
+}

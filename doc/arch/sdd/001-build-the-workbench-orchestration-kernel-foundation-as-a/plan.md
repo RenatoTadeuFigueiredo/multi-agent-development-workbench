@@ -98,12 +98,14 @@ idempotency key and prevents a lost reply from duplicating session creation,
 input, controls, or external effects.
 
 Session creation validates configuration and the base lock before writing. It
-then creates the platform key envelope and commits the session, configuration,
-session lock, creation request outcome, and initial events in one SQLite
-transaction that exposes `ready`. A failed transaction deletes the new
-envelope; after database integrity and migration checks succeed under the
-single-daemon lock, startup removes envelopes left orphaned by a crash before
-commit.
+then commits a non-sensitive creation journal before creating the platform key
+envelope. The journal advances from `prepared` to `key_created`; one SQLite
+transaction then commits the session, configuration, session lock, creation
+request outcome, initial events, and journal removal. Startup reconciles only
+envelopes proven by that database's journal. Key records are namespaced by a
+durable storage UUID and canonical database-location hash, so copied state
+roots cannot destroy or reuse another database's envelopes. Absence from a
+database is never treated as proof that an unjournaled envelope is orphaned.
 
 Every provider or tool call receives an attempt identifier. The daemon persists
 `dispatch_planned` and `dispatch_started` before invocation, then persists
@@ -145,9 +147,12 @@ finally convert the journal to a tombstone. The journal contains only session,
 deletion, and request identifiers so recovery can finish in that order without
 the session key. Portable export emits only an age v1 encrypted bundle for
 explicit recipients; no plaintext export command exists and no local key
-material enters the bundle. Export streams directly to the encrypted output,
-creates no plaintext temporary file, and zeroizes secret-key and plaintext
-buffers after their final use.
+material enters the bundle. Export streams into an owner-only age ciphertext
+stage in the destination directory, records durable progress, and publishes
+without overwrite only after the encrypted file is flushed and synchronized.
+Startup completes the journal before deletion recovery. No plaintext temporary
+file is created, and secret-key and plaintext buffers are zeroized after their
+final use.
 
 The decrypted age payload is UTF-8 NDJSON with canonical, key-sorted JSON
 records. A version-1 manifest comes first and records the session,

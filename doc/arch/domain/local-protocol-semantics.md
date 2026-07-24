@@ -22,6 +22,11 @@ payloads, results, events, retries, and reconciliation.
 - The server emits one reply per parsed request. Session events are
   at-least-once and ordered by session sequence. Clients deduplicate by
   `event_id` and resume strictly after their last durable sequence.
+- If framing or major-version rejection occurs before a request ID can be
+  trusted, the daemon returns `invalid_request`, `unsupported_version`, or
+  `frame_too_large` with a daemon-generated transport request ID, then closes
+  the connection. Clients treat only these categories as pre-correlation
+  failures.
 
 ## Command Idempotency
 

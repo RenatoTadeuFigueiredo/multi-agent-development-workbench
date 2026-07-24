@@ -3,6 +3,24 @@
 Feature 001 runs one same-user Workbench daemon on macOS or Linux. It exposes
 no TCP listener and performs no provider network call in the default profile.
 
+## Local Startup
+
+Build and prepare the exact non-session configuration before starting the
+daemon:
+
+```bash
+cargo build --workspace
+cargo run -p workbench-cli -- config validate
+cargo run -p workbench-cli -- config lock
+cargo run -p workbench-cli -- daemon
+```
+
+The generated `.workbench/workbench.lock` includes the user layer and is local
+to the workstation in this repository. Regenerate it after any built-in, user,
+repository, or explicit configuration change. In another terminal,
+`cargo run -p workbench-cli -- --json status` verifies protocol, migration,
+key-store, and adapter health.
+
 ## Runtime Layout
 
 | Data | macOS | Linux |
@@ -25,8 +43,18 @@ listener is accepting; otherwise startup leaves it untouched and fails.
 Startup acquires a single-daemon lock, validates configuration and the base
 lock, opens the platform key store, migrates SQLite, and folds session events.
 It does not accept clients until those steps succeed. Recovery marks every
-started attempt without a definite terminal fact as `outcome_unknown` and
-finishes durable deletion intents before exposing affected sessions.
+started attempt without a definite terminal fact as `outcome_unknown`,
+reconciles journal-proven interrupted session creations, and finishes durable
+encrypted-export journals before deletion intents can destroy their session
+keys or clients can observe affected sessions.
+The platform key store may contain envelopes belonging to another state
+directory. Startup never deletes an envelope merely because it is absent from
+the selected SQLite catalog; changing `XDG_STATE_HOME` therefore cannot erase
+sessions retained under the previous state root. Key namespaces bind the
+database's durable storage UUID to its canonical location, so a copied SQLite
+file at another location cannot reuse or delete the original envelopes and
+fails closed. Because this is the pre-release initial schema, development
+databases created before the creation journal was introduced must be recreated.
 
 `workbench status` reports protocol version, storage schema, key-store
 availability, migration status, active-session counts, and bounded adapter
@@ -43,6 +71,11 @@ variables use the paths in the runtime table; missing or unsafe runtime/temp
 directories are fatal. Feature 001 accepts no credential, prompt, model, or
 policy value from environment variables.
 
+An explicit configuration supplied with `--configuration` must be an absolute,
+owner-controlled, non-symlink file. It is supported by `config validate`,
+`config lock`, and `daemon`; live client commands use the configuration already
+owned by the running daemon.
+
 ## Exit Codes
 
 Daemon startup returns `0` after graceful shutdown, `2` for configuration or
@@ -50,6 +83,15 @@ lock failure, `5` for storage, migration, or key-store failure, `7` for an
 unsupported platform or IPC contract, and `70` for a redacted internal error.
 Headless command exit codes are governed by
 `doc/arch/domain/cli-surface.md`.
+
+The complete offline release gate is `make check`. The real credential-store
+contract is intentionally separate:
+
+```bash
+make test-platform
+```
+
+Run it only in an expendable unlocked Keychain or Secret Service context.
 
 ## Backup, Export, and Removal
 

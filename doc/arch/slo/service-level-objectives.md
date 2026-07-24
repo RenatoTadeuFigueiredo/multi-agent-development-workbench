@@ -26,6 +26,11 @@ measurement boundary.
 | Control acknowledgement | p95 at or below 100 ms, excluding provider safe-point completion | Protocol contract benchmark |
 | Cancellation resolution | Confirmation or `outcome_unknown` within 5 seconds | Fake responsive and unresponsive adapters |
 
+The fan-out benchmark measures from the durable event's `occurred_at` timestamp
+through receipt by the attached IPC client. Because the timestamp is assigned
+immediately before the storage transaction, this is a conservative window that
+also includes persistence and publication.
+
 ## Error Budget Policy
 
 The release gate evaluates every objective on both platforms. A failed

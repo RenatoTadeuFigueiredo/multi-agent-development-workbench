@@ -3,7 +3,7 @@
 ![Claude, Codex, Grok, and OpenRouter connected to a portable Rust orchestration core](assets/readme-hero.svg)
 
 <p align="center">
-  <img alt="Project status: design phase" src="https://img.shields.io/badge/status-design%20phase-8B5CF6">
+  <img alt="Project status: kernel foundation" src="https://img.shields.io/badge/status-kernel%20foundation-2563EB">
   <img alt="Core language: Rust" src="https://img.shields.io/badge/core-Rust-DEA584?logo=rust&logoColor=111827">
   <img alt="Primary interface: VS Code" src="https://img.shields.io/badge/interface-VS%20Code-007ACC?logo=visualstudiocode&logoColor=white">
   <img alt="License: Apache 2.0" src="https://img.shields.io/github/license/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=2563EB">
@@ -27,7 +27,10 @@
 </p>
 
 > [!IMPORTANT]
-> This project is in the design and specification phase. The product has not yet been implemented; the validated Speckit corpus contains the active requirements and technical plan.
+> Feature 001 now provides the executable, fake-provider kernel foundation:
+> a headless CLI, local daemon, encrypted persistence, deterministic routing,
+> controls, and acceptance tests. Live model adapters, the VS Code extension,
+> ACP/MCP integration, and the Grok-derived TUI remain future features.
 
 ## Table of Contents
 
@@ -38,11 +41,15 @@
 - [Delivery Roadmap](#delivery-roadmap)
 - [Speckit source of truth](doc/arch/functional/product-overview.md)
 
-🧭 **Current phase:** feature 001 technical plan complete; task decomposition is next.
+🧭 **Current phase:** feature 001 implementation and release-gate validation.
 
 ## Executive Summary
 
-The Multi-Agent Development Workbench will provide one place to plan, execute, review, and supervise software work performed by different AI coding agents. It will coordinate Claude, Codex, Grok, and OpenRouter-backed models according to explicit roles. Native agents will preserve the subscriptions and authentication already used with each provider, while OpenRouter will provide optional pay-per-use access to a broader model catalog.
+The Multi-Agent Development Workbench is building one place to plan, execute,
+review, and supervise software work performed by different AI coding agents.
+The implemented foundation proves the provider-independent control plane with a
+deterministic fake adapter; later adapters will coordinate Claude, Codex, Grok,
+and OpenRouter-backed models according to explicit roles.
 
 The primary interface will be **Visual Studio Code**, using its agent sessions,
 custom agents, subagents, handoffs, extension APIs, Git tooling, and native
@@ -210,40 +217,36 @@ All orchestration and application logic, plus every first-party binary, will be 
 
 ## Rust Implementation
 
-The control-plane repository will be a Cargo workspace that produces the
-daemon, headless CLI, provider adapters, and terminal bridge:
+Feature 001 is a pinned Rust 1.95 Cargo workspace:
 
 ```text
 crates/
-├── workbench-core/          # Workflows and domain model
-├── workbench-config/        # Layered schema, aliases, locks, and snapshots
-├── workbench-routing/       # Intent plans, role selection, and explainability
-├── workbench-agent/         # Generic agent loop and tools
-├── workbench-acp/           # Provider/editor ACP client and server
-├── workbench-daemon/        # Local editor bridge and process host
-├── workbench-providers/     # Claude, Codex, and Grok adapters
-├── workbench-openrouter/    # OpenRouter API adapter
-├── workbench-storage/       # SQLite and artifacts
-├── workbench-policy/        # Rules, permissions, and approvals
-├── workbench-mcp/           # Shared MCP registry, lock, gateway, and policy
-├── workbench-terminal/      # ACP bridge consumed by the Grok-derived pager
-├── workbench-cli/           # Commands and headless execution
-└── workbench-testkit/       # Fake agents and integration fixtures
-extensions/
-└── vscode/                   # Thin TypeScript client for the Rust daemon
+├── workbench-core/          # Domain model, routing, policy, and ports
+├── workbench-config/        # Layers, validation, snapshots, and locks
+├── workbench-storage/       # Encrypted SQLite, key stores, export, retention
+├── workbench-protocol/      # Strict versioned NDJSON commands and events
+├── workbench-daemon/        # Application services and same-user Unix IPC
+├── workbench-cli/           # Daemon lifecycle and headless client commands
+└── workbench-testkit/       # Deterministic fakes, contracts, acceptance, SLOs
 ```
 
-The Workbench binaries will support interactive, headless, editor, and
-background modes:
+Build and exercise the current offline vertical slice:
 
 ```bash
-workbench                         # Open the Grok-derived terminal UI
-workbench run workflow.yaml       # Execute headlessly
-workbench daemon                  # Serve VS Code and keep sessions running
-workbench agent stdio             # ACP bridge used by the terminal pager
-workbench serve-acp               # Connect Zed, JetBrains, or another ACP client
-workbench status                  # Inspect active sessions
+make build
+cargo run -p workbench-cli -- config validate
+cargo run -p workbench-cli -- config lock
+cargo run -p workbench-cli -- daemon
+# in another terminal:
+cargo run -p workbench-cli -- --json status
+cargo run -p workbench-cli -- --json session create
 ```
+
+See the
+[feature 001 quickstart](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/quickstart.md)
+for prompts, event attachment, controls, JSON output, and the complete gate.
+Interactive, editor, ACP, MCP, and live-provider crates shown elsewhere in the
+architecture are planned, not part of this slice.
 
 The VS Code extension is the only planned first-party component outside Rust because VS Code extensions run in a TypeScript/JavaScript host. It will remain a replaceable client: it renders state, forwards commands, opens artifacts, and streams events from `workbench daemon`. The official Rust ACP SDK will stay isolated behind `workbench-acp` so protocol changes do not leak into the domain model.
 
@@ -294,7 +297,6 @@ models:
 roles:
   workspace-coordinator:
     model: coordinator
-    tools: [repository, git, sessions, gitlab]
   product-architect:
     model: specification
   critical-reviewer:
@@ -330,8 +332,9 @@ workflows:
 ```
 
 This is a repository-layer example. Safe built-ins supply omitted empty role
-fields and the built-in tool definitions; the resolved configuration is fully
-explicit and must satisfy the committed schema.
+fields; tools and data sources must be declared before a role can reference
+them. The resolved configuration is fully explicit and must satisfy the
+committed schema.
 
 Configuration resolves from built-in safe defaults, user configuration,
 `.workbench/workbench.yaml`, and explicit session overrides. A
@@ -494,6 +497,13 @@ Parallel feature branches, remote workers, a visual workflow designer, team coll
 
 ## Current Validation
 
+- The Rust workspace builds an executable same-user daemon and headless CLI
+  with strict protocol negotiation and deterministic fake-provider execution.
+- Sensitive session payloads are encrypted in SQLite; root keys use macOS
+  Keychain or Linux Secret Service, and exports use age encryption.
+- The offline gate exercises contract drift, 23/23 Gherkin bindings, request
+  replay, recovery, retention, deletion, routing, controls, and zero-network
+  behavior.
 - Codex headless execution, structured output, and session resume were validated locally.
 - Grok headless execution, structured output, session resume, and native ACP were validated locally.
 - Grok Build 0.2.111 completed an ACP v1 initialization through
@@ -538,42 +548,38 @@ The MVP is successful when a user can submit one feature request and:
 | Speckit scaffold, constitution, and governance baseline | Ready | `doc/arch/` |
 | First active feature and validated specification corpus | Ready | [Feature 001](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md) |
 | Orchestration-kernel technical plan | Ready | [Feature 001 plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md) |
-| Ordered tasks and cross-artifact analysis | Next | Speckit `tasks` and `analyze` phases |
-| Cargo workspace and executable fake-provider vertical slice | Pending | Speckit `implement` phase |
+| Ordered tasks and cross-artifact analysis | Ready | Feature 001 tasks and analysis |
+| Cargo workspace and executable fake-provider vertical slice | Implemented | Seven Rust crates |
+| Encrypted persistence, local protocol, CLI, and acceptance suite | Implemented | Feature 001 |
 | VS Code extension-to-daemon API spike | Pending | Later Speckit feature |
 | Fork external-ACP backend and two-snapshot rebase spike | Pending | Later Speckit feature |
 | Live MCP gateway and production provider adapters | Pending | Later Speckit features |
 
-The plan now defines the initial workspace boundaries, local protocol,
-persistence strategy, test approach, and Rust 1.95.0 specification CI
-toolchain. Feature 001 supports macOS and Linux; actual toolchain and product
-dependency files are added only when the active feature reaches `implement`.
+Feature 001 pins Rust 1.95.0 and direct dependencies. The default `make check`
+gate is deterministic and offline; real Keychain/Secret Service coverage runs
+through the explicit `make test-platform` gate on macOS and Linux.
 
 ## Specification-First Delivery
 
 This README defines the product vision; `doc/arch/` defines implementation
-requirements. Feature 001 has completed `specify`, `clarify`, and `plan`:
+requirements. Feature 001 has completed the Speckit workflow through
+`implement` and is finishing its release evidence:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
 ```
 
 Each phase produces reviewable Markdown artifacts, and `speckit validate` must
-pass before a corpus or implementation commit. The current feature defines the
-kernel, protocol boundaries, failure semantics, security model, fake-provider
-vertical slice, and acceptance tests. No product code is allowed before
-`tasks` and `analyze` complete and `speckit next` reaches `implement`.
+pass before a corpus or implementation commit. Future behavior changes require
+a tracked change and a new or active Speckit feature before product code.
 
 ## Next Steps
 
-1. Review feature 001's [specification](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md)
-   and [technical plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md).
-2. Run the Speckit `tasks` and `analyze` phases and keep validation green.
-3. Implement the headless orchestration-kernel slice with fake providers only.
-4. Specify the VS Code client, then the bounded Grok Build external-ACP spike.
-5. Specify and implement live Claude, Codex, Grok, OpenRouter, and MCP adapters
+1. Review and merge feature 001 after every offline and platform gate passes.
+2. Specify the VS Code client, then the bounded Grok Build external-ACP spike.
+3. Specify and implement live Claude, Codex, Grok, OpenRouter, and MCP adapters
    independently against the proven core contracts.
-6. Expose shared sessions in VS Code and terminal clients, then pilot the
+4. Expose shared sessions in VS Code and terminal clients, then pilot the
    complete workflow on a non-critical repository.
 
 ## References

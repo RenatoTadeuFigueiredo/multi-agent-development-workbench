@@ -1,0 +1,64 @@
+[workspace]
+members = [
+    "crates/workbench-cli",
+    "crates/workbench-config",
+    "crates/workbench-core",
+    "crates/workbench-daemon",
+    "crates/workbench-protocol",
+    "crates/workbench-storage",
+    "crates/workbench-testkit",
+]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "Apache-2.0"
+repository = "https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench"
+
+[workspace.dependencies]
+age = "=0.12.1"
+anyhow = "=1.0.103"
+async-trait = "=0.1.89"
+base64 = "=0.22.1"
+blake3 = "=1.8.2"
+bytes = "=1.11.1"
+chacha20poly1305 = "=0.11.0"
+clap = { version = "=4.5.50", features = ["derive"] }
+futures-util = "=0.3.31"
+hex = "=0.4.3"
+keyring = { version = "=4.1.5", default-features = false }
+libc = "=0.2.189"
+proptest = "=1.8.0"
+rand = "=0.9.3"
+rusqlite = { version = "=0.40.1", features = ["bundled"] }
+rustix = { version = "=1.1.4", features = ["fs", "process"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.145"
+serde_yaml_ng = "=0.10.0"
+sha2 = "=0.10.9"
+tempfile = "=3.23.0"
+thiserror = "=2.0.17"
+time = { version = "=0.3.47", features = ["formatting", "parsing", "serde"] }
+tokio = { version = "=1.53.1", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-util = { version = "=0.7.16", features = ["codec"] }
+tracing = "=0.1.41"
+tracing-subscriber = { version = "=0.3.20", features = ["env-filter", "fmt", "json"] }
+uuid = { version = "=1.24.0", features = ["serde", "v7"] }
+zeroize = { version = "=1.8.2", features = ["derive"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "deny", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+
+[profile.release]
+codegen-units = 1
+lto = "thin"
+panic = "abort"
+strip = "symbols"

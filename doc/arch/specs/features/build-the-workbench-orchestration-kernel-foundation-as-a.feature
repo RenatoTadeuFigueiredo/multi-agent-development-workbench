@@ -74,12 +74,12 @@ Feature: Provider-independent orchestration kernel
     And the prior instructions remain byte-identical
 
   Scenario: A reconnecting client deduplicates replayed events
-    Given a client last observed session event 20
+    Given session event 20 is the client's last durable cursor
+    And event 21 was received but not checkpointed before disconnect
     And the session has persisted events 21 through 25
-    And event 20 may be replayed again
     When the client reconnects after event 20
     Then it uses stable event identifiers to deduplicate the replay
-    And it retains one ordered copy of events 20 through 25
+    And it retains one ordered copy of events 21 through 25
 
   @security
   Scenario: Protocol validation fails closed

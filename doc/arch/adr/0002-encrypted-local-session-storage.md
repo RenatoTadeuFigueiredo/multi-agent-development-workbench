@@ -43,19 +43,38 @@ artifact payloads use XChaCha20-Poly1305 with a fresh 192-bit nonce.
 Authenticated associated data binds the ciphertext to the storage schema
 version, session identifier, event identifier, sequence, and event kind.
 
-A random 256-bit root key stored as `workbench/storage-root/v1` wraps session
-keys. Each wrapped key envelope is stored as
-`session/<session-id>/v1`. Both records exist only in macOS Keychain or Linux
-Secret Service and are configured as local, non-synchronizing secrets where
-the platform supports that distinction. Persistent mode fails with
+A random 256-bit root key stored under
+`workbench/storage/<storage-id>/<location-id>/root/v1` wraps session keys.
+Each wrapped key envelope uses the same prefix followed by
+`session/<session-id>/v1`. The durable, database-local `storage-id` and a digest
+of the canonical database location prevent independently initialized or copied
+databases from colliding in one platform secret store. Moving a raw SQLite
+file is therefore not a supported migration mechanism; encrypted export is
+required. Both records exist only in macOS Keychain or Linux Secret Service
+and are configured as local, non-synchronizing secrets where the platform
+supports that distinction. Persistent mode fails with
 `key_store_unavailable` when either record cannot be created, unlocked, or
 read. Only the deterministic test profile may substitute an in-memory key
 store; no plaintext persistent fallback exists.
+
+Secret-store catalogs are partitioned by the same database namespace. Daemons
+for different state roots therefore never perform read-modify-write updates on
+one shared catalog during key creation, deletion, or rotation.
+
+The initial schema remains pre-release. Development databases created before
+the namespaced storage identity and creation journal must be recreated; there
+is intentionally no migration from the earlier prototype layout.
 
 Key wrapping also uses XChaCha20-Poly1305 with a fresh nonce. Its associated
 data binds the envelope schema version, session ID, key ID, and root-key ID.
 The implementation must never reuse a nonce under the same key; failure to
 obtain cryptographically secure randomness is fatal.
+
+Session creation records a durable database-local intent before creating its
+external key envelope. Startup recovery reconciles only those journaled,
+namespaced key IDs; it never discovers cleanup candidates by globally listing
+the platform secret store. The session transaction records the initial event
+and command outcome and removes the intent atomically.
 
 SQLite stores event identifiers, session identifiers, sequence numbers,
 timestamps, event kinds, key identifiers, nonces, and ciphertext. It stores

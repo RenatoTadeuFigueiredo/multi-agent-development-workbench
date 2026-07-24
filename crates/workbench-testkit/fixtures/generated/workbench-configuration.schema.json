@@ -1,0 +1,538 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://workbench.local/schemas/workbench-configuration.schema.json",
+  "title": "Workbench Resolved Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "providers",
+    "models",
+    "roles",
+    "tools",
+    "data_sources",
+    "mcp_servers",
+    "workflows",
+    "routing",
+    "policies",
+    "storage",
+    "protocol"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "providers": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/provider"
+      }
+    },
+    "models": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/model"
+      }
+    },
+    "roles": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/role"
+      }
+    },
+    "tools": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/tool"
+      }
+    },
+    "data_sources": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/dataSource"
+      }
+    },
+    "mcp_servers": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/mcpServer"
+      }
+    },
+    "workflows": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/identifier"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/workflow"
+      }
+    },
+    "routing": {
+      "$ref": "#/$defs/routing"
+    },
+    "policies": {
+      "$ref": "#/$defs/policies"
+    },
+    "storage": {
+      "$ref": "#/$defs/storage"
+    },
+    "protocol": {
+      "$ref": "#/$defs/protocol"
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,62}$"
+    },
+    "provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "subscription-cli",
+            "api",
+            "acp",
+            "fake"
+          ]
+        },
+        "executable": {
+          "type": "string",
+          "minLength": 1
+        },
+        "credential_ref": {
+          "type": "string",
+          "pattern": "^(platform|keychain|secret-service):[a-zA-Z0-9._/-]+$"
+        },
+        "privacy": {
+          "$ref": "#/$defs/privacy"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "api"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "credential_ref",
+              "privacy"
+            ]
+          }
+        }
+      ]
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "zero_data_retention",
+        "data_collection"
+      ],
+      "properties": {
+        "zero_data_retention": {
+          "type": "boolean"
+        },
+        "data_collection": {
+          "enum": [
+            "deny",
+            "allow"
+          ]
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider",
+        "runtime_model"
+      ],
+      "properties": {
+        "provider": {
+          "$ref": "#/$defs/identifier"
+        },
+        "runtime_model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model",
+        "tools",
+        "data_sources",
+        "required_capabilities"
+      ],
+      "properties": {
+        "model": {
+          "$ref": "#/$defs/identifier"
+        },
+        "tools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "data_sources": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "required_capabilities": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/capability"
+          }
+        },
+        "fallback_models": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        }
+      }
+    },
+    "capability": {
+      "enum": [
+        "streaming",
+        "tool-calling",
+        "structured-output",
+        "session-resume",
+        "cancellation",
+        "vision",
+        "mcp",
+        "acp"
+      ]
+    },
+    "effectClass": {
+      "enum": [
+        "idempotent-read",
+        "idempotent-write",
+        "paid-inference",
+        "non-idempotent-write",
+        "production",
+        "credential"
+      ]
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "operations"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "builtin",
+            "mcp"
+          ]
+        },
+        "mcp_server": {
+          "$ref": "#/$defs/identifier"
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/toolOperation"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "mcp"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "mcp_server"
+            ]
+          }
+        }
+      ]
+    },
+    "toolOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "effect_class",
+        "idempotent",
+        "material_cost",
+        "approval"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/identifier"
+        },
+        "effect_class": {
+          "$ref": "#/$defs/effectClass"
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "material_cost": {
+          "type": "boolean"
+        },
+        "approval": {
+          "enum": [
+            "never",
+            "policy",
+            "always"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "effect_class": {
+                "enum": [
+                  "paid-inference",
+                  "non-idempotent-write",
+                  "production",
+                  "credential"
+                ]
+              }
+            },
+            "required": [
+              "effect_class"
+            ]
+          },
+          "then": {
+            "properties": {
+              "idempotent": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "dataSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool",
+        "operation"
+      ],
+      "properties": {
+        "tool": {
+          "$ref": "#/$defs/identifier"
+        },
+        "operation": {
+          "$ref": "#/$defs/identifier"
+        }
+      }
+    },
+    "mcpServer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transport",
+        "version",
+        "sha256"
+      ],
+      "properties": {
+        "transport": {
+          "enum": [
+            "stdio",
+            "http"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "steps"
+      ],
+      "properties": {
+        "steps": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/workflowStep"
+          }
+        }
+      }
+    },
+    "workflowStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "role"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "role": {
+          "$ref": "#/$defs/identifier"
+        },
+        "on_findings": {
+          "$ref": "#/$defs/identifier"
+        },
+        "max_iterations": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_role",
+        "confidence_threshold"
+      ],
+      "properties": {
+        "default_role": {
+          "$ref": "#/$defs/identifier"
+        },
+        "confidence_threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_tool_mode",
+        "global_deny",
+        "production_mutations"
+      ],
+      "properties": {
+        "default_tool_mode": {
+          "enum": [
+            "read-only",
+            "approval-required",
+            "denied"
+          ]
+        },
+        "global_deny": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "production_mutations": {
+          "const": "approval-required"
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "encryption",
+        "retention_days",
+        "export_format"
+      ],
+      "properties": {
+        "encryption": {
+          "const": "required"
+        },
+        "retention_days": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "export_format": {
+          "const": "age/v1"
+        }
+      }
+    },
+    "protocol": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_frame_bytes",
+        "max_client_queue_events",
+        "max_client_queue_bytes",
+        "cancellation_deadline_ms"
+      ],
+      "properties": {
+        "max_frame_bytes": {
+          "const": 8388608
+        },
+        "max_client_queue_events": {
+          "const": 1024
+        },
+        "max_client_queue_bytes": {
+          "const": 8388608
+        },
+        "cancellation_deadline_ms": {
+          "const": 5000
+        }
+      }
+    }
+  }
+}

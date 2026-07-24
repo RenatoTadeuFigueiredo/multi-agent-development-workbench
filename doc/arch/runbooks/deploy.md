@@ -1,56 +1,81 @@
-# Publication Runbook — Specification Phase
+# Publication Runbook — Kernel Foundation
 
-The repository currently publishes specifications and architecture only; it
-does not produce a deployable Workbench binary. This runbook governs a
-documentation release from a clean checkout and must be replaced by an
-artifact deployment runbook before the first binary release.
+Feature 001 produces a local `workbench` binary containing the daemon,
+headless CLI, fake-provider vertical slice, encrypted storage, and versioned
+Unix protocol. It does not include the VS Code extension, Grok-derived TUI,
+live provider adapters, ACP bridge, or MCP runtime.
 
 ## Purpose
 
-Publish a reviewed, reproducible Speckit corpus without implying that product
-code or provider integrations are available.
+Publish a reviewed, reproducible kernel-foundation source or local binary build
+without implying that deferred editor or live-provider integrations exist.
 
 ## Trigger
 
-Run this procedure when:
-
-- A reviewed specification change is approved for `main`.
-- A documentation tag or public architecture snapshot is requested.
+Use this procedure for a reviewed source release or a local validation build.
+Do not publish packages or create a release tag unless that action was
+explicitly approved.
 
 ## Preconditions
 
-- The change is linked to its tracked issue and has completed human review.
-- The working tree is clean on the intended commit.
-- `git`, `make`, Rust 1.95.0, and the pinned Speckit revision are available.
-- No product binary or container is included in the release.
+- The change is linked to its tracked issue and approved pull request.
+- The checkout is the exact reviewed commit and the working tree is clean.
+- Rust 1.95.0 and the pinned Speckit revision are installed.
+- Linux Secret Service or macOS Keychain is available for the explicit
+  platform test.
 
 ## Steps
 
-1. Fetch the remote and check out the exact reviewed commit.
-2. Confirm `git status --short` is empty.
-3. Run `speckit status` and verify the reported feature and phase.
-4. Run `speckit validate`; require zero findings.
-5. Run `speckit spec score` and record the project health in the review.
-6. Run `make check`; unbound Gherkin scenarios are expected only until their
-   feature reaches implementation.
-7. Verify Markdown links, Mermaid parsing, and the English/pt-BR README
-   structure.
-8. Merge through the approved pull request. Create a documentation tag only
-   when the release request explicitly requires one.
+1. Confirm the checkout is clean and points to the reviewed commit.
+2. Run the complete offline and platform gates.
+3. Build the locked release workspace.
+
+```bash
+git status --short
+speckit status
+make check
+make test-platform
+cargo build --workspace --release --locked
+```
+
+`make check` must pass formatting, Clippy, contract drift, the offline workspace
+suite, all 23 Gherkin bindings, SLOs, analysis, verification, and validation.
+`make test-platform` must run in an expendable unlocked credential-store
+context; success is required before claiming support for that operating system.
+
+The release binary is `target/release/workbench`. Verify it without external
+provider traffic:
+
+```bash
+target/release/workbench config validate
+target/release/workbench config lock
+target/release/workbench --json status
+```
+
+The last command expects a daemon already running from the same repository and
+configuration lock. Record only sanitized command results; never attach local
+configuration, databases, key-store records, or prompt bodies to a release.
 
 ## Verification
 
-- `speckit validate` reports zero findings.
-- `make check` exits successfully.
-- The published commit equals the reviewed commit.
-- The README still states that implementation has not begun.
+- `make check` and the target platform credential-store contract pass.
+- The release build uses `--locked` and the pinned Rust toolchain.
+- The built commit and recorded checksum match the reviewed source.
+- Release notes state the feature 001 boundary and contain no sensitive data.
+
+## Publication
+
+1. Confirm the built commit equals the reviewed commit.
+2. Record the Rust version, operating systems, gate results, and artifact
+   checksum in the release review.
+3. Merge through the approved pull request.
+4. Create a source or binary tag only when explicitly authorized.
+5. Describe the feature 001 boundary accurately; do not advertise live model,
+   editor, terminal, ACP, or MCP support.
 
 ## Rollback
 
-If any step fails or verification does not pass:
-
-1. Stop publication when any verification step fails.
-2. If a bad documentation commit reached `main`, create a reverting change
-   through the normal review flow; do not rewrite shared history.
-3. Re-run `speckit validate` and `make check` on the revert.
-4. Record the failure on the tracked issue before republishing.
+Stop when any gate fails. If a bad change reaches `main`, create a focused
+revert through the normal review flow; never rewrite shared history. Re-run
+`make check` and the affected platform test on the revert, then record the
+failure on the tracked issue before republishing.

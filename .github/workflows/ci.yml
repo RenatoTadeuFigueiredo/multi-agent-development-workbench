@@ -1,8 +1,5 @@
-# .github/workflows/ci.yml — optional GitHub Actions mirror (ADR-0025).
-#
-# Generated only by `speckit init --github-ci`. The canonical pipeline is
-# GitLab CI (.gitlab-ci.yml); this is a convenience mirror for GitHub-hosted
-# repositories and is intentionally minimal.
+# GitHub is the active host. The offline gate and explicit platform-store
+# contract run on fixed Linux and macOS runner generations.
 
 name: ci
 
@@ -14,15 +11,72 @@ on:
 env:
   SPECKIT_REV: 66ff12a955a907222d359f359f8eeb9a1dd02fe2
 
+permissions:
+  contents: read
+
 jobs:
   check:
-    runs-on: ubuntu-latest
+    name: check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-24.04
+          - macos-15
+    runs-on: ${{ matrix.os }}
     steps:
       # Pinned to a 40-char commit SHA so `speckit validate` stays green out of
       # the box (ADR-0031, pin.ci.unpinned-action); the comment records the tag.
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Install Rust toolchain
-        run: rustup toolchain install 1.95.0 --profile minimal
+        run: rustup toolchain install 1.95.0 --profile minimal --component clippy,rustfmt
       - name: Install Speckit
         run: cargo +1.95.0 install --locked --git https://github.com/farchanjo/speckit.git --rev "$SPECKIT_REV"
-      - run: make check
+      - name: Fetch locked Rust dependencies
+        run: cargo +1.95.0 fetch --locked
+      - name: Run complete offline gate
+        run: make check
+      - name: Install Linux Secret Service
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gnome-keyring libsecret-tools
+      - name: Run Linux Secret Service contract
+        if: runner.os == 'Linux'
+        run: |
+          dbus-run-session -- sh -eu -c '
+            printf "%s\n" "workbench-ci" |
+              gnome-keyring-daemon \
+                --components=secrets \
+                --daemonize \
+                --unlock
+            make test-platform
+          '
+      - name: Run macOS Keychain contract
+        if: runner.os == 'macOS'
+        run: make test-platform
+
+  supply-chain:
+    name: supply chain
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install Rust toolchain
+        run: rustup toolchain install 1.95.0 --profile minimal
+      - name: Fetch locked Rust dependencies
+        run: cargo +1.95.0 fetch --locked
+      - name: Install pinned supply-chain tools
+        shell: bash
+        run: |
+          source security/supply-chain-tools.env
+          cargo +1.95.0 install --locked --version "$CARGO_DENY_VERSION" cargo-deny
+          cargo +1.95.0 install --locked --version "$CARGO_CYCLONEDX_VERSION" cargo-cyclonedx
+      - name: Check advisories, licenses, sources, and SBOM
+        run: make supply-chain-ci
+      - name: Upload CycloneDX SBOMs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cyclonedx-sbom
+          path: target/sbom/*.cdx.json
+          if-no-files-found: error
+          retention-days: 14

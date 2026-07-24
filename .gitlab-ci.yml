@@ -2,7 +2,9 @@
 #
 # GitHub Actions is the active pipeline for this repository. This file keeps
 # the Speckit corpus portable to a GitLab mirror and satisfies its project
-# baseline. Do not add a container image; GitLab runners own their toolchains.
+# baseline. It does not claim platform-support evidence; the pinned Linux/macOS
+# GitHub matrix is the release gate. Do not add a container image; GitLab
+# runners own their toolchains.
 
 stages:
   - lint
@@ -20,18 +22,39 @@ workflow:
 
 lint:
   stage: lint
+  before_script:
+    - cargo fetch --locked
   script:
     - make lint
 
 test:
   stage: test
+  before_script:
+    - cargo fetch --locked
   script:
     - make test
 
 validate:
   stage: validate
+  before_script:
+    - cargo fetch --locked
   script:
-    - speckit validate
+    - make check
+
+supply_chain:
+  stage: validate
+  before_script:
+    - cargo fetch --locked
+    - . security/supply-chain-tools.env
+    - cargo install --locked --version "$CARGO_DENY_VERSION" cargo-deny
+    - cargo install --locked --version "$CARGO_CYCLONEDX_VERSION" cargo-cyclonedx
+  script:
+    - make supply-chain-ci
+  artifacts:
+    name: "cyclonedx-sbom-$CI_COMMIT_SHA"
+    paths:
+      - target/sbom/*.cdx.json
+    expire_in: 14 days
 
 release:
   stage: release

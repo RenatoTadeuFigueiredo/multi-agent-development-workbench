@@ -11,7 +11,9 @@ Participation is governed by `CODE_OF_CONDUCT.md`.
 3. Open or reference an issue that explains the problem and expected outcome.
 4. Create a focused branch from `main`.
 
-Once Speckit is initialized, product features and behavior changes must follow the active Speckit feature and its current phase. Do not implement product code before the workflow reaches `implement`, and do not bypass a failing `speckit validate`.
+Product features and behavior changes must follow the active Speckit feature
+and its current phase. Do not implement product code before the workflow
+reaches `implement`, and do not bypass a failing `speckit validate`.
 
 Terminal UI work follows the separate branch policy documented in
 `docs/architecture/grok-build-terminal-integration.md`. In the Grok Build fork,
@@ -37,9 +39,11 @@ Routing, configuration, and provider work must follow
   narrow external ACP backend instead of reimplementing or broadly modifying
   the TUI.
 - Make surgical changes and avoid unrelated refactors.
-- Format Rust with `cargo fmt`.
-- Run `cargo clippy --all-targets --all-features -- -D warnings`.
-- Run the relevant tests and, when available, the complete workspace suite.
+- Run `make check` before requesting review. It verifies Rust formatting,
+  Clippy, contract drift, workspace tests, all 23 acceptance scenarios, SLOs,
+  and the Speckit gates.
+- Use `make test-platform` only with an expendable, unlocked OS credential
+  store; the default suite uses the in-memory key store.
 - Add tests for behavior changes, failures, and meaningful edge cases.
 - Test configuration precedence, schema migration, capability preflight,
   routing explanations, fallbacks, and provider removal when those behaviors
@@ -47,7 +51,9 @@ Routing, configuration, and provider work must follow
 - Keep the English and PT-BR README versions aligned when changing shared content.
 - Never commit credentials, provider sessions, API keys, or local databases.
 
-Commands may evolve while the project is scaffolded. Prefer the stable entry points documented in `README.md` and `AGENTS.md`.
+See the
+[feature 001 quickstart](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/quickstart.md)
+for the executable fake-provider flow.
 
 ## Pull Requests
 
