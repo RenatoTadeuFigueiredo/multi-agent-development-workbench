@@ -26,6 +26,10 @@ Prompt text may be read from standard input by passing `-`; it is never accepted
 as a process environment variable. Commands use the installed configuration
 unless an explicit configuration path is supplied.
 
+`config validate` and `config lock` invoke the same daemon application services
+in a bounded one-shot server composition. The CLI contains no independent
+configuration, lock, routing, policy, storage, or provider decision logic.
+
 ## --json Contract
 
 Human output is the default. `--json` emits one versioned JSON result for a

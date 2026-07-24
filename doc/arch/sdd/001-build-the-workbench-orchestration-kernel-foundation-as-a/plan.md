@@ -149,6 +149,13 @@ material enters the bundle. Export streams directly to the encrypted output,
 creates no plaintext temporary file, and zeroizes secret-key and plaintext
 buffers after their final use.
 
+The decrypted age payload is UTF-8 NDJSON with canonical, key-sorted JSON
+records. A version-1 manifest comes first and records the session,
+configuration hash, lock hash, and event count; the redacted configuration
+snapshot, session lock, and ordered event records follow. The payload contains
+no root key, data-encryption key, wrapped key, credential value, or platform
+key-store identifier.
+
 ### Local Client Protocol
 
 Use a typed, newline-framed JSON request/response and notification protocol
@@ -156,6 +163,9 @@ over same-user local IPC. Unix domain sockets are used on Unix platforms and
 feature 001 supports macOS and Linux only. Every connection verifies peer
 ownership and endpoint permissions before negotiating `workbench/1`. Failure
 to verify ownership closes the connection without creating session state.
+Actors recorded for controls, approvals, reconciliation, export, and deletion
+are derived by the daemon as `local-user:<uid>` from the verified peer
+credential; client-supplied labels are never authoritative identities.
 
 Frames have a fixed 8 MiB ceiling. Each subscriber receives a bounded queue of
 1,024 events or 8 MiB; crossing either limit emits `client_lagged` and

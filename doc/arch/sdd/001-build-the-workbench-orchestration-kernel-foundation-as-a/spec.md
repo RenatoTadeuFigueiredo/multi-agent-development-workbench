@@ -2,7 +2,7 @@
 id: 019f908d-d49d-71c1-8822-0fc4ad0f0069
 number: 001
 slug: build-the-workbench-orchestration-kernel-foundation-as-a
-status: planned
+status: analyzed
 created_at: 2026-07-23T19:57:21.949953Z
 ---
 # Feature Specification: Orchestration Kernel Foundation
@@ -243,8 +243,9 @@ contracts established here.
 9. **Redirect history:** Given a paused session, when a client redirects it,
    then the instruction is appended, both clients observe it, and earlier
    history remains byte-identical.
-10. **Replay deduplication:** Given a client reconnects after sequence 20, when
-    replay returns events already delivered and events 21 through 25, then
+10. **Replay deduplication:** Given sequence 20 is the client's last durable
+    cursor and event 21 was received but not checkpointed before disconnect,
+    when replay strictly after sequence 20 returns events 21 through 25, then
     stable event identifiers allow the client to retain one ordered copy of
     each event.
 11. **Protocol negotiation rejection:** Given an incompatible major or

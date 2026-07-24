@@ -133,7 +133,18 @@ components:
         ok:
           type: boolean
         result:
-          type: object
+          oneOf:
+            - $ref: '#/components/schemas/InitializeResult'
+            - $ref: '#/components/schemas/StatusResult'
+            - $ref: '#/components/schemas/CreateSessionResult'
+            - $ref: '#/components/schemas/SessionStateResult'
+            - $ref: '#/components/schemas/AttachSessionResult'
+            - $ref: '#/components/schemas/PromptResult'
+            - $ref: '#/components/schemas/ControlResult'
+            - $ref: '#/components/schemas/ApprovalResult'
+            - $ref: '#/components/schemas/ReconciliationResult'
+            - $ref: '#/components/schemas/ExportResult'
+            - $ref: '#/components/schemas/DeleteResult'
         error:
           $ref: '#/components/schemas/ProtocolError'
       allOf:
@@ -155,6 +166,255 @@ components:
             not:
               required:
                 - result
+    InitializeResult:
+      type: object
+      additionalProperties: false
+      required:
+        - selected_protocol
+        - max_frame_bytes
+        - max_client_queue_events
+        - max_client_queue_bytes
+      properties:
+        selected_protocol:
+          const: workbench/1
+        max_frame_bytes:
+          const: 8388608
+        max_client_queue_events:
+          const: 1024
+        max_client_queue_bytes:
+          const: 8388608
+    StatusResult:
+      type: object
+      additionalProperties: false
+      required:
+        - daemon_version
+        - protocol
+        - storage_schema_version
+        - key_store
+        - migration
+        - active_sessions
+        - adapters
+      properties:
+        daemon_version:
+          type: string
+          minLength: 1
+          maxLength: 64
+        protocol:
+          const: workbench/1
+        storage_schema_version:
+          type: integer
+          minimum: 1
+        key_store:
+          enum:
+            - available
+            - locked
+            - unavailable
+        migration:
+          enum:
+            - ready
+            - failed
+        active_sessions:
+          type: integer
+          minimum: 0
+        adapters:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - status
+            properties:
+              id:
+                type: string
+                minLength: 1
+                maxLength: 128
+              status:
+                enum:
+                  - available
+                  - unavailable
+    CreateSessionResult:
+      type: object
+      additionalProperties: false
+      required:
+        - session_id
+        - configuration_hash
+        - lock_hash
+        - state
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        configuration_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        lock_hash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        state:
+          const: ready
+    SessionStateResult:
+      type: object
+      additionalProperties: false
+      required:
+        - session_id
+        - state
+        - last_sequence
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/SessionState'
+        last_sequence:
+          type: integer
+          minimum: 1
+        pending_approval_id:
+          type: string
+          format: uuid
+        uncertain_attempt_id:
+          type: string
+          format: uuid
+    AttachSessionResult:
+      type: object
+      additionalProperties: false
+      required:
+        - session_id
+        - state
+        - replay_after_sequence
+        - last_sequence
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/SessionState'
+        replay_after_sequence:
+          type: integer
+          minimum: 0
+        last_sequence:
+          type: integer
+          minimum: 1
+    PromptResult:
+      type: object
+      additionalProperties: false
+      required:
+        - input_id
+        - sequence
+      properties:
+        input_id:
+          type: string
+          format: uuid
+        sequence:
+          type: integer
+          minimum: 1
+    ControlResult:
+      type: object
+      additionalProperties: false
+      required:
+        - control_id
+        - control
+        - state
+      properties:
+        control_id:
+          type: string
+          format: uuid
+        control:
+          enum:
+            - pause
+            - resume
+            - redirect
+            - cancel
+        state:
+          $ref: '#/components/schemas/SessionState'
+    ApprovalResult:
+      type: object
+      additionalProperties: false
+      required:
+        - approval_id
+        - decision
+        - state
+      properties:
+        approval_id:
+          type: string
+          format: uuid
+        decision:
+          enum:
+            - grant
+            - deny
+        state:
+          $ref: '#/components/schemas/SessionState'
+    ReconciliationResult:
+      type: object
+      additionalProperties: false
+      required:
+        - attempt_id
+        - resolution
+        - state
+      properties:
+        attempt_id:
+          type: string
+          format: uuid
+        resolution:
+          enum:
+            - retry
+            - accept_result
+            - abandon
+        replacement_attempt_id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/SessionState'
+    ExportResult:
+      type: object
+      additionalProperties: false
+      required:
+        - export_id
+        - format
+        - recipient_fingerprints
+      properties:
+        export_id:
+          type: string
+          format: uuid
+        format:
+          const: age-v1
+        recipient_fingerprints:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items:
+            type: string
+            minLength: 1
+            maxLength: 128
+    DeleteResult:
+      type: object
+      additionalProperties: false
+      required:
+        - deletion_id
+        - state
+      properties:
+        deletion_id:
+          type: string
+          format: uuid
+        state:
+          enum:
+            - deleting
+            - deleted
+    SessionState:
+      enum:
+        - ready
+        - running
+        - pausing
+        - paused
+        - awaiting_clarification
+        - awaiting_approval
+        - cancel_requested
+        - outcome_unknown
+        - completed
+        - failed
+        - cancelled
+        - abandoned
+        - deleting
     ProtocolError:
       type: object
       additionalProperties: false
@@ -424,3 +684,18 @@ x-workbench-parameter-schema-by-method:
   session.reconcile: '#/components/schemas/Reconciliation'
   session.export: '#/components/schemas/ExportParams'
   session.delete: '#/components/schemas/DeleteParams'
+x-workbench-result-schema-by-method:
+  initialize: '#/components/schemas/InitializeResult'
+  status.get: '#/components/schemas/StatusResult'
+  session.create: '#/components/schemas/CreateSessionResult'
+  session.get: '#/components/schemas/SessionStateResult'
+  session.attach: '#/components/schemas/AttachSessionResult'
+  session.prompt: '#/components/schemas/PromptResult'
+  session.pause: '#/components/schemas/ControlResult'
+  session.resume: '#/components/schemas/ControlResult'
+  session.redirect: '#/components/schemas/ControlResult'
+  session.cancel: '#/components/schemas/ControlResult'
+  session.approval.resolve: '#/components/schemas/ApprovalResult'
+  session.reconcile: '#/components/schemas/ReconciliationResult'
+  session.export: '#/components/schemas/ExportResult'
+  session.delete: '#/components/schemas/DeleteResult'

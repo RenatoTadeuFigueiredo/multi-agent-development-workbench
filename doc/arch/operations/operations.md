@@ -9,14 +9,16 @@ no TCP listener and performs no provider network call in the default profile.
 |---|---|---|
 | User configuration | `~/Library/Application Support/Workbench/config.yaml` | `${XDG_CONFIG_HOME:-~/.config}/workbench/config.yaml` |
 | State directory | `~/Library/Application Support/Workbench/state/` | `${XDG_STATE_HOME:-~/.local/state}/workbench/` |
-| IPC endpoint | Private `workbench-<uid>` directory under the user temporary directory | `${XDG_RUNTIME_DIR}/workbench/workbench.sock` |
+| IPC endpoint | `<user-temp>/workbench-<uid>/workbench.sock` | `${XDG_RUNTIME_DIR}/workbench/workbench.sock` |
 | Root and session-key envelopes | macOS Keychain | Secret Service login collection |
 
 State and endpoint directories use mode `0700`; state files, exports, and the
 socket use mode `0600`. The non-secret repository lock follows repository
 permissions. Startup rejects symlinks, unexpected ownership, broad permissions,
 missing peer-credential support, and an occupied endpoint that cannot be proven
-stale.
+stale. An endpoint is stale only when its owner matches the current user, the
+single-daemon lock can be acquired, and a connection attempt proves that no
+listener is accepting; otherwise startup leaves it untouched and fails.
 
 ## Startup and Recovery
 

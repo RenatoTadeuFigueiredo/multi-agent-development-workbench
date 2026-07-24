@@ -16,6 +16,9 @@ payloads, results, events, retries, and reconciliation.
 - The endpoint parent directory is mode `0700` and the Unix socket is mode
   `0600`. The daemon verifies platform peer credentials and the endpoint owner
   before processing `initialize`; unsupported verification fails closed.
+- Audit actors are derived as `local-user:<uid>` from the verified peer
+  credential. `client_name`, request parameters, and provider output are never
+  accepted as authoritative actor identities.
 - The server emits one reply per parsed request. Session events are
   at-least-once and ordered by session sequence. Clients deduplicate by
   `event_id` and resume strictly after their last durable sequence.
@@ -67,6 +70,13 @@ relative, traverse through `..`, target a symlink, or overwrite an existing
 file. Public protocol v1 has no plaintext export or ephemeral-session command.
 Configured retention is measured from the first terminal event and invokes the
 same deletion flow; active and `outcome_unknown` sessions never expire.
+
+The decrypted age v1 payload is newline-delimited canonical JSON. Its first
+record is a `workbench.session-export` manifest with `schema_version: 1`,
+session ID, configuration hash, lock hash, and event count. A redacted
+configuration snapshot, session lock, and events in ascending sequence follow.
+Key material, credential values, platform key-store identifiers, and plaintext
+temporary files are forbidden.
 
 ## Event Payloads
 
