@@ -15,7 +15,8 @@ pub use key_store::{KeyManager, KeyStore, MemoryKeyStore, PlatformKeyStore};
 pub use ports::CoreStorageAdapter;
 pub use sqlite::{
     CommandEventOutcome, CommandEventsOutcome, CommandOutcome, CreateSession, DeletionSummary,
-    EventInput, PersistedEvent, RecoveredAttempt, SqliteStorage, StoredSession,
+    EventInput, PersistedEvent, RecoveredAttempt, SessionMetadataPage, SqliteStorage,
+    StoredSession, StoredSessionMetadata,
 };
 
 use thiserror::Error;

@@ -14,9 +14,11 @@ use tempfile::TempDir;
 use tokio::net::{UnixListener, UnixStream};
 use tokio_util::codec::Framed;
 use uuid::Uuid;
+use workbench_daemon::runtime_paths::workspace_id;
 use workbench_protocol::{ClientCommand, Command as ProtocolCommand, NdjsonCodec, PROTOCOL_V1};
 
 const SESSION_ID: &str = "018f47ef-9052-7b86-b31d-3f8962457776";
+const LISTED_SESSION_ID: &str = "018f47ef-9052-7b86-b31d-3f8962457777";
 
 #[test]
 fn config_validate_emits_one_versioned_json_result_with_uuid_v7() {
@@ -106,6 +108,87 @@ fn explicit_configuration_is_rejected_for_live_daemon_commands() {
     assert_eq!(output.status.code(), Some(2));
     let value: Value = serde_json::from_slice(&output.stdout).expect("JSON failure");
     assert_eq!(value["error"]["code"], "invalid_input");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn session_list_uses_the_daemon_scoped_wire_contract() {
+    let root = tempfile::Builder::new()
+        .prefix("wb-cli-list-")
+        .tempdir_in("/tmp")
+        .expect("short temporary repository");
+    let endpoint = runtime_endpoint(root.path());
+    std::fs::create_dir_all(endpoint.parent().expect("endpoint parent"))
+        .expect("runtime directory");
+    std::fs::set_permissions(
+        endpoint.parent().expect("endpoint parent"),
+        std::fs::Permissions::from_mode(0o700),
+    )
+    .expect("private runtime directory");
+    let listener = UnixListener::bind(&endpoint).expect("test daemon endpoint");
+    std::fs::set_permissions(&endpoint, std::fs::Permissions::from_mode(0o600))
+        .expect("private endpoint");
+    let cursor = Uuid::parse_str(SESSION_ID).expect("cursor");
+    let listed_session_id = Uuid::parse_str(LISTED_SESSION_ID).expect("listed session ID");
+    let server = tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.expect("list client");
+        let mut transport: TestTransport = Framed::new(stream, NdjsonCodec::default());
+        initialize(&mut transport).await;
+        let list = transport
+            .next()
+            .await
+            .expect("list frame")
+            .expect("list command");
+        assert_eq!(list.session_id, None);
+        assert!(matches!(
+            list.command,
+            ProtocolCommand::SessionList(params)
+                if params.limit == 20 && params.before_session_id == Some(cursor)
+        ));
+        transport
+            .send(serde_json::json!({
+                "protocol": PROTOCOL_V1,
+                "request_id": list.request_id,
+                "ok": true,
+                "result": {
+                    "sessions": [{
+                        "session_id": listed_session_id,
+                        "state": "ready",
+                        "created_at": "2026-01-01T00:00:00Z"
+                    }]
+                }
+            }))
+            .await
+            .expect("list result");
+    });
+
+    let repository = root.path().to_path_buf();
+    let output = tokio::task::spawn_blocking(move || {
+        test_command(
+            &repository,
+            &[
+                "--json",
+                "session",
+                "list",
+                "--limit",
+                "20",
+                "--before-session-id",
+                SESSION_ID,
+            ],
+        )
+        .output()
+        .expect("CLI output")
+    })
+    .await
+    .expect("join CLI");
+
+    assert!(output.status.success(), "{output:?}");
+    let value: Value = serde_json::from_slice(&output.stdout).expect("list JSON");
+    assert_eq!(
+        value["result"]["sessions"][0]["session_id"],
+        LISTED_SESSION_ID
+    );
+    assert!(output.stderr.is_empty());
+    server.await.expect("server task");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -337,6 +420,7 @@ fn test_command(repository: &Path, arguments: &[&str]) -> Command {
 
 fn runtime_endpoint(repository: &Path) -> std::path::PathBuf {
     let runtime = repository.join("runtime");
+    let workspace_id = workspace_id(repository).expect("workspace ID");
     #[cfg(target_os = "macos")]
     {
         let uid = std::fs::metadata(repository)
@@ -344,11 +428,13 @@ fn runtime_endpoint(repository: &Path) -> std::path::PathBuf {
             .uid();
         runtime
             .join(format!("workbench-{uid}"))
-            .join("workbench.sock")
+            .join(format!("{workspace_id}.sock"))
     }
     #[cfg(target_os = "linux")]
     {
-        runtime.join("workbench").join("workbench.sock")
+        runtime
+            .join("workbench")
+            .join(format!("{workspace_id}.sock"))
     }
 }
 

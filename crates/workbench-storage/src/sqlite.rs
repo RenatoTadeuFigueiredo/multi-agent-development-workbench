@@ -64,6 +64,20 @@ pub struct StoredSession {
     pub lock_snapshot: Value,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StoredSessionMetadata {
+    pub session_id: Uuid,
+    pub state: String,
+    pub created_at: OffsetDateTime,
+    pub terminal_at: Option<OffsetDateTime>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionMetadataPage {
+    pub sessions: Vec<StoredSessionMetadata>,
+    pub next_before_session_id: Option<Uuid>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum CommandOutcome {
     Recorded(Value),
@@ -559,6 +573,58 @@ impl<K: KeyStore> SqliteStorage<K> {
             .into_iter()
             .map(|session_id| self.load_session(parse_uuid(&session_id)?))
             .collect()
+    }
+
+    pub fn list_session_metadata(
+        &self,
+        limit: u16,
+        before_session_id: Option<Uuid>,
+    ) -> Result<SessionMetadataPage, StorageError> {
+        if !(1..=100).contains(&limit) {
+            return Err(StorageError::InvalidInput(
+                "session list limit must be between 1 and 100",
+            ));
+        }
+        let before_session_id = before_session_id.map(|value| value.to_string());
+        let query_limit = i64::from(limit) + 1;
+        let mut statement = self.connection.prepare(
+            "SELECT session_id, state, created_at, terminal_at
+             FROM sessions
+             WHERE (?1 IS NULL OR session_id < ?1)
+             ORDER BY session_id DESC
+             LIMIT ?2",
+        )?;
+        let mut sessions = statement
+            .query_map(params![before_session_id, query_limit], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, Option<String>>(3)?,
+                ))
+            })?
+            .map(|row| {
+                let (session_id, state, created_at, terminal_at) = row?;
+                Ok(StoredSessionMetadata {
+                    session_id: parse_uuid(&session_id)?,
+                    state,
+                    created_at: parse_time(&created_at)?,
+                    terminal_at: terminal_at.as_deref().map(parse_time).transpose()?,
+                })
+            })
+            .collect::<Result<Vec<_>, StorageError>>()?;
+        let has_more = sessions.len() > usize::from(limit);
+        sessions.truncate(usize::from(limit));
+        let next_before_session_id = has_more.then(|| {
+            sessions
+                .last()
+                .expect("a non-empty bounded page has a last session")
+                .session_id
+        });
+        Ok(SessionMetadataPage {
+            sessions,
+            next_before_session_id,
+        })
     }
 
     pub fn append_event(&mut self, input: &EventInput) -> Result<PersistedEvent, StorageError> {
@@ -1499,7 +1565,17 @@ fn append_event_in_transaction(
         &input.payload,
     )?;
     insert_event(transaction, input, sequence, key_id, &encrypted)?;
-    if let Some(state) = state_for_kind(&input.kind) {
+    if input.kind == "session_redirected" {
+        transaction.execute(
+            "UPDATE sessions
+             SET state = CASE
+                 WHEN state = 'awaiting_clarification' THEN 'ready'
+                 ELSE state
+             END
+             WHERE session_id = ?1",
+            [input.session_id.to_string()],
+        )?;
+    } else if let Some(state) = state_for_kind(&input.kind) {
         let terminal_at = TERMINAL_KINDS
             .contains(&input.kind.as_str())
             .then(|| format_time(input.occurred_at));

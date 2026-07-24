@@ -38,13 +38,15 @@ use workbench_protocol::{
     ClientCommand, Command, ErrorCode, EventKind, ProtocolError, ServerReply, SessionEvent,
     command::{
         ApprovalDecision, ApprovalParams, AttachSessionParams, CreateSessionParams, DeleteParams,
-        ExportParams, PromptParams, ReconciliationParams, ReconciliationResolution, RedirectParams,
+        ExportParams, ListSessionsParams, PromptParams, ReconciliationParams,
+        ReconciliationResolution, RedirectParams,
     },
     response::{
         AdapterHealth, AdapterStatus, ApprovalResult, AttachSessionResult, Control, ControlResult,
         CreateSessionResult, DeleteResult, DeleteState, ExportFormat, ExportResult,
-        InitializeResult, KeyStoreStatus, MigrationStatus, PromptResult, ProtocolVersion,
-        ReadyState, ReconciliationResult, SessionResult, SessionState, StatusResult,
+        InitializeResult, KeyStoreStatus, ListSessionsResult, MigrationStatus, PromptResult,
+        ProtocolVersion, ReadyState, ReconciliationResult, SessionResult, SessionState,
+        SessionSummary, StatusResult,
     },
 };
 use workbench_storage::{
@@ -521,6 +523,7 @@ impl Application {
                     let _guard = self.creation_lock.lock().await;
                     self.handle_create(request_id, &params)
                 }
+                Command::SessionList(params) => self.handle_list(params),
                 _ => Err(DaemonError::InvalidRequest(
                     "session identifier is required",
                 )),
@@ -701,6 +704,28 @@ impl Application {
             }
         };
         value_success(result)
+    }
+
+    fn handle_list(&self, params: ListSessionsParams) -> Result<CommandSuccess, DaemonError> {
+        let page = self
+            .storage
+            .list_session_metadata(params.limit, params.before_session_id)?;
+        let sessions = page
+            .sessions
+            .into_iter()
+            .map(|session| {
+                Ok(SessionSummary {
+                    session_id: session.session_id,
+                    state: parse_session_state(&session.state)?,
+                    created_at: format_time(session.created_at)?,
+                    terminal_at: session.terminal_at.map(format_time).transpose()?,
+                })
+            })
+            .collect::<Result<Vec<_>, DaemonError>>()?;
+        success(ListSessionsResult {
+            sessions,
+            next_before_session_id: page.next_before_session_id,
+        })
     }
 
     fn handle_get(&self, session_id: Uuid) -> Result<CommandSuccess, DaemonError> {
@@ -2587,7 +2612,7 @@ impl From<workbench_protocol::SubscriptionError> for DaemonError {
 mod tests {
     use workbench_protocol::{
         PROTOCOL_V1,
-        command::{CreateSessionParams, EmptyParams, InitializeParams},
+        command::{CreateSessionParams, EmptyParams, InitializeParams, ListSessionsParams},
     };
 
     use super::*;
@@ -2800,6 +2825,119 @@ mod tests {
             client_name: "local-user:0".to_owned(),
         };
         assert_eq!(spoofed.actor(), "local-user:1000");
+    }
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn session_list_returns_metadata_only_in_descending_cursor_pages() {
+        let application = Application::in_memory(
+            startup_from_configuration(WorkbenchConfiguration::safe_builtins()),
+            FakeBehavior::default(),
+        )
+        .expect("application");
+        let session_ids = [
+            create(&application).await,
+            create(&application).await,
+            create(&application).await,
+        ];
+        let mut expected = session_ids;
+        expected.sort_by_key(|session_id| std::cmp::Reverse(session_id.to_string()));
+
+        let first = application
+            .dispatch(
+                command(
+                    Command::SessionList(ListSessionsParams {
+                        limit: 2,
+                        before_session_id: None,
+                    }),
+                    None,
+                ),
+                &client(),
+            )
+            .await;
+        let ServerReply::Success { result, .. } = first.reply else {
+            panic!("first session list failed");
+        };
+        let first: ListSessionsResult =
+            serde_json::from_value(result.clone()).expect("first session list result");
+        assert_eq!(
+            first
+                .sessions
+                .iter()
+                .map(|session| session.session_id)
+                .collect::<Vec<_>>(),
+            expected[..2]
+        );
+        assert_eq!(first.next_before_session_id, Some(expected[1]));
+        assert!(
+            result["sessions"]
+                .as_array()
+                .expect("session summaries")
+                .iter()
+                .all(|session| {
+                    session.as_object().is_some_and(|session| {
+                        (3..=4).contains(&session.len())
+                            && session.contains_key("session_id")
+                            && session.contains_key("state")
+                            && session.contains_key("created_at")
+                            && session.keys().all(|field| {
+                                matches!(
+                                    field.as_str(),
+                                    "session_id" | "state" | "created_at" | "terminal_at"
+                                )
+                            })
+                    })
+                }),
+            "session list must expose metadata fields only"
+        );
+        for session in &first.sessions {
+            assert_eq!(session.state, SessionState::Ready);
+            OffsetDateTime::parse(&session.created_at, &Rfc3339).expect("RFC 3339 creation time");
+            assert_eq!(session.terminal_at, None);
+        }
+
+        let second = application
+            .dispatch(
+                command(
+                    Command::SessionList(ListSessionsParams {
+                        limit: 2,
+                        before_session_id: first.next_before_session_id,
+                    }),
+                    None,
+                ),
+                &client(),
+            )
+            .await;
+        let ServerReply::Success { result, .. } = second.reply else {
+            panic!("second session list failed");
+        };
+        let second: ListSessionsResult =
+            serde_json::from_value(result).expect("second session list result");
+        assert_eq!(
+            second
+                .sessions
+                .iter()
+                .map(|session| session.session_id)
+                .collect::<Vec<_>>(),
+            expected[2..]
+        );
+        assert_eq!(second.next_before_session_id, None);
+        assert_eq!(
+            application.history_replays.load(Ordering::Relaxed),
+            0,
+            "session list must not replay or fold encrypted event histories"
+        );
+        for session_id in session_ids {
+            assert_eq!(
+                application
+                    .storage
+                    .replay(session_id, 0)
+                    .expect("session history after listing")
+                    .len(),
+                1,
+                "session list must not append events"
+            );
+        }
     }
 
     #[tokio::test]

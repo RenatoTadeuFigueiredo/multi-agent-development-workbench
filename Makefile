@@ -38,8 +38,9 @@ test-platform: ## Exercise the real OS key store (requires an unlocked credentia
 		platform_key_store_obeys_the_common_contract -- \
 		--exact --ignored --test-threads=1
 
-test-acceptance: ## Run the feature 001 acceptance harness
+test-acceptance: ## Run the feature 001 and feature 003 acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_001 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_003 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements
 	$(CARGO_OFFLINE) test -p workbench-testkit --test slo_001 --locked -- \

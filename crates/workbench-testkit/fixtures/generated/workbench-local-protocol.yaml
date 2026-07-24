@@ -73,6 +73,7 @@ components:
           enum:
             - initialize
             - status.get
+            - session.list
             - session.create
             - session.get
             - session.attach
@@ -89,8 +90,9 @@ components:
           type: string
           format: uuid
         params:
-          oneOf:
+          anyOf:
             - $ref: '#/components/schemas/InitializeParams'
+            - $ref: '#/components/schemas/ListSessionsParams'
             - $ref: '#/components/schemas/CreateSessionParams'
             - $ref: '#/components/schemas/AttachSessionParams'
             - $ref: '#/components/schemas/PromptParams'
@@ -107,6 +109,7 @@ components:
                 enum:
                   - initialize
                   - status.get
+                  - session.list
                   - session.create
             required:
               - method
@@ -136,6 +139,7 @@ components:
           oneOf:
             - $ref: '#/components/schemas/InitializeResult'
             - $ref: '#/components/schemas/StatusResult'
+            - $ref: '#/components/schemas/ListSessionsResult'
             - $ref: '#/components/schemas/CreateSessionResult'
             - $ref: '#/components/schemas/SessionStateResult'
             - $ref: '#/components/schemas/AttachSessionResult'
@@ -253,6 +257,39 @@ components:
           pattern: '^[0-9a-f]{64}$'
         state:
           const: ready
+    ListSessionsResult:
+      type: object
+      additionalProperties: false
+      required:
+        - sessions
+      properties:
+        sessions:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/SessionSummary'
+        next_before_session_id:
+          type: string
+          format: uuid
+    SessionSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - session_id
+        - state
+        - created_at
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        state:
+          $ref: '#/components/schemas/SessionState'
+        created_at:
+          type: string
+          format: date-time
+        terminal_at:
+          type: string
+          format: date-time
     SessionStateResult:
       type: object
       additionalProperties: false
@@ -576,6 +613,18 @@ components:
           const: true
         configuration_overrides:
           type: object
+    ListSessionsParams:
+      type: object
+      additionalProperties: false
+      properties:
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 50
+        before_session_id:
+          type: string
+          format: uuid
     AttachSessionParams:
       type: object
       additionalProperties: false
@@ -672,6 +721,7 @@ x-workbench-security:
 x-workbench-parameter-schema-by-method:
   initialize: '#/components/schemas/InitializeParams'
   status.get: '#/components/schemas/EmptyParams'
+  session.list: '#/components/schemas/ListSessionsParams'
   session.create: '#/components/schemas/CreateSessionParams'
   session.get: '#/components/schemas/EmptyParams'
   session.attach: '#/components/schemas/AttachSessionParams'
@@ -687,6 +737,7 @@ x-workbench-parameter-schema-by-method:
 x-workbench-result-schema-by-method:
   initialize: '#/components/schemas/InitializeResult'
   status.get: '#/components/schemas/StatusResult'
+  session.list: '#/components/schemas/ListSessionsResult'
   session.create: '#/components/schemas/CreateSessionResult'
   session.get: '#/components/schemas/SessionStateResult'
   session.attach: '#/components/schemas/AttachSessionResult'

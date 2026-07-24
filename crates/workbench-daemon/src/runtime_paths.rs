@@ -8,10 +8,13 @@ use rustix::{
     fs::{FlockOperation, flock},
     process::{getpid, getuid},
 };
+use sha2::{Digest, Sha256};
 use thiserror::Error;
 
 const PRIVATE_DIRECTORY_MODE: u32 = 0o700;
 const PRIVATE_FILE_MODE: u32 = 0o600;
+const WORKSPACE_ID_BYTES: usize = 16;
+const WORKSPACE_ID_DOMAIN: &[u8] = b"workbench-workspace-id-v1\0";
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct RuntimePaths {
@@ -28,13 +31,15 @@ impl RuntimePaths {
     ///
     /// # Errors
     ///
-    /// Returns an error when the platform is unsupported or a required
-    /// environment root is missing, relative, or unsafe.
-    pub fn discover() -> Result<Self, RuntimePathError> {
+    /// Returns an error when the repository root cannot be canonicalized, the
+    /// platform is unsupported, or a required environment root is missing,
+    /// relative, or unsafe.
+    pub fn discover(repository_root: &Path) -> Result<Self, RuntimePathError> {
+        let workspace_id = workspace_id(repository_root)?;
         let home = absolute_environment_path("HOME")?;
         #[cfg(target_os = "macos")]
         {
-            let state_directory = home
+            let state_root = home
                 .join("Library")
                 .join("Application Support")
                 .join("Workbench")
@@ -45,10 +50,11 @@ impl RuntimePaths {
                 .join("Workbench")
                 .join("config.yaml");
             let temporary = absolute_environment_path("TMPDIR")?;
-            return Self::from_parts(
+            return Self::from_workspace_parts(
                 configuration_file,
-                state_directory,
+                &state_root,
                 temporary.join(format!("workbench-{}", getuid().as_raw())),
+                &workspace_id,
             );
         }
         #[cfg(target_os = "linux")]
@@ -58,10 +64,11 @@ impl RuntimePaths {
             let state_root = optional_absolute_environment_path("XDG_STATE_HOME")?
                 .unwrap_or_else(|| home.join(".local").join("state"));
             let runtime_root = absolute_environment_path("XDG_RUNTIME_DIR")?;
-            return Self::from_parts(
+            return Self::from_workspace_parts(
                 configuration_root.join("workbench").join("config.yaml"),
-                state_root.join("workbench"),
+                &state_root.join("workbench"),
                 runtime_root.join("workbench"),
+                &workspace_id,
             );
         }
         #[allow(unreachable_code)]
@@ -90,6 +97,24 @@ impl RuntimePaths {
             state_directory,
             endpoint_directory,
         })
+    }
+
+    fn from_workspace_parts(
+        configuration_file: PathBuf,
+        state_root: &Path,
+        endpoint_directory: PathBuf,
+        workspace_id: &str,
+    ) -> Result<Self, RuntimePathError> {
+        let mut paths = Self::from_parts(
+            configuration_file,
+            state_root.join(workspace_id),
+            endpoint_directory,
+        )?;
+        reject_unmigrated_legacy_database(state_root, &paths.database_file)?;
+        paths.endpoint = paths
+            .endpoint_directory
+            .join(format!("{workspace_id}.sock"));
+        Ok(paths)
     }
 
     /// Creates and verifies the owner-only state and endpoint directories.
@@ -187,6 +212,10 @@ pub enum RuntimePathError {
     SymbolicLink(PathBuf),
     #[error("another Workbench daemon owns the runtime lock")]
     DaemonAlreadyRunning,
+    #[error(
+        "legacy global Workbench state requires explicit migration; export sessions with the previous release and follow the workspace-state migration runbook"
+    )]
+    LegacyStateRequiresMigration,
     #[error("this platform is not supported by feature 001")]
     UnsupportedPlatform,
     #[error("runtime path operation failed")]
@@ -217,6 +246,52 @@ fn optional_absolute_environment_path(
 fn absolute_environment_path(variable: &'static str) -> Result<PathBuf, RuntimePathError> {
     optional_absolute_environment_path(variable)?
         .ok_or(RuntimePathError::MissingEnvironment(variable))
+}
+
+/// Derives the stable cross-client identifier for a canonical repository root.
+///
+/// # Errors
+///
+/// Returns an error when the repository root cannot be canonicalized, is not a
+/// directory, or cannot be represented as UTF-8.
+pub fn workspace_id(repository_root: &Path) -> Result<String, RuntimePathError> {
+    let canonical_root = fs::canonicalize(repository_root)?;
+    if !canonical_root.is_dir() {
+        return Err(RuntimePathError::UnsafePath(canonical_root));
+    }
+    let canonical_utf8 = canonical_root
+        .to_str()
+        .ok_or_else(|| RuntimePathError::UnsafePath(canonical_root.clone()))?;
+    Ok(workspace_id_for_canonical_utf8(canonical_utf8))
+}
+
+fn workspace_id_for_canonical_utf8(canonical_root: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(WORKSPACE_ID_DOMAIN);
+    hasher.update(canonical_root.as_bytes());
+    let digest = hasher.finalize();
+    hex::encode(&digest[..WORKSPACE_ID_BYTES])
+}
+
+fn reject_unmigrated_legacy_database(
+    state_root: &Path,
+    workspace_database: &Path,
+) -> Result<(), RuntimePathError> {
+    let legacy_database = state_root.join("workbench.sqlite3");
+    let legacy_exists = match fs::symlink_metadata(legacy_database) {
+        Ok(_) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    let workspace_exists = match fs::symlink_metadata(workspace_database) {
+        Ok(_) => true,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    if legacy_exists && !workspace_exists {
+        return Err(RuntimePathError::LegacyStateRequiresMigration);
+    }
+    Ok(())
 }
 
 fn require_safe_absolute(path: &Path) -> Result<(), RuntimePathError> {
@@ -292,6 +367,100 @@ mod tests {
             root.join("runtime"),
         )
         .expect("valid paths")
+    }
+
+    fn workspace_paths(root: &Path, repository: &Path) -> RuntimePaths {
+        RuntimePaths::from_workspace_parts(
+            root.join("config").join("config.yaml"),
+            &root.join("state"),
+            root.join("runtime"),
+            &workspace_id(repository).expect("workspace ID"),
+        )
+        .expect("valid workspace paths")
+    }
+
+    #[test]
+    fn workspace_id_matches_the_cross_client_sha256_vector() {
+        assert_eq!(
+            workspace_id_for_canonical_utf8("/workspace/example"),
+            "daf6640544250076b29c16531feb382e"
+        );
+    }
+
+    #[test]
+    fn canonical_repository_aliases_share_workspace_paths() {
+        let root = TempDir::new().expect("temporary root");
+        let root_path = root.path().canonicalize().expect("canonical root");
+        let repository = root_path.join("repository");
+        fs::create_dir(&repository).expect("repository");
+        let alias = root_path.join("repository-alias");
+        symlink(&repository, &alias).expect("repository alias");
+
+        let direct = workspace_paths(&root_path, &repository);
+        let through_alias = workspace_paths(&root_path, &alias);
+
+        assert_eq!(direct, through_alias);
+    }
+
+    #[test]
+    fn distinct_repositories_have_isolated_runtime_paths() {
+        let root = TempDir::new().expect("temporary root");
+        let root_path = root.path().canonicalize().expect("canonical root");
+        let first_repository = root_path.join("first-repository");
+        let second_repository = root_path.join("second-repository");
+        fs::create_dir(&first_repository).expect("first repository");
+        fs::create_dir(&second_repository).expect("second repository");
+
+        let first = workspace_paths(&root_path, &first_repository);
+        let second = workspace_paths(&root_path, &second_repository);
+
+        assert_eq!(first.configuration_file, second.configuration_file);
+        assert_ne!(first.state_directory, second.state_directory);
+        assert_ne!(first.database_file, second.database_file);
+        assert_ne!(first.daemon_lock, second.daemon_lock);
+        assert_ne!(first.endpoint, second.endpoint);
+        assert_eq!(first.endpoint_directory, second.endpoint_directory);
+    }
+
+    #[test]
+    fn legacy_global_database_requires_explicit_workspace_migration() {
+        let root = TempDir::new().expect("temporary root");
+        let root_path = root.path().canonicalize().expect("canonical root");
+        let repository = root_path.join("repository");
+        fs::create_dir(&repository).expect("repository");
+        let state_root = root_path.join("state");
+        fs::create_dir(&state_root).expect("state root");
+        fs::write(state_root.join("workbench.sqlite3"), b"legacy").expect("legacy database");
+        let workspace_id = workspace_id(&repository).expect("workspace ID");
+
+        let error = RuntimePaths::from_workspace_parts(
+            root_path.join("config").join("config.yaml"),
+            &state_root,
+            root_path.join("runtime"),
+            &workspace_id,
+        )
+        .expect_err("unmigrated legacy database must fail closed");
+
+        assert!(matches!(
+            error,
+            RuntimePathError::LegacyStateRequiresMigration
+        ));
+
+        let workspace_database = state_root.join(&workspace_id).join("workbench.sqlite3");
+        fs::create_dir_all(
+            workspace_database
+                .parent()
+                .expect("workspace database parent"),
+        )
+        .expect("workspace state");
+        fs::write(workspace_database, b"migrated").expect("workspace database");
+        RuntimePaths::from_workspace_parts(
+            root_path.join("config").join("config.yaml"),
+            &state_root,
+            root_path.join("runtime"),
+            &workspace_id,
+        )
+        .expect("existing workspace database is already explicit");
     }
 
     #[test]

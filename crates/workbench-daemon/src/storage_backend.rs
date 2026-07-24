@@ -5,8 +5,8 @@ use time::OffsetDateTime;
 use uuid::Uuid;
 use workbench_storage::{
     CommandEventOutcome, CommandEventsOutcome, CommandOutcome, CreateSession, DeletionSummary,
-    EventInput, ExportCommand, KeyStore, PersistedEvent, RecoveredAttempt, SqliteStorage,
-    StorageError, StoredSession,
+    EventInput, ExportCommand, KeyStore, PersistedEvent, RecoveredAttempt, SessionMetadataPage,
+    SqliteStorage, StorageError, StoredSession,
 };
 
 pub trait StorageBackend: Send + Sync {
@@ -52,6 +52,11 @@ pub trait StorageBackend: Send + Sync {
     fn load_session_state(&self, session_id: Uuid) -> Result<String, StorageError>;
     fn load_session(&self, session_id: Uuid) -> Result<StoredSession, StorageError>;
     fn load_sessions(&self) -> Result<Vec<StoredSession>, StorageError>;
+    fn list_session_metadata(
+        &self,
+        limit: u16,
+        before_session_id: Option<Uuid>,
+    ) -> Result<SessionMetadataPage, StorageError>;
     fn is_deleted(&self, session_id: Uuid) -> Result<bool, StorageError>;
     fn recover_uncertain_attempts(
         &self,
@@ -174,6 +179,14 @@ impl<K: KeyStore + 'static> StorageBackend for LockedStorage<K> {
 
     fn load_sessions(&self) -> Result<Vec<StoredSession>, StorageError> {
         self.lock()?.load_sessions()
+    }
+
+    fn list_session_metadata(
+        &self,
+        limit: u16,
+        before_session_id: Option<Uuid>,
+    ) -> Result<SessionMetadataPage, StorageError> {
+        self.lock()?.list_session_metadata(limit, before_session_id)
     }
 
     fn is_deleted(&self, session_id: Uuid) -> Result<bool, StorageError> {

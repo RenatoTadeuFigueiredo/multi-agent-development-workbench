@@ -4,8 +4,8 @@ use workbench_protocol::{
     ClientCommand, Command as ProtocolCommand, PROTOCOL_V1,
     command::{
         ApprovalDecision as ProtocolApprovalDecision, ApprovalParams, AttachSessionParams,
-        CreateSessionParams, DeleteParams, EmptyParams, ExportParams, PromptParams,
-        ReconciliationParams, ReconciliationResolution, RedirectParams,
+        CreateSessionParams, DeleteParams, EmptyParams, ExportParams, ListSessionsParams,
+        PromptParams, ReconciliationParams, ReconciliationResolution, RedirectParams,
     },
 };
 
@@ -86,6 +86,13 @@ fn session_command(
             ProtocolCommand::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+            }),
+        ),
+        SessionCommand::List(args) => (
+            None,
+            ProtocolCommand::SessionList(ListSessionsParams {
+                limit: args.limit,
+                before_session_id: args.before_session_id,
             }),
         ),
         SessionCommand::Attach(args) => (
@@ -248,6 +255,32 @@ mod tests {
             &resolve(&status, None)
                 .expect("status mapping")
                 .expect("remote status")
+        ));
+    }
+
+    #[test]
+    fn maps_session_list_without_a_session_envelope() {
+        let cli = Cli::try_parse_from([
+            "workbench",
+            "session",
+            "list",
+            "--limit",
+            "20",
+            "--before-session-id",
+            "018f47ef-9052-7b86-b31d-3f8962457776",
+        ])
+        .expect("session list command");
+
+        let request = resolve(&cli, None)
+            .expect("valid mapping")
+            .expect("remote command");
+        assert!(request.session_id.is_none());
+        assert!(matches!(
+            request.command,
+            ProtocolCommand::SessionList(ListSessionsParams {
+                limit: 20,
+                before_session_id: Some(_),
+            })
         ));
     }
 }

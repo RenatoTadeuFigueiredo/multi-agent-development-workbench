@@ -4,17 +4,20 @@
   "description": "Observe and control local Workbench sessions.",
   "version": "0.1.0",
   "engines": { "vscode": ">=1.90.0" },
-  "activationEvents": ["onCommand:workbench.attach", "onCommand:workbench.prompt"],
+  "activationEvents": ["onCommand:workbench.newSession", "onCommand:workbench.selectSession", "onCommand:workbench.attach", "onCommand:workbench.prompt"],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": { "title": "Workbench", "properties": {
       "workbench.endpoint": {
         "type": "string",
         "default": "",
-        "description": "Optional absolute local Workbench daemon socket endpoint."
+        "scope": "resource",
+        "description": "Optional absolute local Workbench daemon socket endpoint for the current workspace."
       }
     }},
     "commands": [
+      { "command": "workbench.newSession", "title": "Workbench: New Session" },
+      { "command": "workbench.selectSession", "title": "Workbench: Select Session" },
       { "command": "workbench.attach", "title": "Workbench: Attach Session" },
       { "command": "workbench.prompt", "title": "Workbench: Send Prompt" },
       { "command": "workbench.pause", "title": "Workbench: Pause Session" },
