@@ -9,11 +9,14 @@ use workbench_core::{
     value::{NonEmptyText, ProviderId},
 };
 use workbench_openrouter::{
-    CostPolicyConfig, FakeHttpMode, MemorySecretSource, OpenRouterConnect,
-    OpenRouterProviderAdapter, SessionCostLedger, MAX_BODY_BYTES,
+    CostPolicyConfig, FakeHttpMode, MAX_BODY_BYTES, MemorySecretSource, OpenRouterConnect,
+    OpenRouterProviderAdapter, SessionCostLedger,
 };
 
-fn adapter(secrets: Arc<MemorySecretSource>, ledger: SessionCostLedger) -> OpenRouterProviderAdapter {
+fn adapter(
+    secrets: Arc<MemorySecretSource>,
+    ledger: SessionCostLedger,
+) -> OpenRouterProviderAdapter {
     let transport = OpenRouterProviderAdapter::transport_for_base_url(Some("fake://openrouter"));
     OpenRouterProviderAdapter::connect(OpenRouterConnect {
         adapter_id: ProviderId::parse("openrouter").expect("id"),
@@ -156,12 +159,8 @@ async fn attempt_budget_fails_before_http() {
         require_secret_at_connect: false,
     })
     .expect("connect");
-    // estimate uses max_attempt when set → 1, which is allowed; force deny via estimate > max
-    // With max_attempt=1, estimate = min(1, session) = 1, so Allow. Seed nothing and use 0? 
-    // Actually estimate_attempt = max_attempt.min(session) = 1, evaluate allows if 1 <= 1.
-    // To deny attempt we need estimate > max_attempt. estimate is always <= max_attempt when set.
-    // So deny-attempt path needs estimate higher than max_attempt from outside evaluate.
-    // Cover via budget unit tests; here force DenySession instead if attempt ceiling equals estimate.
+    // With max_attempt micros, default estimate may exceed the attempt ceiling.
+    // Cover deny-attempt primarily in budget unit tests.
     let handle = provider.start_session().await.expect("session");
     let _ = provider
         .prompt_stream(

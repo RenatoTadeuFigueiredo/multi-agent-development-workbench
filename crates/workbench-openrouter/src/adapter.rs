@@ -284,11 +284,9 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
             .into_provider_failure(true));
         }
 
-        let transport_result = self.transport.chat_completion(
-            &secret,
-            &prompt.runtime_model,
-            prompt.content.as_str(),
-        );
+        let transport_result =
+            self.transport
+                .chat_completion(&secret, &prompt.runtime_model, prompt.content.as_str());
         drop(secret);
 
         let result = match transport_result {
@@ -409,5 +407,4 @@ fn clear_active(session: &LocalSession, attempt_id: AttemptId) {
         pending.remove(&attempt_id);
     }
 }
-
 

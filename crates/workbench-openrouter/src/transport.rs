@@ -17,20 +17,13 @@ use crate::{
 /// Offline-injectable HTTP behavior for tests.
 #[derive(Clone, Debug)]
 pub enum FakeHttpMode {
-    Stream {
-        events: Vec<String>,
-        usage: Value,
-    },
-    Oversized {
-        bytes: usize,
-    },
+    Stream { events: Vec<String>, usage: Value },
+    Oversized { bytes: usize },
     InvalidUtf8,
     TruncatedSse,
     InvalidJson,
     TransportError,
-    MidStreamFailure {
-        events: Vec<String>,
-    },
+    MidStreamFailure { events: Vec<String> },
 }
 
 /// In-process OpenRouter HTTP transport used by default tests.
@@ -71,10 +64,7 @@ impl FakeOpenRouterTransport {
     /// Panics if the mutex is poisoned.
     #[must_use]
     pub fn last_authorization(&self) -> Option<String> {
-        self.last_authorization
-            .lock()
-            .expect("auth mutex")
-            .clone()
+        self.last_authorization.lock().expect("auth mutex").clone()
     }
 
     pub(crate) fn chat_completion(
@@ -229,9 +219,7 @@ impl OpenRouterTransport {
     ) -> Result<TransportResult, OpenRouterError> {
         let authorization = format!("Bearer {}", secret.as_str());
         if self.use_fake || self.base_url.starts_with("fake://") {
-            return self
-                .fake
-                .chat_completion(&authorization, model, prompt);
+            return self.fake.chat_completion(&authorization, model, prompt);
         }
         // Live path is intentionally not wired into default builds; ignored live
         // tests can inject a fake or loopback. Refuse public network by default.

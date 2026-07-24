@@ -17,9 +17,9 @@ use workbench_core::{
     value::{NonEmptyText, ProviderId},
 };
 use workbench_openrouter::{
-    CostPolicyConfig, FakeHttpMode, MemorySecretSource, OpenRouterConnect,
-    OpenRouterProviderAdapter, SessionCostLedger, MAX_BODY_BYTES,
-    OPENROUTER_CHAT_COMPLETIONS_PROTOCOL,
+    CostPolicyConfig, FakeHttpMode, MAX_BODY_BYTES, MemorySecretSource,
+    OPENROUTER_CHAT_COMPLETIONS_PROTOCOL, OpenRouterConnect, OpenRouterProviderAdapter,
+    SessionCostLedger,
 };
 
 const FEATURE: &str = include_str!(
@@ -30,11 +30,7 @@ const OPENROUTER_ADAPTER: &str = include_str!("../../workbench-openrouter/src/ad
 const OPENROUTER_BUDGET: &str = include_str!("../../workbench-openrouter/src/budget.rs");
 const MAKEFILE: &str = include_str!("../../../Makefile");
 
-const SECRET_MARKERS: [&str; 3] = [
-    "SECRET-MARKER-F010",
-    "AUTH-MARKER-F010",
-    "BODY-MARKER-F010",
-];
+const SECRET_MARKERS: [&str; 3] = ["SECRET-MARKER-F010", "AUTH-MARKER-F010", "BODY-MARKER-F010"];
 
 struct ScenarioBinding {
     case_name: &'static str,
@@ -104,11 +100,7 @@ const SCENARIO_BINDINGS: [ScenarioBinding; 16] = [
         0x0,
         "body_and_malformed_boundaries",
     ),
-    binding(
-        "Cancel an active stream",
-        0x0,
-        "cancellation_and_secrecy",
-    ),
+    binding("Cancel an active stream", 0x0, "cancellation_and_secrecy"),
     binding(
         "Keep secrets out of durable surfaces",
         0x0,
@@ -368,7 +360,9 @@ fn configuration_requires_cost_policy() {
         },
     );
     let err = validate(&configuration).expect_err("cost required");
-    assert!(matches!(err, workbench_config::ConfigError::Invalid { path, .. } if path == "policies.cost"));
+    assert!(
+        matches!(err, workbench_config::ConfigError::Invalid { path, .. } if path == "policies.cost")
+    );
 
     configuration.policies.cost = Some(CostPolicy {
         max_session_usd_micros: 1_000_000,

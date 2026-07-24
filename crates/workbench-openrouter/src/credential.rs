@@ -47,7 +47,10 @@ impl MemorySecretSource {
     ///
     /// Panics if the mutex is poisoned.
     pub fn remove(&self, credential_ref: &str) {
-        self.secrets.lock().expect("secret mutex").remove(credential_ref);
+        self.secrets
+            .lock()
+            .expect("secret mutex")
+            .remove(credential_ref);
     }
 }
 

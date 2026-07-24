@@ -1,8 +1,5 @@
 use serde_json::Value;
-use workbench_core::{
-    ports::ProviderOutput,
-    value::NonEmptyText,
-};
+use workbench_core::{ports::ProviderOutput, value::NonEmptyText};
 
 use crate::{OpenRouterError, OpenRouterErrorKind};
 
@@ -168,10 +165,8 @@ mod tests {
 
     #[test]
     fn normalizes_delta_content() {
-        let outputs = normalize_sse_data(
-            r#"{"choices":[{"delta":{"content":"hello"}}]}"#,
-        )
-        .expect("delta");
+        let outputs =
+            normalize_sse_data(r#"{"choices":[{"delta":{"content":"hello"}}]}"#).expect("delta");
         assert_eq!(outputs.len(), 1);
     }
 
