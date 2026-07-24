@@ -4,6 +4,7 @@
 
 pub mod application;
 pub mod ipc;
+pub mod providers;
 pub mod runtime;
 pub mod runtime_paths;
 pub mod startup;

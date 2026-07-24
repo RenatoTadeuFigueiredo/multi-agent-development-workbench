@@ -2,8 +2,9 @@
 
 ## Status
 
-Accepted architecture for specification. Implementation remains gated by the
-project's Speckit workflow.
+Accepted architecture. Feature 004 implements the daemon-to-official-Grok ACP
+provider boundary. The Grok-derived terminal client and Workbench ACP bridge
+described here remain gated by the project's Speckit workflow.
 
 ## Decision
 
@@ -112,10 +113,11 @@ manifest. An automated upstream-sync job:
 6. opens a pull request for human review.
 
 The official `grok` provider updates independently. Workbench launches it as
-`grok --no-auto-update agent stdio`, preventing a provider update during an
-active workflow. An explicit provider update records the previous version,
-runs the official updater, executes compatibility tests, and restores the
-previous version with `grok update --version <version>` on failure.
+`grok agent --no-leader stdio` with `GROK_DISABLE_AUTOUPDATER=1`, preventing a
+provider update during an active workflow and avoiding global leader session
+sharing. An explicit provider update records the previous version, runs the
+official updater outside Workbench, executes compatibility tests, and restores
+the previous executable and matching lock on failure.
 
 Compatibility is capability-first and version-second. Version and commit
 identifiers support diagnostics and known-bad rules, but successful ACP
@@ -134,15 +136,15 @@ Secrets stay in the operating-system keychain or provider-owned credential
 stores. Neither the fork nor version-controlled configuration may contain
 provider sessions, OAuth tokens, or API keys.
 
-## Verified Baseline
+## Current Baseline
 
-On July 23, 2026, the fork's `main` matched `xai-org/grok-build:main` with no
-divergent commits. The locally installed Grok Build 0.2.111 successfully
-completed an ACP v1 `initialize` handshake when launched with
-`--no-auto-update`; it advertised session, prompt, authentication, and MCP
-capabilities without invoking a model. The source inspection also confirmed
-that the pager currently spawns only the in-process GrokShell backend, so the
-external backend remains the critical implementation spike.
+Source inspection confirmed that the pager currently spawns only its
+in-process GrokShell backend, so the external Workbench backend remains the
+critical terminal implementation spike. Feature 004 provides deterministic
+offline coverage for the separately supervised provider boundary. The
+handshake-only production-path smoke passed on the recorded macOS host with
+Grok Build 0.2.111, without creating a provider session or sending a prompt.
+It is compatibility evidence, not a general live provider execution claim.
 
 ## Licensing and Attribution
 

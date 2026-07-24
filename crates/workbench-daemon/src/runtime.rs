@@ -10,6 +10,7 @@ use workbench_storage::{PlatformKeyStore, SqliteStorage, StorageError};
 use crate::{
     Application, BoundedTelemetry, ExternalTelemetryExport, FakeBehavior, TelemetryError,
     ipc::{BoundEndpoint, serve_connection},
+    providers::{ProviderRuntime, ProviderRuntimeError},
     runtime_paths::{RuntimePathError, RuntimePaths, SingleDaemonLock},
     startup::StartupConfiguration,
 };
@@ -31,6 +32,7 @@ pub struct DaemonRuntime {
     _daemon_lock: SingleDaemonLock,
     shutdown_sender: watch::Sender<bool>,
     shutdown: watch::Receiver<bool>,
+    providers: ProviderRuntime,
 }
 
 impl DaemonRuntime {
@@ -40,11 +42,11 @@ impl DaemonRuntime {
     ///
     /// Returns a runtime error when paths, configuration, locks, encrypted
     /// storage, recovery, or endpoint binding fail.
-    pub fn start(
+    pub async fn start(
         paths: &RuntimePaths,
         repository_root: &Path,
     ) -> Result<(Self, ShutdownHandle), RuntimeError> {
-        Self::start_with_configuration(paths, repository_root, None)
+        Self::start_with_configuration(paths, repository_root, None).await
     }
 
     /// Starts the daemon with an optional explicit highest-precedence
@@ -54,23 +56,46 @@ impl DaemonRuntime {
     ///
     /// Returns a runtime error when paths, the explicit configuration, the
     /// matching repository lock, storage, recovery, or endpoint binding fail.
-    pub fn start_with_configuration(
+    pub async fn start_with_configuration(
         paths: &RuntimePaths,
         repository_root: &Path,
         explicit_configuration: Option<&Path>,
     ) -> Result<(Self, ShutdownHandle), RuntimeError> {
-        paths.prepare()?;
-        let daemon_lock = SingleDaemonLock::acquire(paths)?;
-        let startup =
-            StartupConfiguration::load_with_configuration(repository_root, explicit_configuration)?;
-        let storage = SqliteStorage::open(&paths.database_file, PlatformKeyStore::new())?;
-        let telemetry = Arc::new(BoundedTelemetry::initialize(
-            ExternalTelemetryExport::Disabled,
-        )?);
-        let application =
-            Application::new_with_telemetry(storage, startup, FakeBehavior::default(), telemetry);
-        application.recover()?;
-        let endpoint = BoundEndpoint::bind(paths, &daemon_lock)?;
+        let owned_paths = paths.clone();
+        let owned_repository_root = repository_root.to_path_buf();
+        let owned_configuration = explicit_configuration.map(Path::to_path_buf);
+        let (daemon_lock, startup, storage, telemetry, endpoint) =
+            tokio::task::spawn_blocking(move || {
+                owned_paths.prepare()?;
+                let daemon_lock = SingleDaemonLock::acquire(&owned_paths)?;
+                let startup = StartupConfiguration::load_with_configuration(
+                    &owned_repository_root,
+                    owned_configuration.as_deref(),
+                )?;
+                let storage =
+                    SqliteStorage::open(&owned_paths.database_file, PlatformKeyStore::new())?;
+                let telemetry = Arc::new(BoundedTelemetry::initialize(
+                    ExternalTelemetryExport::Disabled,
+                )?);
+                let endpoint = BoundEndpoint::bind(&owned_paths, &daemon_lock)?;
+                Ok::<_, RuntimeError>((daemon_lock, startup, storage, telemetry, endpoint))
+            })
+            .await
+            .map_err(|_| RuntimeError::StartupTask)??;
+        let providers =
+            ProviderRuntime::bootstrap(&startup, repository_root, &paths.state_directory).await?;
+        let application = Application::new_with_providers_and_telemetry(
+            storage,
+            startup,
+            FakeBehavior::default(),
+            telemetry,
+            providers.registry(),
+            providers.catalog(),
+        );
+        if let Err(error) = application.recover() {
+            providers.shutdown().await?;
+            return Err(error.into());
+        }
         let (sender, shutdown) = watch::channel(false);
         Ok((
             Self {
@@ -79,6 +104,7 @@ impl DaemonRuntime {
                 _daemon_lock: daemon_lock,
                 shutdown_sender: sender.clone(),
                 shutdown,
+                providers,
             },
             ShutdownHandle { sender },
         ))
@@ -91,6 +117,15 @@ impl DaemonRuntime {
     /// Returns a runtime error when accepting clients or preparing durable
     /// shutdown fails.
     pub async fn run(mut self) -> Result<(), RuntimeError> {
+        let serving = self.serve().await;
+        let shutdown = self.application.prepare_shutdown().await;
+        let providers_shutdown = self.providers.shutdown().await;
+        shutdown?;
+        providers_shutdown?;
+        serving
+    }
+
+    async fn serve(&mut self) -> Result<(), RuntimeError> {
         let startup_deletions = self
             .application
             .run_maintenance(time::OffsetDateTime::now_utc())
@@ -135,7 +170,6 @@ impl DaemonRuntime {
                 }
             }
         }
-        self.application.prepare_shutdown().await?;
         let drain = async { while connections.join_next().await.is_some() {} };
         if tokio::time::timeout(Duration::from_secs(5), drain)
             .await
@@ -194,6 +228,10 @@ pub enum RuntimeError {
     Storage(#[from] StorageError),
     #[error("telemetry initialization failed")]
     Telemetry(#[from] TelemetryError),
+    #[error("provider preflight failed")]
+    Provider(#[from] ProviderRuntimeError),
     #[error("local IPC failed")]
     Io(#[from] io::Error),
+    #[error("daemon startup worker failed")]
+    StartupTask,
 }

@@ -15,6 +15,7 @@ use workbench_cli::{
 use workbench_config::ConfigError;
 use workbench_daemon::{
     DaemonRuntime, StartupConfiguration,
+    providers::probe_adapter_inputs,
     runtime::{RuntimeError, init_tracing},
     runtime_paths::{RuntimePathError, RuntimePaths},
 };
@@ -53,8 +54,8 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
     let command = resolve(&cli, stdin_prompt).map_err(CommandFailure::invalid_input)?;
     match command {
         Err(LocalCommand::Daemon) => run_daemon(&cli, &repository_root).await,
-        Err(LocalCommand::ConfigValidate) => run_config(&cli, &repository_root, false),
-        Err(LocalCommand::ConfigLock) => run_config(&cli, &repository_root, true),
+        Err(LocalCommand::ConfigValidate) => run_config(&cli, &repository_root, false).await,
+        Err(LocalCommand::ConfigLock) => run_config(&cli, &repository_root, true).await,
         Ok(command) => {
             if cli.configuration.is_some() {
                 return Err(CommandFailure::invalid_input(
@@ -70,17 +71,42 @@ async fn run_daemon(cli: &Cli, repository_root: &Path) -> Result<(), CommandFail
     init_tracing();
     let paths = RuntimePaths::discover(repository_root)
         .map_err(|error| CommandFailure::runtime_path(&error))?;
-    let runtime = DaemonRuntime::start_with_configuration(
+    let startup = DaemonRuntime::start_with_configuration(
         &paths,
         repository_root,
         cli.configuration.as_deref(),
-    )
-    .map_err(|error| CommandFailure::runtime(&error))?;
-    runtime
-        .0
-        .run_until_signal()
-        .await
-        .map_err(|error| CommandFailure::runtime(&error))?;
+    );
+    tokio::pin!(startup);
+    let (runtime, interrupted) = tokio::select! {
+        biased;
+        signal = tokio::signal::ctrl_c() => {
+            signal.map_err(|error| CommandFailure::io(&error))?;
+            (
+                startup
+                    .await
+                    .map_err(|error| CommandFailure::runtime(&error))?,
+                true,
+            )
+        }
+        result = &mut startup => (
+            result.map_err(|error| CommandFailure::runtime(&error))?,
+            false,
+        ),
+    };
+    if interrupted {
+        runtime.1.shutdown();
+        runtime
+            .0
+            .run()
+            .await
+            .map_err(|error| CommandFailure::runtime(&error))?;
+    } else {
+        runtime
+            .0
+            .run_until_signal()
+            .await
+            .map_err(|error| CommandFailure::runtime(&error))?;
+    }
     if cli.json {
         write_stdout(
             &output::success(
@@ -93,9 +119,31 @@ async fn run_daemon(cli: &Cli, repository_root: &Path) -> Result<(), CommandFail
     Ok(())
 }
 
-fn run_config(cli: &Cli, repository_root: &Path, write_lock: bool) -> Result<(), CommandFailure> {
-    let inspected = StartupConfiguration::inspect(repository_root, cli.configuration.as_deref())
-        .map_err(|error| CommandFailure::configuration(&error))?;
+async fn run_config(
+    cli: &Cli,
+    repository_root: &Path,
+    write_lock: bool,
+) -> Result<(), CommandFailure> {
+    let executables =
+        StartupConfiguration::adapter_executables(repository_root, cli.configuration.as_deref())
+            .map_err(|error| CommandFailure::configuration(&error))?;
+    let inspected = if write_lock {
+        let inputs = probe_adapter_inputs(&executables, repository_root)
+            .await
+            .map_err(|error| CommandFailure::provider(&error))?;
+        StartupConfiguration::inspect_with_adapter_inputs(
+            repository_root,
+            cli.configuration.as_deref(),
+            &inputs,
+        )
+        .map_err(|error| CommandFailure::configuration(&error))?
+    } else if executables.is_empty() {
+        StartupConfiguration::inspect(repository_root, cli.configuration.as_deref())
+            .map_err(|error| CommandFailure::configuration(&error))?
+    } else {
+        StartupConfiguration::load_with_configuration(repository_root, cli.configuration.as_deref())
+            .map_err(|error| CommandFailure::configuration(&error))?
+    };
     if write_lock {
         inspected
             .write_base_lock(repository_root)
@@ -266,11 +314,12 @@ impl CommandFailure {
         )
     }
 
-    fn configuration(error: &ConfigError) -> Self {
+    fn configuration(_error: &ConfigError) -> Self {
+        let message = "configuration validation failed";
         Self::new(
             ExitCode::InvalidInput,
-            error.to_string(),
-            json!({"code": "invalid_configuration", "message": error.to_string()}),
+            message,
+            json!({"code": "invalid_configuration", "message": message}),
         )
     }
 
@@ -287,12 +336,21 @@ impl CommandFailure {
             RuntimeError::Configuration(_) => ExitCode::InvalidInput,
             RuntimeError::Storage(_) => ExitCode::StorageFailure,
             RuntimeError::RuntimePath(_) | RuntimeError::Io(_) => ExitCode::ProtocolFailure,
-            RuntimeError::Telemetry(_) => ExitCode::Internal,
+            RuntimeError::Provider(_) => ExitCode::UnavailableCapability,
+            RuntimeError::Telemetry(_) | RuntimeError::StartupTask => ExitCode::Internal,
         };
         Self::new(
             exit,
             error.to_string(),
             json!({"code": "daemon_startup_failed", "message": error.to_string()}),
+        )
+    }
+
+    fn provider(error: &workbench_daemon::providers::ProviderRuntimeError) -> Self {
+        Self::new(
+            ExitCode::InvalidInput,
+            error.to_string(),
+            json!({"code": "provider_preflight_failed", "message": error.to_string()}),
         )
     }
 

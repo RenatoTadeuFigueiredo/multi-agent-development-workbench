@@ -12,8 +12,8 @@ From the repository root:
 ```bash
 rustup toolchain install 1.95.0 --profile minimal --component clippy,rustfmt
 cargo build --workspace
-cargo run -p workbench-cli -- config validate
 cargo run -p workbench-cli -- config lock
+cargo run -p workbench-cli -- config validate
 ```
 
 Configuration resolves in this order: safe built-ins, user configuration,

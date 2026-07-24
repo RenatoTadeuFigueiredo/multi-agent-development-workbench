@@ -18,7 +18,7 @@ storage, or provider logic.
 | `workbench session pause\|resume\|cancel <id>` | Corresponding idempotent control command. |
 | `workbench session redirect <id> <instruction>` | Append instruction to a paused or awaiting session. |
 | `workbench session approve <id> <approval> --decision <grant\|deny>` | Record a protected-action decision through `session.approval.resolve`. |
-| `workbench session reconcile <id> <attempt> <resolution>` | Resolve `outcome_unknown` as `retry`, `accept_result`, or `abandon`. |
+| `workbench session reconcile <id> <attempt> <resolution>` | Resolve `outcome_unknown` as `retry`, `accept-result`, or `abandon`. |
 | `workbench session export <id> --recipient <age-recipient> --output <path>` | Create one encrypted age v1 bundle. |
 | `workbench session delete <id> --confirm <id>` | Start cryptographic deletion after exact-ID confirmation. |
 | `workbench status [<id>]` | Use `status.get` or `session.get` to read health or folded state without provider dispatch. |

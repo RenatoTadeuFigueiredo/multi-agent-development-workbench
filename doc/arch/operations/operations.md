@@ -11,8 +11,8 @@ daemon:
 
 ```bash
 cargo build --workspace
-cargo run -p workbench-cli -- config validate
 cargo run -p workbench-cli -- config lock
+cargo run -p workbench-cli -- config validate
 cargo run -p workbench-cli -- daemon
 ```
 
@@ -69,6 +69,42 @@ health without revealing paths, prompts, or credentials. A locked key store is
 degraded and blocks persistent work; corruption or migration failure is fatal
 and never triggers an empty-database fallback.
 
+## Grok ACP Provider
+
+The Grok ACP adapter supervises the explicitly configured canonical executable
+as `grok agent --no-leader stdio` in the canonical workspace and sets
+`GROK_DISABLE_AUTOUPDATER=1`. It never invokes a shell or updater. Grok Build
+owns authentication and credential storage; Workbench observes only bounded
+authentication health and never reads, copies, logs, or exports account
+material.
+
+The repository lock pins `acp/1`, the bounded `--version` result, and
+executable SHA-256. Before spawn, startup verifies the configured path,
+ownership, permissions, private executable snapshot, and digest against the
+lock. After spawn but before provider availability or prompt dispatch,
+initialization verifies protocol, authentication state, required capabilities,
+and optional `agentInfo.version` when advertised. An operator must stop the daemon, update
+Grok Build outside Workbench, explicitly regenerate the lock, and pass both
+stages before the new executable is accepted. Manual lock edits and
+compatibility bypasses are unsupported.
+
+Public adapter health exposes only `available` or `unavailable`.
+Authentication-required, compatibility, spawn, and crash causes are returned
+as bounded redacted startup or lifecycle errors.
+
+A cancellation is definite only when the outstanding prompt ends with
+`stopReason: cancelled`. Crash, EOF, malformed transport, error, process exit,
+or a cancellation deadline after dispatch produces `outcome_unknown`, blocks
+automation, and requires `workbench session reconcile`; the prompt is never
+resent automatically. Shutdown closes child stdin, waits for bounded graceful
+exit, terminates a survivor, drains its pipes, and reaps it.
+
+Default tests use only the explicit fake ACP executable and consume no network,
+account, installed Grok runtime, or provider quota. The optional live check is
+handshake-only and remains separate from `make check`. Detailed configuration,
+update, recovery, shutdown, redaction, and smoke instructions are in the
+[Grok ACP provider runbook](../../../docs/operations/grok-acp-provider.md).
+
 ## Legacy Global-State Migration
 
 Releases before workspace-scoped state stored one database directly at
@@ -116,8 +152,10 @@ Linux honors `XDG_CONFIG_HOME`, `XDG_STATE_HOME`, and `XDG_RUNTIME_DIR`; macOS
 uses `TMPDIR` only to select the endpoint parent. Each override must be an
 absolute path owned by the current user. Missing Linux config and state
 variables use the paths in the runtime table; missing or unsafe runtime/temp
-directories are fatal. Feature 001 accepts no credential, prompt, model, or
-policy value from environment variables.
+directories are fatal. Workbench accepts no credential, prompt, model, or
+policy value from environment variables. The adapter-owned
+`GROK_DISABLE_AUTOUPDATER=1` child setting is fixed by Workbench and is not a
+user configuration or secret channel.
 
 An explicit configuration supplied with `--configuration` must be an absolute,
 owner-controlled, non-symlink file. It is supported by `config validate`,
