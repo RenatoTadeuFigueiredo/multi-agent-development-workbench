@@ -9,17 +9,32 @@ import {
   SessionSummary,
   WorkbenchProtocolError,
 } from "./protocol";
-import { renderEvent } from "./render";
+import {
+  applyEventToSummary,
+  renderControlSummary,
+  renderEvent,
+  renderStatusBarText,
+  WorkflowControlSummary,
+} from "./render";
 import { workspaceSocketIdForWorkspacePath } from "./workspace";
 
 const documentUri = vscode.Uri.parse("workbench-session:/active.md");
 let controller: SessionController | undefined;
 let sessionId: string | undefined;
-let transcript = "# Workbench Session\n";
+let summary: WorkflowControlSummary = {};
+let eventBody = "";
+let transcript = renderControlSummary(summary);
 const changed = new vscode.EventEmitter<vscode.Uri>();
+let statusBar: vscode.StatusBarItem | undefined;
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(changed);
+  statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
+  statusBar.command = "workbench.selectSession";
+  statusBar.text = "Workbench";
+  statusBar.tooltip = "Workbench session controls";
+  statusBar.show();
+  context.subscriptions.push(statusBar);
   context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider("workbench-session", {
     onDidChange: changed.event,
     provideTextDocumentContent: () => transcript,
@@ -32,6 +47,8 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(vscode.commands.registerCommand("workbench.resume", () => control("resume")));
   context.subscriptions.push(vscode.commands.registerCommand("workbench.cancel", () => control("cancel")));
   context.subscriptions.push(vscode.commands.registerCommand("workbench.redirect", redirect));
+  context.subscriptions.push(vscode.commands.registerCommand("workbench.resolveApproval", resolveApproval));
+  refreshDocument();
 }
 
 async function attach(): Promise<void> {
@@ -127,8 +144,9 @@ type SessionQuickPickItem = vscode.QuickPickItem & {
 async function attachSession(selected: string, targetEndpoint: string): Promise<void> {
   controller?.close();
   sessionId = selected;
-  transcript = `# Workbench Session\n\nSession: \`${sessionId}\`\n`;
-  changed.fire(documentUri);
+  summary = { session_id: sessionId };
+  eventBody = "";
+  refreshDocument();
   controller = new SessionController(targetEndpoint, undefined, appendNotice);
   try {
     await controller.attach(sessionId, appendEvent);
@@ -154,6 +172,29 @@ async function redirect(): Promise<void> {
   if (instruction) await execute(() => controller!.redirect(instruction));
 }
 
+async function resolveApproval(): Promise<void> {
+  if (!controller || !sessionId) {
+    vscode.window.showWarningMessage("Attach a Workbench session first.");
+    return;
+  }
+  const approvalId = await vscode.window.showInputBox({
+    prompt: "Approval ID",
+    value: summary.pending_approval_id,
+    ignoreFocusOut: true,
+  });
+  if (!approvalId) return;
+  const decisionPick = await vscode.window.showQuickPick(
+    [
+      { label: "grant", description: "Allow the protected action" },
+      { label: "deny", description: "Reject the protected action" },
+    ],
+    { placeHolder: "Approval decision" },
+  );
+  if (!decisionPick) return;
+  const decision = decisionPick.label as "grant" | "deny";
+  await execute(() => controller!.resolveApproval(approvalId, decision));
+}
+
 async function execute(action: () => Promise<unknown>): Promise<void> {
   if (!controller || !sessionId) { vscode.window.showWarningMessage("Attach a Workbench session first."); return; }
   try { await action(); }
@@ -161,13 +202,20 @@ async function execute(action: () => Promise<unknown>): Promise<void> {
 }
 
 function appendEvent(event: SessionEvent): void {
-  transcript += `\n${renderEvent(event)}`;
-  changed.fire(documentUri);
+  summary = applyEventToSummary(summary, event);
+  eventBody += `\n${renderEvent(event)}`;
+  refreshDocument();
 }
 
 function appendNotice(message: string): void {
-  transcript += `\n> ${message}\n`;
+  eventBody += `\n> ${message}\n`;
+  refreshDocument();
+}
+
+function refreshDocument(): void {
+  transcript = `${renderControlSummary(summary)}${eventBody}`;
   changed.fire(documentUri);
+  if (statusBar) statusBar.text = renderStatusBarText(summary);
 }
 
 function sessionDetail(session: SessionSummary): string {

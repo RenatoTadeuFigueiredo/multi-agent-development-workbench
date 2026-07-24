@@ -37,6 +37,13 @@ test("negotiates, attaches, receives events, and sends prompt with the committed
         if (["session.pause", "session.resume", "session.cancel", "session.redirect"].includes(String(command.method))) {
           reply({ control_id: "018f47ef-9052-7b86-b31d-3f8962457779", control: String(command.method).replace("session.", ""), state: "running" });
         }
+        if (command.method === "session.approval.resolve") {
+          reply({
+            approval_id: (command.params as Record<string, unknown>).approval_id,
+            decision: (command.params as Record<string, unknown>).decision,
+            state: "running",
+          });
+        }
       }
     });
   });
@@ -50,8 +57,20 @@ test("negotiates, attaches, receives events, and sends prompt with the committed
     await controller.resume();
     await controller.cancel();
     await controller.redirect("continue with the revised plan");
+    await controller.resolveApproval("018f47ef-9052-7b86-b31d-3f8962457780", "grant");
+    await controller.resolveApproval("018f47ef-9052-7b86-b31d-3f8962457780", "deny");
     assert.equal(events.length, 1);
-    assert.deepEqual(commands.map((command) => command.method), ["initialize", "session.attach", "session.prompt", "session.pause", "session.resume", "session.cancel", "session.redirect"]);
+    assert.deepEqual(commands.map((command) => command.method), [
+      "initialize",
+      "session.attach",
+      "session.prompt",
+      "session.pause",
+      "session.resume",
+      "session.cancel",
+      "session.redirect",
+      "session.approval.resolve",
+      "session.approval.resolve",
+    ]);
     assert.equal(commands[0].protocol, "workbench/1");
     assert.match(String(commands[0].request_id), /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     assert.deepEqual(commands[0].params, { client_name: "workbench-vscode", client_version: "0.1.0", supported_protocols: ["workbench/1"] });
@@ -59,6 +78,8 @@ test("negotiates, attaches, receives events, and sends prompt with the committed
     assert.deepEqual(commands[1].params, { after_sequence: 0 });
     assert.deepEqual(commands[2].params, { text: "hello" });
     assert.deepEqual(commands[6].params, { instruction: "continue with the revised plan" });
+    assert.deepEqual(commands[7].params, { approval_id: "018f47ef-9052-7b86-b31d-3f8962457780", decision: "grant" });
+    assert.deepEqual(commands[8].params, { approval_id: "018f47ef-9052-7b86-b31d-3f8962457780", decision: "deny" });
     controller.close();
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));

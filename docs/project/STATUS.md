@@ -31,11 +31,10 @@ Use this precedence when sources disagree:
 
 ## Delivered Baseline
 
-The last reviewed `main` checkpoint for Features 001–007 remains merge commit
-`40c666d4bf505348e55dca8de4cbb967edf8b7f1`. Feature 008 domain foundation is on
-`main` via PR #21 (`afa0030`). Feature 008 daemon composition (workflow
-executor completion) lands on branch
-`008-workflow-executor-completion` (issue #14).
+The last reviewed `main` checkpoint for Features 001–008 is merge commit
+`12804ddcc9b2c9c10ee8d9bbbe0e359b1f66acd0` (issue #14 / PR #22). Feature 009
+(real-time VS Code workflow controls) is in flight on branch
+`009-add-real-time-vs-code-workflow-controls-that-show-routing` (issue #15).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -46,32 +45,32 @@ executor completion) lands on branch
 | 005 | Supervised, read-only Claude Code subscription adapter | Issue #9 / PR #10 |
 | 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR #19 |
 | 007 | Central MCP lifecycle, pins, allowlists, approvals | Issue #13 / PR #20 |
-| 008 | Configurable multi-agent workflow executor | Issue #14 / PR #21 + completion branch |
+| 008 | Configurable multi-agent workflow executor | Issue #14 / PR #21 + #22 |
+| 009 | Real-time VS Code workflow controls (in progress) | Issue #15 |
 
-Features 001–007 completed the Speckit lifecycle through implementation and
-are on `main`. Feature 008 completes domain runtime, daemon multi-step
-dispatch, durable `workflow_transition` events, offline Claude→Codex→Grok→Codex
-path via fakes, controls, recovery snapshots, and gateway step allowlists.
+Features 001–008 completed the Speckit lifecycle through implementation and
+are on `main`. Feature 008 includes domain runtime, daemon multi-step dispatch,
+durable `workflow_transition` events, offline Claude→Codex→Grok→Codex path via
+fakes, controls, recovery snapshots, and gateway step allowlists.
 
 ## Active Work
 
-- **Branch:** `008-workflow-executor-completion`
-- **Issue:** [#14 — Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14)
-- **Speckit feature:** `008-execute-configurable-multi-agent-workflows-that-resolve`
-- **Phase at last handoff:** implement complete (T001–T011). Next ready product
-  issue after merge is #15.
+- **Branch:** `009-add-real-time-vs-code-workflow-controls-that-show-routing`
+- **Issue:** [#15 — Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15)
+- **Speckit feature:** `009-add-real-time-vs-code-workflow-controls-that-show-routing`
+- **Phase at last handoff:** implement (T001–T005 code complete; T006 validation
+  and PR).
 
 ## Ordered Roadmap
 
-- **In progress:** [#14 — Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14) (completion PR).
-- **Next ready after #14 merge:** [#15 — Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
+- **In progress:** [#15 — Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
+- **Next ready after #15 merge:** [#16 — OpenRouter provider and cost controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
-| 1 | [#14](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14) | Configurable multi-agent workflow executor | MCP gateway and governed write tools |
-| 2 | [#15](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15) | Real-time VS Code workflow controls | Stable workflow control protocol |
-| 3 | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
-| 4 | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows and terminal fork spike |
+| 1 | [#15](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15) | Real-time VS Code workflow controls | Stable workflow control protocol |
+| 2 | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
+| 3 | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows and terminal fork spike |
 
 Each product increment requires its own branch from `main`, tracked issue,
 active Speckit feature, and completion of the phase returned by `speckit next`.
@@ -84,8 +83,8 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
   closed until a TLS client is composed; live package registries are opt-in.
 - Feature 008 multi-step auto-advance uses the offline fake path and schedules
   live adapters without nesting non-Send provider streams into stream tasks.
-- The VS Code extension is a session bridge foundation, not the final workflow
-  control room (issue #15).
+- Feature 009 extends the VS Code bridge into a workflow control room; merge
+  evidence lands with issue #15.
 - The Workbench ACP server and Grok-derived terminal backend remain pending.
 - Claude and Codex provider-native write tools remain disabled; shared tools go
   through the central MCP gateway allowlist.
