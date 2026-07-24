@@ -11,7 +11,8 @@ const RENDER_TESTS: &str =
     include_str!("../../../extensions/workbench-vscode/src/test/render.test.ts");
 const PROTOCOL_SOURCE: &str = include_str!("../../../extensions/workbench-vscode/src/protocol.ts");
 const RENDER_SOURCE: &str = include_str!("../../../extensions/workbench-vscode/src/render.ts");
-const EXTENSION_SOURCE: &str = include_str!("../../../extensions/workbench-vscode/src/extension.ts");
+const EXTENSION_SOURCE: &str =
+    include_str!("../../../extensions/workbench-vscode/src/extension.ts");
 const PACKAGE_JSON: &str = include_str!("../../../extensions/workbench-vscode/package.json");
 
 #[test]
@@ -79,7 +80,13 @@ fn feature_009_bridge_exposes_workflow_controls_without_orchestration() {
     assert!(EXTENSION_SOURCE.contains("StatusBarItem"));
     assert!(PACKAGE_JSON.contains("workbench.resolveApproval"));
     assert!(PROTOCOL_SOURCE.contains("workbench/1"));
-    for forbidden in ["ProviderAdapter", "OrderedRouter", "OpenRouter", "api_key", "Keychain"] {
+    for forbidden in [
+        "ProviderAdapter",
+        "OrderedRouter",
+        "OpenRouter",
+        "api_key",
+        "Keychain",
+    ] {
         assert!(
             !PROTOCOL_SOURCE.contains(forbidden),
             "thin bridge contains forbidden orchestration concern: {forbidden}"
