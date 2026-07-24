@@ -33,9 +33,9 @@ Use this precedence when sources disagree:
 
 The last reviewed `main` checkpoint is merge commit
 `b602fcef576de20ba4b3d2472ef9f456832d573b` (Features 001–005 plus durable
-context handoff). Feature 006 ships via issue #12 on branch
-`006-add-a-supervised-codex-subscription-adapter-that-pins-an` (PR number
-filled after open).
+context handoff). Feature 006 ships via issue #12 / PR #19 on branch
+`006-add-a-supervised-codex-subscription-adapter-that-pins-an` (merge SHA
+pending after land).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -44,12 +44,12 @@ filled after open).
 | 003 | Versioned workspace-scoped session discovery and selection | Issue #5 / PR #6 |
 | 004 | Supervised Grok Build ACP v1 provider boundary | Issue #7 / PR #8 |
 | 005 | Supervised, read-only Claude Code subscription adapter | Issue #9 / PR #10 |
-| 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR pending |
+| 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR #19 |
 
 Features 001–006 completed the Speckit lifecycle through implementation.
 Feature 006 verification on this branch was green (`speckit validate`,
-`make check`, `feature_006`, `workbench-codex` tests). Merge SHA and PR number
-are recorded after the pull request lands on `main`.
+`make check`, `feature_006`, `workbench-codex` tests). Merge SHA is recorded
+after the pull request lands on `main`.
 
 ## Ordered Roadmap
 
