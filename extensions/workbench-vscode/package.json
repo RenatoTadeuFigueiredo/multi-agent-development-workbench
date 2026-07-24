@@ -1,0 +1,28 @@
+{
+  "name": "workbench-vscode",
+  "displayName": "Workbench Sessions",
+  "description": "Observe and control local Workbench sessions.",
+  "version": "0.1.0",
+  "engines": { "vscode": ">=1.90.0" },
+  "activationEvents": ["onCommand:workbench.attach", "onCommand:workbench.prompt"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": { "title": "Workbench", "properties": {
+      "workbench.endpoint": {
+        "type": "string",
+        "default": "workbench/workbench.sock",
+        "description": "Local Workbench daemon socket endpoint."
+      }
+    }},
+    "commands": [
+      { "command": "workbench.attach", "title": "Workbench: Attach Session" },
+      { "command": "workbench.prompt", "title": "Workbench: Send Prompt" }
+    ]
+  },
+  "scripts": { "compile": "tsc -p .", "test": "node --test dist/test/*.test.js" },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.7.0"
+  }
+}
