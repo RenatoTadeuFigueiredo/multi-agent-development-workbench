@@ -1,63 +1,62 @@
 # Repository Guidelines
 
-## Project Structure & Module Organization
+## Project
 
-Keep the planned Cargo workspace in `crates/` and the thin VS Code client in
-`extensions/vscode/`. Store specifications and decisions in `docs/`, scripts in
-`scripts/`, and README media in `assets/`. The terminal UI lives in the separate
-Grok Build fork described in
-`docs/architecture/grok-build-terminal-integration.md`; do not vendor it here.
-Place Rust unit tests beside modules and integration tests in each crate's
-`tests/` directory.
+This repository is a Rust 1.95 Cargo workspace managed with Speckit.
+`doc/arch/` is the product source of truth.
+
+## Architecture
+
+Domain rules and ports live in `crates/workbench-core`; layered configuration
+in `workbench-config`; encrypted SQLite persistence in `workbench-storage`;
+protocol DTOs and NDJSON framing in
+`workbench-protocol`; daemon composition and Unix IPC in `workbench-daemon`;
+the headless client in `workbench-cli`; and deterministic fakes and acceptance
+tests in `workbench-testkit`. Product specifications are under `doc/arch/`,
+supporting design notes under `docs/`, and generated contract checks under
+`scripts/`. The Grok-derived terminal remains in its separate fork.
 
 ## Build, Test, and Development Commands
 
-The Speckit plan must define the toolchain before scaffolding. Expected checks:
+- `make build` — compile the complete workspace.
+- `make check` — run formatting, Clippy, contracts, tests, acceptance, SLO, and
+  Speckit gates.
+- `make test-acceptance` — bind and execute all 23 feature 001 scenarios.
+- `make test-platform` — exercise the real Keychain or Secret Service adapter;
+  this intentionally requires an unlocked OS credential store.
+- `cargo run -p workbench-cli -- config validate` — validate resolved local
+  configuration without starting the daemon.
 
-- `cargo fmt --all -- --check` — verify Rust formatting.
-- `cargo clippy --workspace --all-targets --all-features -- -D warnings` — lint Rust.
-- `cargo test --workspace` — run the Rust suite.
+Run `workbench config lock` before `workbench daemon`. The generated base lock
+is workstation-local and ignored by Git.
 
-Add extension and fork commands after their toolchains are selected. Test the
-terminal through the ACP bridge and a pinned fork revision.
+## Conventions and Constraints
 
-## Coding Style & Naming Conventions
-
-Use `rustfmt` and Clippy defaults. Rust modules and functions use `snake_case`;
-types and traits use `PascalCase`. TypeScript values use `camelCase`.
+Use `rustfmt`; Clippy warnings are denied. Keep unsafe code forbidden. Name Rust
+modules and functions `snake_case`, types and traits `PascalCase`, and constants
+`SCREAMING_SNAKE_CASE`. Keep provider-specific behavior at adapter boundaries,
+protocol DTOs out of the domain, and presentation clients free of orchestration
+logic. Comments, code, documentation, commits, and pull requests use English.
 
 ## Testing Guidelines
 
-Cover every behavior change or bug fix. Use fake provider adapters; default
-tests must not consume paid models. Contract-test both client protocols. Grok
-Build syncs require upstream pager tests, ACP contracts, PTY tests, snapshots,
-and a reviewed `git range-diff`.
+Place unit tests beside their module and cross-crate contracts in `tests/`.
+Name tests after observable behavior, such as
+`replayed_request_does_not_append_an_event`. Default tests must be deterministic,
+offline, and use fake providers; never consume paid quota. Add failure-path and
+recovery coverage for persistence, protocol, or lifecycle changes.
 
-## Specification & Architecture Gate
+## Spec-first Protocol
 
-Once `doc/arch/speckit.toml` exists, follow the active Speckit phase. Do not
-write product code before `speckit next` reaches `implement`, or bypass a
-failing `speckit validate`. Workflows, credentials, and policies belong in the
-Rust core, not presentation clients. Route stable roles and model aliases
-through capability contracts; keep provider-specific logic inside adapters.
+Spec-first: feature work follows `speckit status` and only the phase returned
+by `speckit next`. Respect the guard policy (`[guard]` in
+`doc/arch/speckit.toml`): the spec-scope write gate must never be disabled or
+bypassed. A red `speckit validate` blocks commits.
 
-The Grok Build fork follows a separate downstream patch-stack policy:
-`main` is an exact upstream mirror, `workbench` contains the minimal integration
-commits, and feature branches target `workbench`. Never place Workbench changes
-on the fork's `main` or move orchestration into the pager.
+## Commit and Pull Request Rules
 
-## Commit & Pull Request Guidelines
-
-Use imperative Conventional Commit subjects, for example
-`feat: add workflow session view`. Pull requests must link the issue, explain
-the change, list verification and risks, and include screenshots for UI work.
-
-Upstream-sync pull requests must name both Grok Build commits, include the
-`git range-diff`, and report pager and Workbench backend tests. Never
-auto-merge them.
-
-## Repository Identity & Confidentiality
-
-Use `Renato Figueiredo <renato.tadeu.figueiredo@gmail.com>` for commits. Do not
-reference employers, clients, or unrelated organizations. Never commit secrets,
-API keys, provider sessions, or local session databases.
+Use focused Conventional Commits with `refs #<issue>`. Pull requests must link
+the issue and specification, explain risk and rollback, list verification, and
+include UI evidence when applicable. Obtain human approval before opening a
+pull request. Never commit credentials, provider sessions, local databases, or
+generated workstation locks.

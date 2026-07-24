@@ -4,6 +4,9 @@
 # Speckit machine-local state
 /doc/.specify/*.db
 
+# The base lock includes user-layer resolution and is generated per workstation.
+/.workbench/workbench.lock
+
 # Editor and operating-system state
 .DS_Store
 .idea/

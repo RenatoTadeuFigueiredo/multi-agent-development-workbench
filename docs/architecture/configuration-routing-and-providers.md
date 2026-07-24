@@ -29,14 +29,25 @@ Configuration is resolved from lowest to highest precedence:
 3. repository configuration in `.workbench/workbench.yaml`; and
 4. explicit session overrides.
 
-`.workbench/workbench.lock` records resolved adapter versions, model
-identifiers, MCP packages, checksums, and compatibility data when
-reproducibility is required. Version-controlled files may contain credential
-references such as `keychain:openrouter`, but never secret values.
+`.workbench/workbench.lock` is a deterministic required output for built-in,
+user, and repository layers. It records the resolved configuration hash,
+protocol version, adapter protocols and versions, executable digests, runtime
+model identifiers, and MCP versions and checksums. A session override produces
+a deterministic session lock linked to the base lock hash without rewriting
+the repository lock; it cannot introduce an executable or MCP absent from that
+base. Neither lock contains timestamps, environment-dependent paths, credential
+values, or other sources of nondeterminism. Repository policy decides whether
+the local base lock is tracked. Version-controlled files may contain credential
+references such as portable `platform:openrouter`, but never secret values.
+The daemon resolves `platform:` to macOS Keychain or Linux Secret Service.
 
 Every session stores a redacted snapshot and hash of its resolved
 configuration. Configuration changes apply to new sessions by default; an
 active session changes only through an explicit, validated migration.
+
+Feature 001 hashes recursively key-sorted, whitespace-free UTF-8 JSON with
+BLAKE3-256. Later format changes require a lock schema version and explicit
+migration.
 
 ## Declarative Model
 
@@ -53,15 +64,18 @@ providers:
     type: subscription-cli
   openrouter:
     type: api
-    api_key: keychain:openrouter
+    credential_ref: platform:openrouter
+    privacy:
+      zero_data_retention: true
+      data_collection: deny
 
 models:
   coordinator:
     provider: codex
-    model: gpt-5.6-sol
+    runtime_model: gpt-5.6-sol
   implementation:
     provider: grok
-    model: grok-4.5
+    runtime_model: grok-4.5
 
 roles:
   workspace-coordinator:
@@ -74,10 +88,16 @@ roles:
 routing:
   default_role: workspace-coordinator
   confidence_threshold: 0.85
-  automatic_execution:
-    read_only: true
-    mutations: require_approval
+
+policies:
+  default_tool_mode: read-only
+  global_deny: []
+  production_mutations: approval-required
 ```
+
+This repository-layer example inherits omitted empty role fields and built-in
+tool definitions from safe defaults. The post-merge resolved document is fully
+explicit and validates against `workbench-configuration.schema.json`.
 
 A later model migration normally changes only a model alias:
 
@@ -85,7 +105,7 @@ A later model migration normally changes only a model alias:
 models:
   implementation:
     provider: gemini
-    model: gemini-next
+    runtime_model: gemini-next
 ```
 
 Adding a model to an existing provider or a compatible generic API is
@@ -138,6 +158,20 @@ requirement.
 Removing a provider disables it for new routing, validates affected aliases and
 fallbacks, and preserves redacted historical session metadata. Existing
 sessions remain readable even when their original runtime is unavailable.
+
+Every external operation reports whether it is idempotent, carries material
+cost, or requires approval. Paid inference, mutation, production, credential,
+and unknown-result operations never retry automatically. A started attempt
+without a definite terminal event enters `outcome_unknown` and requires human
+reconciliation.
+
+The resolved configuration also contains central tool, data-source, and MCP
+registries. Every data source references an idempotent read operation. Every
+tool operation declares its effect class, idempotency, material-cost flag, and
+approval mode. Semantic validation rejects missing role, model, tool,
+data-source, MCP, fallback, and workflow-step references, and rejects
+`idempotent: true` for paid inference, production access, credential access, or
+non-idempotent mutations.
 
 ## Validation and Explainability
 

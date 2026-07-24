@@ -1,0 +1,35 @@
+version: 1
+providers:
+  fake:
+    type: fake
+models:
+  fake-default:
+    provider: fake
+    runtime_model: deterministic-v1
+roles:
+  workspace-coordinator:
+    model: fake-default
+    tools: []
+    data_sources: []
+    required_capabilities: []
+    fallback_models: []
+tools: {}
+data_sources: {}
+mcp_servers: {}
+workflows: {}
+routing:
+  default_role: workspace-coordinator
+  confidence_threshold: 0.85
+policies:
+  default_tool_mode: read-only
+  global_deny: []
+  production_mutations: approval-required
+storage:
+  encryption: required
+  retention_days: null
+  export_format: age/v1
+protocol:
+  max_frame_bytes: 8388608
+  max_client_queue_events: 1024
+  max_client_queue_bytes: 8388608
+  cancellation_deadline_ms: 5000

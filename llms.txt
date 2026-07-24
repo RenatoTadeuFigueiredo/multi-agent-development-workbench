@@ -1,0 +1,43 @@
+# multi-agent-development-workbench
+
+> A local, provider-independent workbench for routing and supervising Claude,
+> Codex, Grok, and API-backed coding agents through shared workflows.
+
+spec-first: doc/arch is the source of truth — run `speckit status` then `speckit next` and read the spec before writing any code.
+
+## Start Here
+
+- [Repository guide](AGENTS.md): project structure, commands, gates, and contribution rules
+- [Human overview](README.md): product experience and architecture
+- [Constitution](doc/arch/memory/constitution.md): non-negotiable design and governance principles
+- [Product overview](doc/arch/functional/product-overview.md): actors and end-to-end flow
+
+## Active Feature
+
+- [Specification](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md): requirements, security, acceptance, and scope
+- [Technical plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md): crate boundaries, protocols, storage, tests, and risks
+- [Decision](doc/arch/adr/0001-build-the-workbench-orchestration-kernel-foundation-as-a.md): provider-independent daemon rationale
+- [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export
+- [Executable scenarios](doc/arch/specs/features/build-the-workbench-orchestration-kernel-foundation-as-a.feature): Gherkin acceptance contract
+- [Local protocol](doc/arch/contracts/workbench-local-protocol.yaml): versioned command, reply, event, and error envelopes
+- [Protocol semantics](doc/arch/domain/local-protocol-semantics.md): preconditions, idempotency, retries, and replay
+- [Session lifecycle](doc/arch/statecharts/session-lifecycle.md): legal controls, uncertainty, and deletion transitions
+
+## Architecture
+
+- [Configuration and routing](docs/architecture/configuration-routing-and-providers.md): roles, aliases, providers, and routing order
+- [Terminal integration](docs/architecture/grok-build-terminal-integration.md): Grok Build fork and ACP boundary
+- [Headless CLI](doc/arch/domain/cli-surface.md): commands, JSON output, and stable exit codes
+- [Local operations](doc/arch/operations/operations.md): runtime layout, recovery, and backup
+- [Local SLOs](doc/arch/slo/service-level-objectives.md): durability, latency, and security gates
+- [Observability](doc/arch/observability/observability.md): metrics, logs, traces, and privacy rules
+- [Privacy threats](doc/arch/threat-model/privacy-threat-model.md): LINDDUN analysis and mitigations
+
+## Speckit Workflow
+
+Run `speckit status`, then execute only the phase from `speckit next`.
+The lifecycle is `specify` → `clarify` → `plan` → `tasks` → `analyze` →
+`implement`. Use `speckit validate` before commits, `speckit verify` for
+Gherkin bindings, `speckit spec score` for corpus health, and `speckit missing`
+for the ranked advisory queue. Never edit `doc/.specify/` directly or bypass
+the guard.

@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repository_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+fixture_root="${repository_root}/crates/workbench-testkit/fixtures/generated"
+
+sources=(
+  "doc/arch/contracts/workbench-local-protocol.yaml"
+  "doc/arch/datamodels/provider-capabilities.schema.json"
+  "doc/arch/datamodels/session-event.schema.json"
+  "doc/arch/datamodels/session-key-envelope.schema.json"
+  "doc/arch/datamodels/workbench-configuration.schema.json"
+  "doc/arch/datamodels/workbench-lock.schema.json"
+  "doc/arch/schemas/build-the-workbench-orchestration-kernel-foundation-as-a.cue"
+  "doc/arch/statecharts/session-lifecycle.md"
+)
+
+mkdir -p "${fixture_root}"
+for source in "${sources[@]}"; do
+  cp "${repository_root}/${source}" "${fixture_root}/$(basename "${source}")"
+done

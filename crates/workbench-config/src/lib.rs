@@ -1,0 +1,19 @@
+//! Layered Workbench configuration, snapshots, and deterministic locks.
+
+#![forbid(unsafe_code)]
+#![allow(clippy::missing_errors_doc)]
+
+pub mod lock;
+pub mod merge;
+pub mod model;
+pub mod preflight;
+pub mod snapshot;
+pub mod source;
+pub mod validate;
+
+pub use lock::{AdapterInput, WorkbenchLock};
+pub use merge::{ConfigLayer, ResolvedConfiguration};
+pub use model::WorkbenchConfiguration;
+pub use preflight::{ProviderCapabilities, ResolvedModel};
+pub use snapshot::ConfigurationSnapshot;
+pub use validate::ConfigError;
