@@ -20,6 +20,9 @@ lowercase tokens.
 | PT-11 | unawareness | inherited API credentials or cloud selectors silently change a configured Claude subscription route into API billing | environment, endpoint selection, account state, billing mode | require subscription auth preflight, remove API-key, alternate-endpoint, and cloud-provider selectors, expose bounded unavailability, and document provider-controlled billing |
 | PT-12 | data-disclosure | Claude stream frames, thinking, usage, tool arguments, stderr, or provider identifiers escape the normalized encrypted event boundary | source, prompts, model output, tool data, account and session metadata | enforce strict bounded NDJSON, discard stderr and private fields, expose only visible text and bounded read-tool names, and prohibit raw frames from logs, telemetry, replies, locks, and exports |
 | PT-13 | non-compliance | Claude-native shell, write, web, MCP, skill, plugin, browser, or subagent authority bypasses centralized policy | repository, local system, external services, provider configuration | use safe mode, strict empty MCP, disabled slash commands and Chrome, `dontAsk`, no persistence, and an exact `Read`, `Glob`, `Grep` tool set; fail closed on any other tool or control request |
+| PT-14 | unawareness | inherited API credentials or OSS selectors silently change a configured Codex subscription route into API or local billing | environment, endpoint selection, account state, billing mode | require ChatGPT login preflight, remove `OPENAI_API_KEY`, `CODEX_API_KEY`, alternate-endpoint, and OSS/local provider selectors, expose bounded unavailability, and document provider-controlled billing |
+| PT-15 | data-disclosure | Codex JSONL frames, reasoning, usage, command payloads, stderr, credential files, or provider identifiers escape the normalized encrypted event boundary | source, prompts, model output, tool data, account and session metadata | enforce strict bounded JSONL, discard stderr and private fields, never open `CODEX_HOME` auth files, expose only visible text and bounded tool names, and prohibit raw frames from logs, telemetry, replies, locks, and exports |
+| PT-16 | non-compliance | Codex-native workspace-write, danger-full-access, approval bypass, MCP, plugin, or elevated sandbox authority bypasses centralized policy | repository, local system, external services, provider configuration | launch only `exec --json --ephemeral --sandbox read-only`, never pass approval-bypass or writable sandbox flags, and keep mutation, MCP, and plugin surfaces out of scope |
 
 ## Supervised Grok ACP Child Boundary
 
@@ -80,3 +83,35 @@ stderr, protocol bodies, executable and workspace paths, and provider
 identifiers are discarded. Cancellation is confirmed only by a correlated
 successful interrupt response followed by `aborted_streaming` or
 `aborted_tools`; all other post-dispatch loss remains `outcome_unknown`.
+
+## Supervised Codex Child Boundary
+
+Feature 006 invokes an operator-installed official Codex CLI executable as a
+fresh same-user child for each attempt. Lock generation and startup use a
+private executable snapshot, pin `codex-exec-jsonl/1`, version, and SHA-256,
+and never invoke `codex update` or login. Workbench never discovers the binary
+through `PATH`, runs login or installer commands, opens `CODEX_HOME`
+credential files such as `auth.json`, or receives an OAuth or access token.
+
+Authentication preflight accepts only an already established ChatGPT
+subscription login from a bounded `login status` probe. API keys, alternate
+endpoints, and OSS/local provider selectors are removed from the child
+environment so a subscription route cannot silently change billing paths.
+OpenAI controls programmatic-use eligibility and charging; the adapter does
+not make a billing guarantee or act as a credential broker.
+
+The direct launch uses `codex exec --json --ephemeral --sandbox read-only`,
+the routed model, and the canonical workspace as `-C` and working directory.
+Writable sandbox modes, approval bypass, full-auto, resume, MCP registration,
+and plugins are absent. This is authority reduction, not an operating-system
+sandbox. The child can still read the canonical workspace and contact provider
+services as the current user.
+
+Every frame is untrusted, UTF-8, newline-delimited, duplicate-key-free, and
+limited to 8 MiB. Only normalized visible text and bounded tool names may
+enter encrypted session history. Reasoning, usage, raw command or file-change
+payloads, auth fields, stderr, protocol bodies, executable and workspace
+paths, and provider identifiers are discarded. Cancellation is confirmed only
+by a documented abort or cancelled terminal event for the active attempt
+before reaping; process kill alone remains unconfirmed and becomes
+`outcome_unknown` after the provider budget when no confirming event arrives.
