@@ -43,7 +43,7 @@
 - [Next Steps](#next-steps)
 - [Speckit source of truth](doc/arch/functional/product-overview.md)
 
-🧭 **Current phase:** Feature 004 pull-request CI and merge evidence.
+🧭 **Current phase:** Feature 004 implemented and validated.
 
 ## Executive Summary
 
@@ -542,8 +542,10 @@ Parallel feature branches, remote workers, a visual workflow designer, team coll
   scanning, rejects one byte over the limit, and divides cancellation into a
   4.5-second provider budget plus a 500-millisecond durable-finalization
   reserve.
-- `make check` and `make supply-chain-ci` pass locally. The same revision still
-  requires green macOS and Linux pull-request CI before merge.
+- `make check` and `make supply-chain-ci` pass locally. PR #8 also records all
+  four required jobs green in
+  [GitHub Actions run 30106637866](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30106637866):
+  macOS, Linux with Secret Service, supply chain, and VS Code.
 - The production adapter launches the configured executable directly as
   `grok agent --no-leader stdio`, disables its auto-updater, pins its digest,
   negotiates ACP v1, and keeps Grok-owned authentication outside Workbench.
@@ -588,7 +590,7 @@ The MVP is successful when a user can submit one feature request and:
 | Orchestration kernel, encrypted sessions, protocol, and CLI | Implemented | Feature 001 |
 | Thin VS Code session bridge | Implemented | Feature 002 |
 | Workspace-local session discovery and isolation | Implemented | Feature 003 |
-| Supervised Grok Build ACP provider | Implemented; PR CI pending | Feature 004 |
+| Supervised Grok Build ACP provider | Implemented and validated | Feature 004 |
 | Cargo workspace and deterministic acceptance harnesses | Implemented | Eight Rust crates |
 | VS Code extension | Implemented foundation | TypeScript extension |
 | Fork external-ACP backend and two-snapshot rebase spike | Pending | Later Speckit feature |
@@ -603,8 +605,8 @@ Linux.
 
 This README defines the product vision; `doc/arch/` defines implementation
 requirements. Features 001–004 have completed the Speckit workflow through
-`implement`. Feature 004's local implementation and evidence are complete;
-pull-request CI remains:
+`implement`. Feature 004's implementation and required local and pull-request
+evidence are complete:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
@@ -616,12 +618,9 @@ a tracked change and a new or active Speckit feature before product code.
 
 ## Next Steps
 
-1. Run Feature 004's committed acceptance, platform, and supply-chain gates on
-   macOS and Linux pull-request CI.
-2. Merge Feature 004 only after every required CI job is green.
-3. Specify and implement Claude, Codex, OpenRouter, and shared MCP adapters
+1. Specify and implement Claude, Codex, OpenRouter, and shared MCP adapters
    independently against the proven provider contract.
-4. Implement the Workbench ACP server, the terminal fork backend, and the
+2. Implement the Workbench ACP server, the terminal fork backend, and the
    richer workflow UI before piloting the complete multi-provider workflow.
 
 ## References

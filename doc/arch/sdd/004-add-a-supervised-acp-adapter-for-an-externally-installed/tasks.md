@@ -50,11 +50,12 @@ optional and is used solely for a manual handshake-only smoke test.
 T001, T002, and the fake-agent portion of T007 may proceed in parallel. T003
 depends on the transport boundary from T001. T004 and T005 depend on T001 and
 T003. T006 depends on T002 through T005. T008 and T009 complete after the
-adapter is registered. Execution on both supported CI operating systems remains
-a pull-request release gate rather than an implementation task.
+adapter is registered. Execution on both supported CI operating systems is a
+pull-request release gate rather than an implementation task; PR #8 recorded
+that gate green on macOS and Linux in GitHub Actions run 30106637866.
 
 Speckit 0.18.10 verification is advisory for this feature because its
 executable registry does not load the repository's external Rust tests and
 therefore reports zero loaded bindings. The repository-owned fingerprint and
-exact-test runner is the authoritative acceptance gate. The remaining release
-evidence is green execution of that gate on macOS and Linux pull-request CI.
+exact-test runner is the authoritative acceptance gate. Its macOS and Linux
+pull-request CI evidence is recorded in the implementation evidence.

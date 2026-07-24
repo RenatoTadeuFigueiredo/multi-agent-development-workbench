@@ -18,8 +18,9 @@
   ACP v1 initialization and normalized streaming, conservative cancellation,
   provider-registry composition, the explicit fake ACP process, all 23
   concrete Feature 004 acceptance cases, and the release documentation.
-- macOS and Linux pull-request CI remain required before merge. They are
-  release evidence, not unfinished local implementation.
+- Pull request #8 recorded all four required GitHub Actions jobs green in run
+  30106637866, including macOS, Linux with Secret Service, supply chain, and
+  VS Code validation.
 
 ## Recorded Targeted Evidence
 
@@ -30,14 +31,15 @@
 | `cargo check -p workbench-daemon --all-targets --locked` | Passed | Daemon provider composition compiled for all targets on the recorded macOS host |
 | `make check` | Passed | Complete deterministic local offline gate, including acceptance, SLO, contracts, lint, and Speckit gates |
 | `make supply-chain-ci` | Passed | Local advisory, license/source, secret, workflow-policy, and reproducible eight-crate SBOM gates |
+| [PR #8, GitHub Actions run 30106637866](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30106637866) | Passed: 4/4 | macOS check: 3m27s; Linux with Secret Service: 5m18s; supply chain: 3m29s; VS Code: 14s |
 | Final P0/P1 review | Passed | No open P0 or P1 findings |
 | `speckit validate` | Passed: 0 findings | Feature 004 architecture corpus |
 | `scripts/check-contract-drift.sh` | Passed | Generated architecture contract fixtures |
 | Local Markdown link check | Passed: 51 files, 0 broken local paths | Repository Markdown paths; external URLs were not checked |
 | `git diff --check` | Passed | Whitespace and conflict-marker check after the final documentation update |
 
-The local gate is complete. The same committed acceptance target must still run
-on both supported operating systems in pull-request CI before merge.
+The local gate and the required macOS, Linux, supply-chain, and VS Code
+pull-request jobs are complete.
 
 ## Acceptance Method
 
@@ -59,12 +61,13 @@ quadratic rescanning and a one-byte-oversized frame is rejected. Cancellation
 uses a 4.5-second provider budget plus a 500-millisecond daemon finalization
 reserve within the public five-second deadline.
 
-## Pending Release Evidence
+## Release Evidence
 
 - [x] Fingerprint all 23 concrete Feature 004 cases and execute their 11
   repository-owned evidence tests across the application, adapter, supervisor,
   transport, and fake-process layers.
-- [ ] Record green macOS and Linux CI results.
+- [x] Record green macOS and Linux CI results in PR #8, GitHub Actions run
+  30106637866.
 - [x] Run and record the final local `make check` after all implementation and
   documentation changes are stable.
 - [x] Run the local release supply-chain checks and record advisory,

@@ -12,7 +12,7 @@ be collected for a particular operator-installed Grok Build executable.
 | Approved external artifact | Not recorded by the repository |
 | External version and SHA-256 | Workstation-local lock output; intentionally not committed here |
 | Distribution provenance | Must be recorded by the operator during update review |
-| Repository supply-chain gate | Local `make supply-chain-ci` passed; pull-request CI pending |
+| Repository supply-chain gate | Local `make supply-chain-ci` passed; PR #8 supply-chain job passed in GitHub Actions run 30106637866 (3m29s) |
 | Exact-profile live handshake | Passed on the recorded macOS review host |
 
 The absence of an approved artifact in this record is intentional. Workbench

@@ -44,7 +44,7 @@
 - [Próximos passos](#próximos-passos)
 - [Fonte de verdade do Speckit](doc/arch/functional/product-overview.md)
 
-🧭 **Fase atual:** CI do pull request e evidências de merge da Feature 004.
+🧭 **Fase atual:** Feature 004 implementada e validada.
 
 ## Resumo executivo
 
@@ -555,8 +555,10 @@ Branches paralelas de funcionalidades, workers remotos, editor visual de workflo
   incremental de newline, rejeita um byte acima do limite e divide o
   cancelamento em um orçamento de 4,5 segundos para o provider mais uma reserva
   de 500 milissegundos para finalização durável.
-- `make check` e `make supply-chain-ci` passam localmente. A mesma revisão ainda
-  precisa de CI verde no macOS e Linux antes do merge.
+- `make check` e `make supply-chain-ci` passam localmente. O PR #8 também
+  registra os quatro jobs obrigatórios verdes no
+  [run 30106637866 do GitHub Actions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30106637866):
+  macOS, Linux com Secret Service, supply chain e VS Code.
 - O adaptador de produção inicia diretamente o executável configurado como
   `grok agent --no-leader stdio`, desativa seu atualizador automático, fixa seu
   digest, negocia ACP v1 e mantém a autenticação do Grok fora do Workbench.
@@ -601,7 +603,7 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 | Núcleo, sessões criptografadas, protocolo e CLI | Implementado | Feature 001 |
 | Ponte fina de sessões do VS Code | Implementado | Feature 002 |
 | Descoberta e isolamento de sessões por workspace | Implementado | Feature 003 |
-| Provider supervisionado do Grok Build por ACP | Implementado; CI do PR pendente | Feature 004 |
+| Provider supervisionado do Grok Build por ACP | Implementado e validado | Feature 004 |
 | Workspace Cargo e harnesses de aceitação determinísticos | Implementado | Oito crates Rust |
 | Extensão do VS Code | Fundação implementada | Extensão TypeScript |
 | Spike do backend ACP externo e rebase entre dois snapshots do fork | Pendente | Feature futura do Speckit |
@@ -615,8 +617,8 @@ Service é executada pelo gate explícito `make test-platform` no macOS e Linux.
 
 Este README define a visão do produto; `doc/arch/` define os requisitos de
 implementação. As features 001–004 concluíram o workflow do Speckit até
-`implement`. A implementação e as evidências locais da Feature 004 estão
-concluídas; o CI do pull request permanece:
+`implement`. A implementação e as evidências locais e do pull request da
+Feature 004 estão concluídas:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
@@ -629,13 +631,9 @@ ativa antes do código de produto.
 
 ## Próximos passos
 
-1. Executar os gates versionados de aceitação, plataforma e supply chain da
-   Feature 004 no CI do pull request para macOS e Linux.
-2. Integrar a Feature 004 somente quando todos os jobs obrigatórios estiverem
-   verdes.
-3. Especificar e implementar separadamente os adaptadores Claude, Codex,
+1. Especificar e implementar separadamente os adaptadores Claude, Codex,
    OpenRouter e MCP compartilhado contra o contrato de provider já provado.
-4. Implementar o servidor ACP do Workbench, o backend do fork do terminal e a
+2. Implementar o servidor ACP do Workbench, o backend do fork do terminal e a
    interface mais rica de workflows antes do piloto multi-provider completo.
 
 ## Referências
