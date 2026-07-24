@@ -16,17 +16,11 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Current State
 
 - Run `make context` before relying on this snapshot.
-- Features 001–008 are on `main` (workflow executor complete via issue #14 /
-  PR #21 + #22, merge `12804dd`).
-- Feature 009 real-time VS Code workflow controls is active on
-  `009-add-real-time-vs-code-workflow-controls-that-show-routing` (issue #15):
-  routing/workflow/approval rendering, status bar, pause/resume/cancel/
-  redirect/approval commands, offline extension tests.
-- Next ready product increment after #15 merge:
+- Features 001–009 are on `main` (latest: issue #15 / PR #23, merge `709ec20`).
+- Next ready product increment:
   [issue #16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16),
-  OpenRouter provider and cost controls.
+  OpenRouter provider and cost controls; then #17 Workbench ACP server.
 - [Specification](doc/arch/sdd/009-add-real-time-vs-code-workflow-controls-that-show-routing/spec.md): VS Code control-room requirements
-- [Technical plan](doc/arch/sdd/009-add-real-time-vs-code-workflow-controls-that-show-routing/plan.md): thin client presentation approach
 - [Decision](doc/arch/adr/0010-add-real-time-vs-code-workflow-controls-that-show-routing.md): thin protocol client (no orchestration in TypeScript)
 - [Executable scenarios](doc/arch/specs/features/add-real-time-vs-code-workflow-controls-that-show-routing.feature): Gherkin acceptance contract
 - [Workflow executor](doc/arch/sdd/008-execute-configurable-multi-agent-workflows-that-resolve/spec.md): Feature 008 daemon runtime
