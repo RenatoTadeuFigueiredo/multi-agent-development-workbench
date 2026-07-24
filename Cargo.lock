@@ -3104,6 +3104,7 @@ dependencies = [
  "workbench-config",
  "workbench-core",
  "workbench-mcp",
+ "workbench-openrouter",
  "workbench-protocol",
  "workbench-storage",
 ]
@@ -3123,6 +3124,23 @@ dependencies = [
  "uuid",
  "workbench-config",
  "workbench-core",
+]
+
+[[package]]
+name = "workbench-openrouter"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "keyring",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "workbench-core",
+ "zeroize",
 ]
 
 [[package]]
@@ -3193,6 +3211,7 @@ dependencies = [
  "workbench-core",
  "workbench-daemon",
  "workbench-mcp",
+ "workbench-openrouter",
  "workbench-protocol",
  "workbench-storage",
 ]
