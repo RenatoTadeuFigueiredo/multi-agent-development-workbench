@@ -50,15 +50,20 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
         return invalid("protocol", "feature 001 protocol limits are fixed");
     }
 
+    let mut has_api_provider = false;
     for (name, provider) in &config.providers {
         validate_identifier(name, &format!("providers.{name}"))?;
-        if provider.kind == ProviderType::Api
-            && (provider.credential_ref.is_none() || provider.privacy.is_none())
-        {
-            return invalid(
-                &format!("providers.{name}"),
-                "API providers require credential_ref and privacy",
-            );
+        if provider.kind == ProviderType::Api {
+            has_api_provider = true;
+            if provider.credential_ref.is_none() || provider.privacy.is_none() {
+                return invalid(
+                    &format!("providers.{name}"),
+                    "API providers require credential_ref and privacy",
+                );
+            }
+            if let Some(base_url) = &provider.base_url {
+                validate_api_base_url(base_url, name)?;
+            }
         }
         if provider.kind == ProviderType::Acp
             && provider.executable.as_deref().is_none_or(str::is_empty)
@@ -90,8 +95,34 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                 "driver is only valid for subscription CLI providers",
             );
         }
+        if provider.kind != ProviderType::Api && provider.base_url.is_some() {
+            return invalid(
+                &format!("providers.{name}.base_url"),
+                "base_url is only valid for API providers",
+            );
+        }
         if let Some(reference) = &provider.credential_ref {
             validate_credential_reference(reference, name)?;
+        }
+    }
+    if has_api_provider {
+        let Some(cost) = &config.policies.cost else {
+            return invalid(
+                "policies.cost",
+                "API providers require policies.cost with a positive session budget",
+            );
+        };
+        if cost.max_session_usd_micros == 0 {
+            return invalid(
+                "policies.cost.max_session_usd_micros",
+                "must be greater than zero",
+            );
+        }
+        if cost.max_attempt_usd_micros == Some(0) {
+            return invalid(
+                "policies.cost.max_attempt_usd_micros",
+                "must be greater than zero when set",
+            );
         }
     }
 
@@ -406,6 +437,27 @@ pub fn validate_digest(value: &str, path: &str) -> Result<(), ConfigError> {
 
 fn validate_credential_reference(reference: &str, provider: &str) -> Result<(), ConfigError> {
     validate_secret_handle(reference, &format!("providers.{provider}.credential_ref"))
+}
+
+fn validate_api_base_url(base_url: &str, provider: &str) -> Result<(), ConfigError> {
+    if base_url.is_empty() || base_url.len() > 2048 {
+        return invalid(
+            &format!("providers.{provider}.base_url"),
+            "must contain 1 to 2048 bytes",
+        );
+    }
+    if base_url.starts_with("https://")
+        || base_url.starts_with("http://127.0.0.1")
+        || base_url.starts_with("http://localhost")
+        || base_url.starts_with("http://[::1]")
+        || base_url == "fake://openrouter"
+    {
+        return Ok(());
+    }
+    invalid(
+        &format!("providers.{provider}.base_url"),
+        "must be https, loopback http, or fake://openrouter",
+    )
 }
 
 fn validate_secret_handle(reference: &str, path: &str) -> Result<(), ConfigError> {

@@ -13,7 +13,7 @@ pub mod validate;
 
 pub use lock::{
     ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, CODEX_EXEC_JSONL_PROTOCOL,
-    WorkbenchLock, canonicalize_adapter_executable,
+    OPENROUTER_CHAT_COMPLETIONS_PROTOCOL, WorkbenchLock, canonicalize_adapter_executable,
 };
 pub use merge::{ConfigLayer, ResolvedConfiguration};
 pub use model::WorkbenchConfiguration;

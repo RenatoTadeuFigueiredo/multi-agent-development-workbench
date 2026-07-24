@@ -602,6 +602,7 @@ mod tests {
                 executable: Some(executable.to_string_lossy().into_owned()),
                 credential_ref: None,
                 privacy: None,
+                base_url: None,
             },
         );
         configuration

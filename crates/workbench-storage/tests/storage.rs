@@ -75,6 +75,7 @@ fn export_metadata_fixture() -> (serde_json::Value, serde_json::Value, String, S
                 zero_data_retention: true,
                 data_collection: DataCollection::Deny,
             }),
+            base_url: None,
         },
     );
     let snapshot = ConfigurationSnapshot::create(&configuration, vec!["test".to_owned()])

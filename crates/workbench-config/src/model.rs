@@ -32,6 +32,9 @@ pub struct Provider {
     pub credential_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub privacy: Option<Privacy>,
+    /// Optional API base URL. OpenRouter defaults when absent for `type: api`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub base_url: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -220,6 +223,20 @@ pub struct Policies {
     pub default_tool_mode: DefaultToolMode,
     pub global_deny: Vec<String>,
     pub production_mutations: ProductionMutations,
+    /// Paid API budget ceilings. Required when any `type: api` provider exists.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<CostPolicy>,
+}
+
+/// Session and optional per-attempt paid inference ceilings in micro-USD.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CostPolicy {
+    /// Hard session ceiling in micro-USD (1 USD = 1_000_000 micros).
+    pub max_session_usd_micros: u64,
+    /// Optional single-attempt estimate ceiling in micro-USD.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_attempt_usd_micros: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -275,6 +292,7 @@ impl WorkbenchConfiguration {
                 executable: None,
                 credential_ref: None,
                 privacy: None,
+                base_url: None,
             },
         )]);
         let models = BTreeMap::from([(
@@ -312,6 +330,7 @@ impl WorkbenchConfiguration {
                 default_tool_mode: DefaultToolMode::ReadOnly,
                 global_deny: Vec::new(),
                 production_mutations: ProductionMutations::ApprovalRequired,
+                cost: None,
             },
             storage: Storage {
                 encryption: Encryption::Required,

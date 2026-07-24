@@ -136,6 +136,7 @@ fn snapshot_redacts_references_and_is_deterministic() {
                 zero_data_retention: true,
                 data_collection: workbench_config::model::DataCollection::Deny,
             }),
+            base_url: None,
         },
     );
     let first = ConfigurationSnapshot::create(&configuration, vec!["builtins".to_owned()])
@@ -185,6 +186,7 @@ fn acp_providers_require_an_explicit_executable() {
             executable: None,
             credential_ref: None,
             privacy: None,
+            base_url: None,
         },
     );
 
@@ -214,6 +216,7 @@ fn acp_adapter_input_pins_protocol_version_and_executable_digest() {
             executable: Some(executable.to_string_lossy().into_owned()),
             credential_ref: None,
             privacy: None,
+            base_url: None,
         },
     );
     validate(&configuration).expect("ACP configuration");
@@ -258,6 +261,7 @@ fn claude_subscription_provider_requires_driver_and_pins_stream_protocol() {
             executable: Some(executable.to_string_lossy().into_owned()),
             credential_ref: None,
             privacy: None,
+            base_url: None,
         },
     );
     validate(&configuration).expect("Claude subscription configuration");
@@ -291,6 +295,7 @@ fn subscription_provider_without_driver_or_executable_is_rejected() {
             executable: None,
             credential_ref: None,
             privacy: None,
+            base_url: None,
         },
     );
 
@@ -340,6 +345,7 @@ fn preflight_chooses_the_first_compatible_fallback() {
             executable: None,
             credential_ref: None,
             privacy: None,
+            base_url: None,
         },
     );
     configuration.models.insert(

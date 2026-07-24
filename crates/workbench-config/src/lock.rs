@@ -23,6 +23,7 @@ use crate::{
 pub const ACP_PROTOCOL: &str = "acp/1";
 pub const CLAUDE_CODE_STREAM_PROTOCOL: &str = "claude-code-stream-json/1";
 pub const CODEX_EXEC_JSONL_PROTOCOL: &str = "codex-exec-jsonl/1";
+pub const OPENROUTER_CHAT_COMPLETIONS_PROTOCOL: &str = "openrouter-chat-completions/1";
 
 #[derive(Clone, Debug)]
 pub struct AdapterInput {

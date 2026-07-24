@@ -21,7 +21,7 @@ use workbench_claude::{ClaudeLaunchProfile, ClaudeProviderAdapter};
 use workbench_codex::{CodexLaunchProfile, CodexProviderAdapter};
 use workbench_config::{
     ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, CODEX_EXEC_JSONL_PROTOCOL,
-    ConfigError, canonicalize_adapter_executable,
+    ConfigError, OPENROUTER_CHAT_COMPLETIONS_PROTOCOL, canonicalize_adapter_executable,
     model::{ApprovalMode, Capability, EffectClass, ProviderDriver, ProviderType},
     preflight::{
         Authentication, ProviderCapabilities as ConfigProviderCapabilities, ProviderOperation,
@@ -34,6 +34,10 @@ use workbench_core::{
         ProviderRegistry,
     },
     value::ProviderId,
+};
+use workbench_openrouter::{
+    CostPolicyConfig, OpenRouterConnect, OpenRouterProviderAdapter, PlatformSecretSource,
+    SecretSource, SessionCostLedger,
 };
 
 use crate::StartupConfiguration;
@@ -67,6 +71,7 @@ pub struct ProviderRuntime {
     registry: Arc<StaticProviderRegistry>,
     catalog: BTreeMap<String, ConfigProviderCapabilities>,
     managed: Vec<ManagedAdapter>,
+    openrouter_ledger: SessionCostLedger,
     _snapshots: TempDir,
 }
 
@@ -83,6 +88,7 @@ enum ManagedAdapter {
     Acp(Arc<GrokProviderAdapter>),
     ClaudeCode(Arc<ClaudeProviderAdapter>),
     Codex(Arc<CodexProviderAdapter>),
+    OpenRouter(Arc<OpenRouterProviderAdapter>),
 }
 
 /// Executable protocol selected explicitly by resolved provider
@@ -171,6 +177,8 @@ impl ProviderRuntime {
         let cancellation_deadline = provider_cancellation_budget(Duration::from_millis(
             startup.resolved.protocol.cancellation_deadline_ms,
         ))?;
+        let openrouter_ledger = SessionCostLedger::new();
+        let secrets: Arc<dyn SecretSource> = Arc::new(PlatformSecretSource::new());
 
         for (name, descriptor) in descriptors {
             let (adapter, owned) =
@@ -209,10 +217,106 @@ impl ProviderRuntime {
             managed.push(owned);
         }
 
+        match connect_openrouter_providers(
+            startup,
+            Arc::clone(&secrets),
+            openrouter_ledger.clone(),
+            cancellation_deadline,
+        ) {
+            Ok(api_adapters) => {
+                for (name, provider_id, adapter, owned) in api_adapters {
+                    let capabilities = match adapter.capabilities().await {
+                        Ok(capabilities) => capabilities,
+                        Err(error) => {
+                            let mut cleanup = managed.clone();
+                            cleanup.push(owned);
+                            if !shutdown_managed(&cleanup).await {
+                                return Err(ProviderRuntimeError::Reap);
+                            }
+                            return Err(error.into());
+                        }
+                    };
+                    catalog.insert(name, config_capabilities(&capabilities));
+                    adapters.insert(provider_id, adapter);
+                    managed.push(owned);
+                }
+            }
+            Err(error) => {
+                cleanup_after_startup_error(&managed, &error).await?;
+                return Err(error.into());
+            }
+        }
+
         Ok(Self {
             registry: Arc::new(StaticProviderRegistry { adapters }),
             catalog,
             managed,
+            openrouter_ledger,
+            _snapshots: snapshots,
+        })
+    }
+
+    /// Session cost ledger shared by OpenRouter adapters in this runtime.
+    #[must_use]
+    pub fn openrouter_ledger(&self) -> &SessionCostLedger {
+        &self.openrouter_ledger
+    }
+
+    /// Boots only OpenRouter API adapters for offline acceptance tests.
+    ///
+    /// # Errors
+    ///
+    /// Returns when configuration or credential policy is invalid.
+    pub fn bootstrap_openrouter_only(
+        startup: &StartupConfiguration,
+        secrets: Arc<dyn SecretSource>,
+        ledger: SessionCostLedger,
+    ) -> Result<Self, ProviderRuntimeError> {
+        if !startup.lock_is_verified() {
+            return Err(ProviderRuntimeError::Incompatible(
+                "provider startup requires a verified repository lock",
+            ));
+        }
+        let cancellation_deadline = provider_cancellation_budget(Duration::from_millis(
+            startup.resolved.protocol.cancellation_deadline_ms,
+        ))?;
+        let snapshots = tempfile::Builder::new()
+            .prefix(".provider-snapshots-")
+            .tempdir()
+            .map_err(|_| ProviderRuntimeError::Snapshot)?;
+        let mut adapters = BTreeMap::new();
+        let mut catalog = BTreeMap::new();
+        let mut managed = Vec::new();
+        let api_adapters =
+            connect_openrouter_providers(startup, secrets, ledger.clone(), cancellation_deadline)?;
+        for (name, provider_id, adapter, owned) in api_adapters {
+            // capabilities() is async; use blocking via known offline values.
+            catalog.insert(
+                name.clone(),
+                ConfigProviderCapabilities {
+                    adapter_id: name,
+                    protocol: OPENROUTER_CHAT_COMPLETIONS_PROTOCOL.to_owned(),
+                    adapter_version: "1".to_owned(),
+                    authentication: Authentication::Available,
+                    capabilities: vec![Capability::Streaming, Capability::Cancellation],
+                    operations: vec![ProviderOperation {
+                        name: "provider.prompt".to_owned(),
+                        effect_class: EffectClass::PaidInference,
+                        idempotent: false,
+                        material_cost: true,
+                        approval: ApprovalMode::Policy,
+                    }],
+                    context_window_tokens: Some(128_000),
+                },
+            );
+            adapters.insert(provider_id, adapter);
+            managed.push(owned);
+        }
+        Ok(Self {
+            registry: Arc::new(StaticProviderRegistry { adapters }),
+            catalog,
+            managed,
+            openrouter_ledger: ledger,
             _snapshots: snapshots,
         })
     }
@@ -298,6 +402,72 @@ async fn connect_descriptor(
             Ok((erased, ManagedAdapter::Codex(adapter)))
         }
     }
+}
+
+fn connect_openrouter_providers(
+    startup: &StartupConfiguration,
+    secrets: Arc<dyn SecretSource>,
+    ledger: SessionCostLedger,
+    cancellation_deadline: Duration,
+) -> Result<
+    Vec<(
+        String,
+        ProviderId,
+        Arc<dyn ProviderAdapter>,
+        ManagedAdapter,
+    )>,
+    CoreError,
+> {
+    let mut connected = Vec::new();
+    let cost = startup.resolved.policies.cost.as_ref();
+    for (name, provider) in &startup.resolved.providers {
+        if provider.kind != ProviderType::Api {
+            continue;
+        }
+        let Some(cost) = cost else {
+            return Err(CoreError::new(
+                workbench_core::FailureCategory::InvalidRequest,
+                "API providers require policies.cost",
+            ));
+        };
+        let credential_ref = provider.credential_ref.clone().ok_or_else(|| {
+            CoreError::new(
+                workbench_core::FailureCategory::InvalidRequest,
+                "API provider is missing credential_ref",
+            )
+        })?;
+        let zero_data_retention = provider
+            .privacy
+            .as_ref()
+            .is_some_and(|privacy| privacy.zero_data_retention);
+        let provider_id = ProviderId::parse(name.clone())?;
+        let transport =
+            OpenRouterProviderAdapter::transport_for_base_url(provider.base_url.as_deref());
+        let adapter = Arc::new(OpenRouterProviderAdapter::connect(OpenRouterConnect {
+            adapter_id: provider_id.clone(),
+            adapter_version: "1".to_owned(),
+            credential_ref,
+            secrets: Arc::clone(&secrets),
+            transport,
+            ledger: ledger.clone(),
+            policy: CostPolicyConfig {
+                max_session_usd_micros: cost.max_session_usd_micros,
+                max_attempt_usd_micros: cost.max_attempt_usd_micros,
+            },
+            zero_data_retention,
+            cancellation_deadline,
+            // Secrets may be installed after lock generation; fail at prompt.
+            require_secret_at_connect: false,
+        })?);
+        let erased: Arc<dyn ProviderAdapter> = adapter.clone();
+        connected.push((
+            name.clone(),
+            provider_id,
+            erased,
+            ManagedAdapter::OpenRouter(adapter),
+        ));
+    }
+    Ok(connected)
 }
 
 fn provider_cancellation_budget(
@@ -976,6 +1146,10 @@ async fn shutdown_managed(adapters: &[ManagedAdapter]) -> bool {
             ManagedAdapter::Acp(adapter) => adapter.shutdown().await.reaped,
             ManagedAdapter::ClaudeCode(adapter) => adapter.shutdown().await.reaped,
             ManagedAdapter::Codex(adapter) => adapter.shutdown().await.reaped,
+            ManagedAdapter::OpenRouter(adapter) => {
+                adapter.shutdown();
+                true
+            }
         }
     }))
     .await
