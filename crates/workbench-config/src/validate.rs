@@ -138,10 +138,7 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                     );
                 }
                 for (key, handle) in &server.env {
-                    validate_secret_handle(
-                        handle,
-                        &format!("mcp_servers.{name}.env.{key}"),
-                    )?;
+                    validate_secret_handle(handle, &format!("mcp_servers.{name}.env.{key}"))?;
                 }
             }
             McpTransport::Http => {
@@ -167,10 +164,7 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                     );
                 }
                 for (key, handle) in &server.headers {
-                    validate_secret_handle(
-                        handle,
-                        &format!("mcp_servers.{name}.headers.{key}"),
-                    )?;
+                    validate_secret_handle(handle, &format!("mcp_servers.{name}.headers.{key}"))?;
                 }
             }
         }
@@ -397,10 +391,7 @@ pub fn validate_digest(value: &str, path: &str) -> Result<(), ConfigError> {
 }
 
 fn validate_credential_reference(reference: &str, provider: &str) -> Result<(), ConfigError> {
-    validate_secret_handle(
-        reference,
-        &format!("providers.{provider}.credential_ref"),
-    )
+    validate_secret_handle(reference, &format!("providers.{provider}.credential_ref"))
 }
 
 fn validate_secret_handle(reference: &str, path: &str) -> Result<(), ConfigError> {

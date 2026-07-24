@@ -23,9 +23,7 @@ use workbench_core::{
 };
 
 use crate::{
-    error::{
-        McpError, McpErrorKind, policy_denied, shutting_down, unavailable,
-    },
+    error::{McpError, McpErrorKind, policy_denied, shutting_down, unavailable},
     http::HttpMcpClient,
     pin::{PinStatus, require_available, verify_registry},
     policy::{ToolPolicyContext, gate_before_transport, resolve_mcp_tool_access},
@@ -155,7 +153,10 @@ impl McpGateway {
 
     #[must_use]
     pub fn available_servers(&self) -> Vec<&PinStatus> {
-        self.pins.values().filter(|status| status.available).collect()
+        self.pins
+            .values()
+            .filter(|status| status.available)
+            .collect()
     }
 
     /// Records and returns redacted audit facts.
@@ -209,8 +210,7 @@ impl McpGateway {
         if let Err(error) = gate_before_transport(&access, request.approval_granted) {
             let lifecycle = match error.kind() {
                 McpErrorKind::ApprovalRequired => ToolLifecycle::ApprovalRequired,
-                McpErrorKind::ApprovalDenied => ToolLifecycle::Denied,
-                McpErrorKind::PolicyDenied => ToolLifecycle::Denied,
+                McpErrorKind::ApprovalDenied | McpErrorKind::PolicyDenied => ToolLifecycle::Denied,
                 _ => ToolLifecycle::Failed,
             };
             let public = PublicToolEvent::new(
@@ -263,13 +263,7 @@ impl McpGateway {
             if attempt.may_retry_automatically() {
                 // Single automatic retry for proven pre-start idempotent reads.
                 let retried = self
-                    .dispatch_transport(
-                        &mut attempt,
-                        &request,
-                        server_id,
-                        server,
-                        false,
-                    )
+                    .dispatch_transport(&mut attempt, &request, server_id, server, false)
                     .await;
                 return self.finish_outcome(attempt, request, retried, true).await;
             }
@@ -306,7 +300,9 @@ impl McpGateway {
         record_start: bool,
     ) -> Result<Value, McpError> {
         if record_start {
-            attempt.mark_started().map_err(|_| crate::error::invalid_configuration())?;
+            attempt
+                .mark_started()
+                .map_err(|_| crate::error::invalid_configuration())?;
             let started = PublicToolEvent::new(
                 request.tool_id.clone(),
                 ToolLifecycle::Started,
@@ -323,7 +319,7 @@ impl McpGateway {
 
         if request.simulate_cancel_after_start || request.simulate_post_start_crash {
             let _ = attempt.mark_outcome_unknown();
-            return Err(crate::error::outcome_unknown());
+            return Err(crate::stdio::cancel_after_start());
         }
 
         match server.transport {
@@ -332,7 +328,12 @@ impl McpGateway {
                     .get_or_spawn(server_id, &self.workspace_key, server, &self.runtime_dir)
                     .await?;
                 self.stdio
-                    .invoke(server_id, &self.workspace_key, &request.operation, &request.arguments)
+                    .invoke(
+                        server_id,
+                        &self.workspace_key,
+                        &request.operation,
+                        &request.arguments,
+                    )
                     .await
             }
             McpTransport::Http => {
@@ -381,10 +382,9 @@ impl McpGateway {
                     let _ = attempt.mark_outcome_unknown();
                     ToolLifecycle::OutcomeUnknown
                 } else {
-                    if attempt.progress() == AttemptProgress::Planned {
-                        let _ = attempt.mark_failed();
-                    } else if attempt.progress().dispatch_started()
-                        && !attempt.progress().is_definite_terminal()
+                    let progress = attempt.progress();
+                    if progress == AttemptProgress::Planned
+                        || (progress.dispatch_started() && !progress.is_definite_terminal())
                     {
                         let _ = attempt.mark_failed();
                     }
@@ -433,6 +433,10 @@ impl McpGateway {
     }
 
     /// Reaps only this gateway workspace's children.
+    ///
+    /// # Errors
+    ///
+    /// Returns when a workspace child cannot be reaped.
     pub async fn shutdown_workspace(&self) -> Result<(), McpError> {
         self.shutting_down.store(true, Ordering::SeqCst);
         self.stdio.shutdown(Some(&self.workspace_key)).await
@@ -459,6 +463,10 @@ impl McpGateway {
     }
 
     /// Ensures a stdio server is spawned for isolation tests.
+    ///
+    /// # Errors
+    ///
+    /// Returns when the server is unknown, unpinned, or spawn fails.
     pub async fn ensure_stdio(&self, server_id: &str) -> Result<(), McpError> {
         let server = self
             .config

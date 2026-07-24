@@ -39,6 +39,7 @@ use workbench_core::{
     },
     value::{DataSourceId, ModelAlias, NonEmptyText, ProviderId, RoleId, ToolId},
 };
+use workbench_mcp::McpGateway;
 use workbench_protocol::{
     ClientCommand, Command, ErrorCode, EventKind, ProtocolError, ServerReply, SessionEvent,
     command::{
@@ -54,7 +55,6 @@ use workbench_protocol::{
         SessionSummary, StatusResult,
     },
 };
-use workbench_mcp::McpGateway;
 use workbench_storage::{
     CommandEventOutcome, CommandEventsOutcome, CommandOutcome, CreateSession, DeletionSummary,
     EventInput, ExportCommand, KeyStore, MemoryKeyStore, SqliteStorage, StorageError,
@@ -344,11 +344,19 @@ impl Application {
     ///
     /// Shared tools are available only through this gateway; Features 004–006
     /// provider adapters keep provider-local MCP registration disabled.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the MCP mutex is poisoned.
     pub fn attach_mcp_gateway(&self, gateway: Arc<McpGateway>) {
         *self.mcp.lock().expect("mcp mutex") = Some(gateway);
     }
 
     /// Returns the attached MCP gateway when present.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the MCP mutex is poisoned.
     #[must_use]
     pub fn mcp_gateway(&self) -> Option<Arc<McpGateway>> {
         self.mcp.lock().expect("mcp mutex").clone()

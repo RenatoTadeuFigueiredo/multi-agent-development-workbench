@@ -17,9 +17,7 @@ use tokio::{
 use workbench_config::model::McpServer;
 
 use crate::{
-    error::{
-        McpError, redirect_rejected, response_too_large, transport_failed, unavailable,
-    },
+    error::{McpError, redirect_rejected, response_too_large, transport_failed, unavailable},
     pin::HttpIdentity,
 };
 
@@ -51,6 +49,11 @@ impl FakeHttpTransport {
         Self::default()
     }
 
+    /// Installs a fake response mode for one server id.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the internal mutex is poisoned.
     pub fn set_mode(&self, server_id: impl Into<String>, mode: FakeHttpMode) {
         self.modes
             .lock()
@@ -224,7 +227,10 @@ async fn invoke_loopback_http(
         let read = tokio::time::timeout(READ_TIMEOUT, stream.read(&mut buf))
             .await
             .map_err(|_| {
-                McpError::new(crate::error::McpErrorKind::Timeout, "MCP HTTP call timed out")
+                McpError::new(
+                    crate::error::McpErrorKind::Timeout,
+                    "MCP HTTP call timed out",
+                )
             })?
             .map_err(|_| transport_failed())?;
         if read == 0 {
@@ -297,10 +303,9 @@ mod tests {
     #[tokio::test]
     async fn fake_rejects_oversized_response() {
         let client = HttpMcpClient::offline();
-        client.fake().set_mode(
-            "http-a",
-            FakeHttpMode::Oversized { bytes: 128 },
-        );
+        client
+            .fake()
+            .set_mode("http-a", FakeHttpMode::Oversized { bytes: 128 });
         let sha = crate::pin::http_endpoint_sha256("http://127.0.0.1:9/mcp").expect("sha");
         let err = client
             .invoke(

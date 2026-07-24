@@ -48,7 +48,7 @@ fn run_stdio(mode: &str) {
             ("hang", "tools/call") => {
                 observe("hang");
                 loop {
-                    std::thread::sleep(std::time::Duration::from_secs(60));
+                    std::thread::sleep(std::time::Duration::from_mins(1));
                 }
             }
             ("crash-after-start", "tools/call") => {

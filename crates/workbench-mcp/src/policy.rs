@@ -46,17 +46,11 @@ pub struct ResolvedToolAccess {
 /// # Errors
 ///
 /// Returns when the tool or operation is unknown.
-pub fn resolve_mcp_tool_access(ctx: &ToolPolicyContext<'_>) -> Result<ResolvedToolAccess, McpError> {
-    let tool = ctx
-        .config
-        .tools
-        .get(ctx.tool_id)
-        .ok_or_else(policy_denied)?;
-    let operation = tool
-        .operations
-        .iter()
-        .find(|operation| operation.name == ctx.operation)
-        .ok_or_else(policy_denied)?;
+pub fn resolve_mcp_tool_access(
+    ctx: &ToolPolicyContext<'_>,
+) -> Result<ResolvedToolAccess, McpError> {
+    let tool = mcp_tool(ctx.config, ctx.tool_id).ok_or_else(policy_denied)?;
+    let operation = tool_operation(tool, ctx.operation).ok_or_else(policy_denied)?;
     let tool_id = ToolId::parse(ctx.tool_id).map_err(|_| invalid_configuration())?;
     let layers = build_layers(ctx, &tool_id);
     let base = resolve_tool_policy(&tool_id, &layers);
@@ -78,8 +72,7 @@ pub fn resolve_mcp_tool_access(ctx: &ToolPolicyContext<'_>) -> Result<ResolvedTo
 
 fn apply_approval_mode(current: PolicyDecision, mode: ApprovalMode) -> PolicyDecision {
     match mode {
-        ApprovalMode::Never => current,
-        ApprovalMode::Policy => current,
+        ApprovalMode::Never | ApprovalMode::Policy => current,
         ApprovalMode::Always => {
             let forced = current.mode.intersect(PermissionMode::ApprovalRequired);
             if forced == current.mode {
@@ -260,11 +253,11 @@ pub fn gate_before_transport(
 }
 
 /// Locates an MCP-backed tool definition.
-pub fn mcp_tool<'a>(
-    config: &'a WorkbenchConfiguration,
-    tool_id: &str,
-) -> Option<&'a Tool> {
-    config.tools.get(tool_id).filter(|tool| tool.kind == ToolKind::Mcp)
+pub fn mcp_tool<'a>(config: &'a WorkbenchConfiguration, tool_id: &str) -> Option<&'a Tool> {
+    config
+        .tools
+        .get(tool_id)
+        .filter(|tool| tool.kind == ToolKind::Mcp)
 }
 
 /// Locates one named operation.
@@ -276,8 +269,8 @@ pub fn tool_operation<'a>(tool: &'a Tool, operation: &str) -> Option<&'a Operati
 mod tests {
     use super::*;
     use workbench_config::model::{
-        ApprovalMode, EffectClass as ConfigEffectClass, McpServer, McpTransport, Operation,
-        Tool, ToolKind, Workflow, WorkflowStep,
+        ApprovalMode, EffectClass as ConfigEffectClass, McpServer, McpTransport, Operation, Tool,
+        ToolKind, Workflow, WorkflowStep,
     };
 
     fn base_config() -> WorkbenchConfiguration {

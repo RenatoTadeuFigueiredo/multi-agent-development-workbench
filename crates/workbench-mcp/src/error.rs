@@ -28,13 +28,14 @@ impl McpErrorKind {
     #[must_use]
     pub const fn failure_category(self) -> FailureCategory {
         match self {
-            Self::InvalidConfiguration => FailureCategory::InvalidRequest,
+            Self::InvalidConfiguration | Self::ResponseTooLarge | Self::RedirectRejected => {
+                FailureCategory::InvalidRequest
+            }
             Self::PinMismatch | Self::Unavailable | Self::TransportFailed => {
                 FailureCategory::ProviderUnavailable
             }
             Self::PolicyDenied | Self::ApprovalDenied => FailureCategory::PolicyDenied,
             Self::ApprovalRequired => FailureCategory::ApprovalRequired,
-            Self::ResponseTooLarge | Self::RedirectRejected => FailureCategory::InvalidRequest,
             Self::Timeout => FailureCategory::ProviderTimeout,
             Self::Cancelled | Self::OutcomeUnknown => FailureCategory::OutcomeUnknown,
             Self::ShuttingDown => FailureCategory::InvalidTransition,

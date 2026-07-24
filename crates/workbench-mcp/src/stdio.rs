@@ -62,12 +62,9 @@ impl StdioChild {
         let server_id = server_id.into();
         let workspace_key = workspace_key.into();
         let executable = server.executable.as_deref().ok_or_else(unavailable)?;
-        let executable = canonicalize_mcp_executable(Path::new(executable))
-            .map_err(|_| unavailable())?;
-        let work_dir = runtime_dir
-            .join("mcp")
-            .join(&workspace_key)
-            .join(&server_id);
+        let executable =
+            canonicalize_mcp_executable(Path::new(executable)).map_err(|_| unavailable())?;
+        let work_dir = private_runtime_dir(runtime_dir, &workspace_key, &server_id);
         tokio::fs::create_dir_all(&work_dir)
             .await
             .map_err(|_| unavailable())?;
@@ -152,7 +149,10 @@ impl StdioChild {
         let read = tokio::time::timeout(DEFAULT_CALL_TIMEOUT, self.reader.read_line(&mut line))
             .await
             .map_err(|_| {
-                McpError::new(crate::error::McpErrorKind::Timeout, "MCP stdio call timed out")
+                McpError::new(
+                    crate::error::McpErrorKind::Timeout,
+                    "MCP stdio call timed out",
+                )
             })?
             .map_err(|_| transport_failed())?;
         if read == 0 {
@@ -179,17 +179,16 @@ impl StdioChild {
         if let Some(pid) = process_group {
             let _ = kill_process_group(pid, Signal::TERM);
         }
-        let child_reaped =
-            if wait_for_exit(&mut self.child, self.shutdown_grace).await {
-                true
-            } else {
-                if let Some(pid) = process_group {
-                    let _ = kill_process_group(pid, Signal::KILL);
-                }
-                forced = true;
-                let _ = self.child.start_kill();
-                wait_for_exit(&mut self.child, self.shutdown_grace).await
-            };
+        let child_reaped = if wait_for_exit(&mut self.child, self.shutdown_grace).await {
+            true
+        } else {
+            if let Some(pid) = process_group {
+                let _ = kill_process_group(pid, Signal::KILL);
+            }
+            forced = true;
+            let _ = self.child.start_kill();
+            wait_for_exit(&mut self.child, self.shutdown_grace).await
+        };
         let group_reaped = if let Some(pid) = process_group {
             if test_kill_process_group(pid).is_err() {
                 true
@@ -210,10 +209,7 @@ impl StdioChild {
 }
 
 async fn wait_for_exit(child: &mut Child, grace: Duration) -> bool {
-    matches!(
-        tokio::time::timeout(grace, child.wait()).await,
-        Ok(Ok(_))
-    )
+    matches!(tokio::time::timeout(grace, child.wait()).await, Ok(Ok(_)))
 }
 
 fn sanitize_environment(command: &mut Command) {
@@ -232,14 +228,13 @@ fn spawn_stderr_drain(stderr: tokio::process::ChildStderr) -> JoinHandle<()> {
         let mut total = 0_usize;
         loop {
             match tokio::io::AsyncReadExt::read(&mut reader, &mut buffer).await {
-                Ok(0) => break,
+                Ok(0) | Err(_) => break,
                 Ok(read) => {
                     total = total.saturating_add(read);
                     if total >= MAX_STDERR_BYTES {
                         break;
                     }
                 }
-                Err(_) => break,
             }
         }
     })
@@ -260,6 +255,10 @@ impl StdioPool {
     }
 
     /// Returns an existing child or spawns a new one for the workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns when the executable is unsafe or spawn fails.
     pub async fn get_or_spawn(
         &self,
         server_id: &str,
@@ -278,6 +277,10 @@ impl StdioPool {
     }
 
     /// Invokes a tool on the workspace-scoped child.
+    ///
+    /// # Errors
+    ///
+    /// Returns when the child is missing, the call times out, or transport fails.
     pub async fn invoke(
         &self,
         server_id: &str,
@@ -294,6 +297,10 @@ impl StdioPool {
     }
 
     /// Shuts down every child, optionally filtered by workspace.
+    ///
+    /// # Errors
+    ///
+    /// Returns when any selected child cannot be reaped.
     pub async fn shutdown(&self, workspace_key: Option<&str>) -> Result<(), McpError> {
         let mut guard = self.children.lock().await;
         let keys = guard
@@ -310,11 +317,7 @@ impl StdioPool {
                 }
             }
         }
-        if failed {
-            Err(reap_failed())
-        } else {
-            Ok(())
-        }
+        if failed { Err(reap_failed()) } else { Ok(()) }
     }
 
     #[must_use]
@@ -336,7 +339,7 @@ impl StdioPool {
 /// Shared pool handle.
 pub type SharedStdioPool = Arc<StdioPool>;
 
-/// Maps cancel-after-start into outcome_unknown.
+/// Maps cancel-after-start into `outcome_unknown`.
 #[must_use]
 pub const fn cancel_after_start() -> McpError {
     outcome_unknown()

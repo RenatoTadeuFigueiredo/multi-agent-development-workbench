@@ -19,7 +19,8 @@ use workbench_config::{
 };
 use workbench_core::{attempt::AttemptProgress, policy::PolicySource};
 use workbench_mcp::{
-    FakeHttpMode, McpErrorKind, McpGateway, ToolInvokeRequest, contains_marker, http_endpoint_sha256,
+    FakeHttpMode, McpErrorKind, McpGateway, ToolInvokeRequest, contains_marker,
+    http_endpoint_sha256,
 };
 
 const FEATURE: &str = include_str!(
@@ -47,97 +48,96 @@ struct ScenarioBinding {
     evidence_test: &'static str,
 }
 
-// Fingerprints are filled after the first parse run; placeholders updated once
-// the suite prints them. Stable FNV-1a over step lines.
+// Stable FNV-1a fingerprints over Gherkin step lines (pin after first green run).
 const SCENARIO_BINDINGS: [ScenarioBinding; 18] = [
     binding(
         "Load pinned stdio and HTTP servers",
-        0x0000_0000_0000_0001,
+        0x0287_8f4c_07b3_94f1,
         "pinned_registry_loads_stdio_and_http",
     ),
     binding(
         "Reject digest mismatch before tool dispatch",
-        0x0000_0000_0000_0002,
+        0x4e23_8e99_cf24_ad56,
         "digest_mismatch_fails_closed",
     ),
     binding(
         "Deny a tool absent from the role allowlist",
-        0x0000_0000_0000_0003,
+        0x16fa_41b9_0552_771b,
         "role_and_workflow_allowlists_deny_before_transport",
     ),
     binding(
         "Workflow allowlist narrows the role grant",
-        0x0000_0000_0000_0004,
+        0x90f9_8b48_da66_ac33,
         "role_and_workflow_allowlists_deny_before_transport",
     ),
     binding(
         "Repository configuration cannot widen a user deny",
-        0x0000_0000_0000_0005,
+        0x5dcc_0f82_8935_0b74,
         "repository_cannot_widen_user_deny",
     ),
     binding(
         "Gate protected operations on approval [effect_class=non-idempotent-write]",
-        0x0000_0000_0000_0006,
+        0xc841_396e_c9bd_1006,
         "approval_gates_protected_operations",
     ),
     binding(
         "Gate protected operations on approval [effect_class=production]",
-        0x0000_0000_0000_0007,
+        0xfcc6_6a05_3143_4222,
         "approval_gates_protected_operations",
     ),
     binding(
         "Gate protected operations on approval [effect_class=credential]",
-        0x0000_0000_0000_0008,
+        0xe16c_9d52_3c18_27c0,
         "approval_gates_protected_operations",
     ),
     binding(
         "Gate protected operations on approval [effect_class=paid-inference]",
-        0x0000_0000_0000_0009,
+        0xf491_1752_2ff2_0aaf,
         "approval_gates_protected_operations",
     ),
     binding(
         "Isolate supervised stdio children by workspace",
-        0x0000_0000_0000_000a,
+        0xdfbb_7bad_3fe3_eb73,
         "stdio_isolation_and_shutdown_reap",
     ),
     binding(
         "Enforce HTTP pin and response bounds",
-        0x0000_0000_0000_000b,
+        0x1ad5_da70_90a5_a3a3,
         "http_pin_and_bounds_fail_closed",
     ),
     binding(
         "Preserve uncertainty after cancel without a terminal fact",
-        0x0000_0000_0000_000c,
+        0x53e7_0192_9fe5_910e,
         "cancel_and_retry_semantics",
     ),
     binding(
         "Allow pre-start retry only for idempotent reads",
-        0x0000_0000_0000_000d,
+        0x8e3f_1318_14ba_c66f,
         "cancel_and_retry_semantics",
     ),
     binding(
         "Redact secrets from audit surfaces",
-        0x0000_0000_0000_000e,
+        0x27fc_4ac2_4cfa_db2b,
         "redacted_audit_and_secrecy",
     ),
     binding(
         "Default suite stays offline and quota-free",
-        0x0000_0000_0000_000f,
+        0x57b3_ee0f_8ae6_8f77,
         "default_suite_stays_offline",
     ),
     binding(
         "Keep provider-native MCP registration disabled",
-        0x0000_0000_0000_0010,
+        0xac06_9bf9_ab44_7a75,
         "provider_native_mcp_remains_disabled",
     ),
     binding(
         "Accept an empty MCP registry",
-        0x0000_0000_0000_0011,
+        0xc409_38d7_9d43_af4e,
         "empty_registry_is_valid",
     ),
     binding(
         "Reap children on shutdown",
-        0x0000_0000_0000_0012,
+        0xb5de_fbbb_ee1e_6513,
         "stdio_isolation_and_shutdown_reap",
     ),
 ];
@@ -159,9 +159,6 @@ fn repository_owned_gherkin_has_eighteen_fingerprinted_cases() {
     let parsed = parse_feature(FEATURE);
     assert_eq!(parsed.heading_count, 15);
     assert_eq!(parsed.cases.len(), 18);
-    // First pass: assert names bind; fingerprints recorded dynamically so the
-    // suite fails loudly when steps drift without requiring manual hash updates
-    // during bootstrap of Feature 007.
     let bindings = SCENARIO_BINDINGS
         .iter()
         .map(|binding| (binding.case_name, binding))
@@ -175,13 +172,8 @@ fn repository_owned_gherkin_has_eighteen_fingerprinted_cases() {
         );
         let fp = fingerprint(&case.steps);
         assert_ne!(fp, 0, "fingerprint collapsed for {}", case.name);
-        // When placeholders remain, print expected values for commit updates.
         let binding = bindings[case.name.as_str()];
-        if binding.fingerprint <= 0x12 {
-            eprintln!("FINGERPRINT {} => 0x{fp:016x}", case.name);
-        } else {
-            assert_eq!(fp, binding.fingerprint, "scenario drifted: {}", case.name);
-        }
+        assert_eq!(fp, binding.fingerprint, "scenario drifted: {}", case.name);
     }
 }
 
@@ -224,7 +216,7 @@ fn every_binding_names_executable_repository_evidence() {
 
 #[tokio::test]
 async fn pinned_registry_loads_stdio_and_http() {
-    let env = harness(false).await;
+    let env = harness(false);
     assert!(env.gateway.server_available("stdio-a"));
     assert!(env.gateway.server_available("http-a"));
     assert_eq!(env.gateway.available_servers().len(), 2);
@@ -235,7 +227,7 @@ async fn pinned_registry_loads_stdio_and_http() {
 
 #[tokio::test]
 async fn digest_mismatch_fails_closed() {
-    let env = harness(false).await;
+    let env = harness(false);
     // Keep the original lock pin (correct file digest) while the configuration
     // claims a different sha256 so verification fails closed before transport.
     let mut config = env.config.clone();
@@ -270,7 +262,7 @@ async fn digest_mismatch_fails_closed() {
 
 #[tokio::test]
 async fn role_and_workflow_allowlists_deny_before_transport() {
-    let env = harness(false).await;
+    let env = harness(false);
     let role_err = env
         .gateway
         .invoke(ToolInvokeRequest {
@@ -304,12 +296,10 @@ async fn role_and_workflow_allowlists_deny_before_transport() {
     assert_eq!(workflow_err.kind(), McpErrorKind::PolicyDenied);
 
     let audit = env.gateway.audit_log().await;
-    assert!(
-        audit
-            .iter()
-            .any(|fact| fact.event.lifecycle == workbench_mcp::ToolLifecycle::Denied
-                && fact.transport.is_none())
-    );
+    assert!(audit.iter().any(
+        |fact| fact.event.lifecycle == workbench_mcp::ToolLifecycle::Denied
+            && fact.transport.is_none()
+    ));
 }
 
 #[tokio::test]
@@ -317,8 +307,8 @@ async fn repository_cannot_widen_user_deny() {
     let mut config = base_config(Path::new(FAKE_MCP), true);
     config.policies.global_deny.push("prod-deploy".to_owned());
     let lock = lock_for(&config);
-    let gateway = McpGateway::bootstrap(config, &lock, PathBuf::from("/tmp"), "ws", true)
-        .expect("gateway");
+    let gateway =
+        McpGateway::bootstrap(config, &lock, PathBuf::from("/tmp"), "ws", true).expect("gateway");
     let err = gateway
         .invoke(ToolInvokeRequest {
             tool_id: "prod-deploy".to_owned(),
@@ -333,18 +323,16 @@ async fn repository_cannot_widen_user_deny() {
         .expect_err("user deny");
     assert_eq!(err.kind(), McpErrorKind::PolicyDenied);
     let audit = gateway.audit_log().await;
-    assert!(
-        audit.iter().any(|fact| {
-            fact.event.policy_source.as_deref() == Some("user")
-                && fact.event.lifecycle == workbench_mcp::ToolLifecycle::Denied
-        })
-    );
+    assert!(audit.iter().any(|fact| {
+        fact.event.policy_source.as_deref() == Some("user")
+            && fact.event.lifecycle == workbench_mcp::ToolLifecycle::Denied
+    }));
     assert_eq!(user_source(), PolicySource::User);
 }
 
 #[tokio::test]
 async fn approval_gates_protected_operations() {
-    let env = harness(false).await;
+    let env = harness(false);
     for (tool, op) in [
         ("cluster-mutate", "apply"),
         ("prod-deploy", "deploy"),
@@ -385,9 +373,12 @@ async fn approval_gates_protected_operations() {
 
 #[tokio::test]
 async fn stdio_isolation_and_shutdown_reap() {
-    let left = harness_named("ws-left").await;
-    let right = harness_named("ws-right").await;
-    left.gateway.ensure_stdio("stdio-a").await.expect("spawn left");
+    let left = harness_named("ws-left");
+    let right = harness_named("ws-right");
+    left.gateway
+        .ensure_stdio("stdio-a")
+        .await
+        .expect("spawn left");
     right
         .gateway
         .ensure_stdio("stdio-a")
@@ -418,7 +409,7 @@ async fn stdio_isolation_and_shutdown_reap() {
 
 #[tokio::test]
 async fn http_pin_and_bounds_fail_closed() {
-    let env = harness(false).await;
+    let env = harness(false);
     env.gateway.http_fake().set_mode(
         "http-a",
         FakeHttpMode::Oversized {
@@ -464,7 +455,7 @@ async fn http_pin_and_bounds_fail_closed() {
 
 #[tokio::test]
 async fn cancel_and_retry_semantics() {
-    let env = harness(false).await;
+    let env = harness(false);
     let cancel = env
         .gateway
         .invoke(ToolInvokeRequest {
@@ -517,7 +508,7 @@ async fn cancel_and_retry_semantics() {
 
 #[tokio::test]
 async fn redacted_audit_and_secrecy() {
-    let env = harness(false).await;
+    let env = harness(false);
     let outcome = env
         .gateway
         .invoke(ToolInvokeRequest {
@@ -609,12 +600,12 @@ struct Harness {
     runtime: TempDir,
 }
 
-async fn harness(include_http_tool: bool) -> Harness {
+fn harness(include_http_tool: bool) -> Harness {
     let _ = include_http_tool;
-    harness_named("ws-default").await
+    harness_named("ws-default")
 }
 
-async fn harness_named(workspace: &str) -> Harness {
+fn harness_named(workspace: &str) -> Harness {
     let runtime = secure_tempdir("wb-mcp-");
     // Use the cargo-built fake under the workspace target tree (user-owned,
     // non-world-writable parents). Copying into /tmp fails path safety checks.

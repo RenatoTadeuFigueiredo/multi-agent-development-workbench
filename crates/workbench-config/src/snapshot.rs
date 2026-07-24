@@ -38,14 +38,7 @@ pub fn canonical_json<T: Serialize>(value: &T) -> Result<String, ConfigError> {
 fn redact(value: &mut Value, key: Option<&str>) {
     if matches!(
         key,
-        Some(
-            "credential_ref"
-                | "executable"
-                | "url"
-                | "env"
-                | "headers"
-                | "args"
-        )
+        Some("credential_ref" | "executable" | "url" | "env" | "headers" | "args")
     ) {
         *value = Value::String("[redacted]".to_owned());
         return;

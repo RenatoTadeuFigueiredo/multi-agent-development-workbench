@@ -228,9 +228,7 @@ impl HttpIdentity {
     ///
     /// Returns when the URL is not absolute HTTP/HTTPS or has an empty host.
     pub fn parse(url: &str) -> Result<Self, McpError> {
-        let (scheme, rest) = url
-            .split_once("://")
-            .ok_or_else(invalid_configuration)?;
+        let (scheme, rest) = url.split_once("://").ok_or_else(invalid_configuration)?;
         let scheme = scheme.to_ascii_lowercase();
         if scheme != "http" && scheme != "https" {
             return Err(invalid_configuration());
@@ -267,10 +265,7 @@ impl HttpIdentity {
 
     #[must_use]
     pub fn pin_material(&self) -> String {
-        format!(
-            "{}://{}:{}{}",
-            self.scheme, self.host, self.port, self.path
-        )
+        format!("{}://{}:{}{}", self.scheme, self.host, self.port, self.path)
     }
 
     #[must_use]
@@ -281,18 +276,17 @@ impl HttpIdentity {
 
     #[must_use]
     pub fn matches_redirect(&self, location: &str) -> bool {
-        Self::parse(location)
-            .map(|other| {
-                other.scheme == self.scheme
-                    && other.host == self.host
-                    && other.port == self.port
-            })
-            .unwrap_or(false)
+        Self::parse(location).is_ok_and(|other| {
+            other.scheme == self.scheme && other.host == self.host && other.port == self.port
+        })
     }
 }
 
 /// Computes the lock digest material for an HTTP MCP URL.
-#[must_use]
+///
+/// # Errors
+///
+/// Returns when the URL is not an absolute `http(s)` endpoint.
 pub fn http_endpoint_sha256(url: &str) -> Result<String, McpError> {
     let identity = HttpIdentity::parse(url)?;
     Ok(hex::encode(Sha256::digest(
@@ -301,6 +295,10 @@ pub fn http_endpoint_sha256(url: &str) -> Result<String, McpError> {
 }
 
 /// Ensures a pin status is available or maps to a stable gateway error.
+///
+/// # Errors
+///
+/// Returns pin mismatch or unavailable when the status is not available.
 pub fn require_available(status: &PinStatus) -> Result<(), McpError> {
     if status.available {
         Ok(())
