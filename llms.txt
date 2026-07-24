@@ -16,22 +16,21 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Current State
 
 - Run `make context` before relying on this snapshot.
-- Features 001–007 are on `main` (MCP gateway via issue #13 / PR #20).
-- Feature 008 domain foundation is on `main` (issue #14 / PR #21). Daemon
-  multi-step workflow executor completion is on
-  `008-workflow-executor-completion` (session.create `workflow`,
-  `workflow_transition` events, sequential + bounded `on_findings` loops,
-  pause/resume/cancel/redirect, recovery snapshots, offline fakes).
-- Next ready product increment after #14 merge:
-  [issue #15](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15),
-  real-time VS Code workflow controls.
-- [Specification](doc/arch/sdd/008-execute-configurable-multi-agent-workflows-that-resolve/spec.md): workflow executor requirements
-- [Technical plan](doc/arch/sdd/008-execute-configurable-multi-agent-workflows-that-resolve/plan.md): runtime, events, acceptance
-- [Decision](doc/arch/adr/0009-execute-configurable-multi-agent-workflows-that-resolve.md): daemon-owned sequential workflow executor
-- [Executable scenarios](doc/arch/specs/features/execute-configurable-multi-agent-workflows-that-resolve.feature): Gherkin acceptance contract
+- Features 001–008 are on `main` (workflow executor complete via issue #14 /
+  PR #21 + #22, merge `12804dd`).
+- Feature 009 real-time VS Code workflow controls is active on
+  `009-add-real-time-vs-code-workflow-controls-that-show-routing` (issue #15):
+  routing/workflow/approval rendering, status bar, pause/resume/cancel/
+  redirect/approval commands, offline extension tests.
+- Next ready product increment after #15 merge:
+  [issue #16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16),
+  OpenRouter provider and cost controls.
+- [Specification](doc/arch/sdd/009-add-real-time-vs-code-workflow-controls-that-show-routing/spec.md): VS Code control-room requirements
+- [Technical plan](doc/arch/sdd/009-add-real-time-vs-code-workflow-controls-that-show-routing/plan.md): thin client presentation approach
+- [Decision](doc/arch/adr/0010-add-real-time-vs-code-workflow-controls-that-show-routing.md): thin protocol client (no orchestration in TypeScript)
+- [Executable scenarios](doc/arch/specs/features/add-real-time-vs-code-workflow-controls-that-show-routing.feature): Gherkin acceptance contract
+- [Workflow executor](doc/arch/sdd/008-execute-configurable-multi-agent-workflows-that-resolve/spec.md): Feature 008 daemon runtime
 - [MCP decision](doc/arch/adr/0008-central-mcp-lifecycle-and-tool-permissions.md): central gateway (Feature 007)
-- [Codex specification](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/spec.md): Codex adapter requirements
-- [Claude specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements
 - [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export
 - [Local protocol](doc/arch/contracts/workbench-local-protocol.yaml): versioned command, reply, event, and error envelopes
 - [Protocol semantics](doc/arch/domain/local-protocol-semantics.md): preconditions, idempotency, retries, and replay

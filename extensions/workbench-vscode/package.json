@@ -4,7 +4,17 @@
   "description": "Observe and control local Workbench sessions.",
   "version": "0.1.0",
   "engines": { "vscode": ">=1.90.0" },
-  "activationEvents": ["onCommand:workbench.newSession", "onCommand:workbench.selectSession", "onCommand:workbench.attach", "onCommand:workbench.prompt"],
+  "activationEvents": [
+    "onCommand:workbench.newSession",
+    "onCommand:workbench.selectSession",
+    "onCommand:workbench.attach",
+    "onCommand:workbench.prompt",
+    "onCommand:workbench.pause",
+    "onCommand:workbench.resume",
+    "onCommand:workbench.cancel",
+    "onCommand:workbench.redirect",
+    "onCommand:workbench.resolveApproval"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "configuration": { "title": "Workbench", "properties": {
@@ -23,7 +33,8 @@
       { "command": "workbench.pause", "title": "Workbench: Pause Session" },
       { "command": "workbench.resume", "title": "Workbench: Resume Session" },
       { "command": "workbench.cancel", "title": "Workbench: Cancel Session" },
-      { "command": "workbench.redirect", "title": "Workbench: Redirect Session" }
+      { "command": "workbench.redirect", "title": "Workbench: Redirect Session" },
+      { "command": "workbench.resolveApproval", "title": "Workbench: Resolve Approval" }
     ]
   },
   "scripts": { "compile": "tsc -p .", "test": "node --test dist/test/*.test.js" },

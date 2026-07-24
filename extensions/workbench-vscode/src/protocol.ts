@@ -241,6 +241,9 @@ export class SessionController {
   resume(): Promise<unknown> { return this.command("session.resume", {}); }
   cancel(): Promise<unknown> { return this.command("session.cancel", {}); }
   redirect(instruction: string): Promise<unknown> { return this.command("session.redirect", { instruction }); }
+  resolveApproval(approvalId: string, decision: "grant" | "deny"): Promise<unknown> {
+    return this.command("session.approval.resolve", { approval_id: approvalId, decision });
+  }
 
   close(): void {
     this.stopped = true;
