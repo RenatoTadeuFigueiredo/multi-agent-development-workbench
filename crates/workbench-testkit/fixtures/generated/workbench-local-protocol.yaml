@@ -543,6 +543,7 @@ components:
             - session_exported
             - session_deletion_requested
             - session_deleted
+            - workflow_transition
         occurred_at:
           type: string
           format: date-time
@@ -613,6 +614,12 @@ components:
           const: true
         configuration_overrides:
           type: object
+        workflow:
+          type: string
+          minLength: 1
+          maxLength: 63
+          pattern: '^[a-z][a-z0-9-]{0,62}$'
+          description: Optional declarative workflow id executed by the daemon
     ListSessionsParams:
       type: object
       additionalProperties: false

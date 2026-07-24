@@ -31,11 +31,11 @@ Use this precedence when sources disagree:
 
 ## Delivered Baseline
 
-The last reviewed `main` checkpoint is merge commit
-`40c666d4bf505348e55dca8de4cbb967edf8b7f1` (Features 001–007, including the
-central MCP gateway via issue #13 / PR #20). Feature 008 (configurable
-multi-agent workflow executor) is in progress on branch
-`008-execute-configurable-multi-agent-workflows-that-resolve` (issue #14).
+The last reviewed `main` checkpoint for Features 001–007 remains merge commit
+`40c666d4bf505348e55dca8de4cbb967edf8b7f1`. Feature 008 domain foundation is on
+`main` via PR #21 (`afa0030`). Feature 008 daemon composition (workflow
+executor completion) lands on branch
+`008-workflow-executor-completion` (issue #14).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -46,25 +46,24 @@ multi-agent workflow executor) is in progress on branch
 | 005 | Supervised, read-only Claude Code subscription adapter | Issue #9 / PR #10 |
 | 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR #19 |
 | 007 | Central MCP lifecycle, pins, allowlists, approvals | Issue #13 / PR #20 |
-| 008 | Configurable multi-agent workflow executor (in progress) | Issue #14 |
+| 008 | Configurable multi-agent workflow executor | Issue #14 / PR #21 + completion branch |
 
 Features 001–007 completed the Speckit lifecycle through implementation and
-are on `main` at the checkpoint above. Feature 008 has completed specify →
-clarify → plan → tasks → analyze; domain workflow runtime, config validation,
-and offline acceptance harness scaffolding are on the feature branch. Daemon
-dispatch loop composition remains to finish.
+are on `main`. Feature 008 completes domain runtime, daemon multi-step
+dispatch, durable `workflow_transition` events, offline Claude→Codex→Grok→Codex
+path via fakes, controls, recovery snapshots, and gateway step allowlists.
 
 ## Active Work
 
-- **Branch:** `008-execute-configurable-multi-agent-workflows-that-resolve`
+- **Branch:** `008-workflow-executor-completion`
 - **Issue:** [#14 — Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14)
 - **Speckit feature:** `008-execute-configurable-multi-agent-workflows-that-resolve`
-- **Phase at last handoff:** implement in progress (T001–T003 partial; daemon
-  composition T004–T007 remaining). Next ready product issue after merge is #15.
+- **Phase at last handoff:** implement complete (T001–T011). Next ready product
+  issue after merge is #15.
 
 ## Ordered Roadmap
 
-- **In progress:** [#14 — Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14).
+- **In progress:** [#14 — Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14) (completion PR).
 - **Next ready after #14 merge:** [#15 — Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
 
 | Order | Issue | Increment | Dependency |
@@ -83,11 +82,10 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
 - Feature 007 ships the offline MCP gateway (stdio supervision, loopback/fake
   HTTP, pins, allowlists, approvals). Non-loopback HTTPS MCP still fails
   closed until a TLS client is composed; live package registries are opt-in.
-- Feature 008 domain runtime and config validation land first; full daemon
-  multi-provider dispatch loop, protocol surface, and recovery composition are
-  still completing on the feature branch.
+- Feature 008 multi-step auto-advance uses the offline fake path and schedules
+  live adapters without nesting non-Send provider streams into stream tasks.
 - The VS Code extension is a session bridge foundation, not the final workflow
-  control room.
+  control room (issue #15).
 - The Workbench ACP server and Grok-derived terminal backend remain pending.
 - Claude and Codex provider-native write tools remain disabled; shared tools go
   through the central MCP gateway allowlist.

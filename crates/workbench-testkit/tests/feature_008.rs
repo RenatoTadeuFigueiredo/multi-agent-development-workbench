@@ -1,7 +1,13 @@
 //! Feature 008 offline acceptance for the multi-agent workflow executor.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+    time::Duration,
+};
 
+use serde_json::Value;
+use uuid::Uuid;
 use workbench_config::{
     WorkbenchConfiguration,
     model::{
@@ -10,10 +16,22 @@ use workbench_config::{
     },
     validate::validate,
 };
+use workbench_core::policy::PermissionMode;
 use workbench_core::{
     value::{NonEmptyText, WorkflowId},
     workflow::{WorkflowPhase, WorkflowRun},
 };
+use workbench_daemon::{Application, ClientContext, FakeBehavior, StartupConfiguration};
+use workbench_mcp::{ToolPolicyContext, resolve_mcp_tool_access};
+use workbench_protocol::{
+    ClientCommand, Command, EventKind, SessionEvent,
+    command::{
+        ApprovalDecision, ApprovalParams, AttachSessionParams, CreateSessionParams, EmptyParams,
+        PromptParams,
+    },
+    response::{AttachSessionResult, CreateSessionResult, SessionResult, SessionState},
+};
+use workbench_testkit::client::{LocalDaemonHarness, ProtocolTestClient};
 
 const FEATURE: &str = include_str!(
     "../../../doc/arch/specs/features/execute-configurable-multi-agent-workflows-that-resolve.feature"
@@ -122,12 +140,17 @@ fn repository_owned_gherkin_has_eleven_fingerprinted_cases() {
 fn every_binding_names_executable_repository_evidence() {
     let _ = validate_well_formed_and_broken_workflow_graphs;
     let _ = sequential_advance_and_primary_path;
+    let _ = sequential_advance_and_primary_path_daemon;
     let _ = bound_review_correction_loops;
+    let _ = bound_review_correction_loops_daemon;
     let _ = fallback_aliases_validate_and_remain_ordered;
     let _ = pause_resume_cancel_controls;
+    let _ = pause_resume_cancel_controls_daemon;
     let _ = redirect_is_additive_instruction_only;
     let _ = recover_run_from_serialized_state;
+    let _ = recover_run_from_serialized_state_daemon;
     let _ = step_tool_allowlist_is_configuration_local;
+    let _ = step_tool_allowlist_is_configuration_local_gateway;
     let _ = default_suite_stays_offline;
 }
 
@@ -306,8 +329,297 @@ fn default_suite_stays_offline() {
     );
 }
 
+#[tokio::test]
+async fn sequential_advance_and_primary_path_daemon() {
+    let (_harness, mut client, session_id) = workflow_client(FakeBehavior {
+        response_delay: Duration::from_millis(5),
+        ..FakeBehavior::default()
+    })
+    .await;
+    prompt_and_grant(&mut client, session_id, "run primary path").await;
+    let events = wait_for_session_event(&mut client, session_id, |event| {
+        event.kind == EventKind::SessionCompleted
+    })
+    .await;
+    let roles: Vec<String> = events
+        .iter()
+        .filter(|event| event.kind == EventKind::RoutingPlanned)
+        .filter_map(|event| {
+            event
+                .data
+                .get("role")
+                .and_then(Value::as_str)
+                .map(str::to_owned)
+        })
+        .collect();
+    assert_eq!(
+        roles,
+        vec![
+            "claude-spec".to_owned(),
+            "codex-review".to_owned(),
+            "grok-implement".to_owned(),
+            "codex-validate".to_owned()
+        ]
+    );
+    assert!(
+        events
+            .iter()
+            .filter(|e| e.kind == EventKind::RoutingPlanned)
+            .all(|event| event.data.get("selected_by").and_then(Value::as_str) == Some("workflow"))
+    );
+    assert!(events.iter().any(|event| {
+        event.kind == EventKind::WorkflowTransition
+            && event.data.get("reason").and_then(Value::as_str) == Some("completed")
+    }));
+    assert_eq!(
+        events
+            .iter()
+            .filter(|event| event.kind == EventKind::DispatchStarted)
+            .count(),
+        4
+    );
+}
+
+#[tokio::test]
+async fn bound_review_correction_loops_daemon() {
+    let (_harness, mut client, session_id) = workflow_client(FakeBehavior {
+        response_delay: Duration::from_millis(5),
+        report_findings: true,
+        ..FakeBehavior::default()
+    })
+    .await;
+    prompt_and_grant(&mut client, session_id, "force findings loop").await;
+    let events = wait_for_session_event(&mut client, session_id, |event| {
+        event.kind == EventKind::SessionPaused
+            && event.data.get("actor").and_then(Value::as_str) == Some("system:workflow")
+    })
+    .await;
+    assert!(events.iter().any(|event| {
+        event.kind == EventKind::WorkflowTransition
+            && event.data.get("phase").and_then(Value::as_str) == Some("awaiting_human")
+    }));
+}
+
+#[tokio::test]
+async fn pause_resume_cancel_controls_daemon() {
+    let (_harness, mut client, session_id) = workflow_client(FakeBehavior {
+        response_delay: Duration::from_secs(30),
+        ..FakeBehavior::default()
+    })
+    .await;
+    prompt_and_grant(&mut client, session_id, "long running step").await;
+    let _ = wait_for_session_event(&mut client, session_id, |event| {
+        event.kind == EventKind::DispatchStarted
+    })
+    .await;
+    client
+        .call(protocol_command(
+            Some(session_id),
+            Command::SessionPause(EmptyParams {}),
+        ))
+        .await
+        .expect("pause");
+    client
+        .call(protocol_command(
+            Some(session_id),
+            Command::SessionResume(EmptyParams {}),
+        ))
+        .await
+        .expect("resume");
+    client
+        .call(protocol_command(
+            Some(session_id),
+            Command::SessionCancel(EmptyParams {}),
+        ))
+        .await
+        .expect("cancel");
+    let events = wait_for_session_event(&mut client, session_id, |event| {
+        matches!(
+            event.kind,
+            EventKind::SessionCancelled | EventKind::OutcomeUnknown
+        )
+    })
+    .await;
+    assert!(!events.iter().any(|event| {
+        event.kind == EventKind::WorkflowTransition
+            && event.data.get("reason").and_then(Value::as_str) == Some("completed")
+    }));
+}
+
+#[tokio::test]
+async fn recover_run_from_serialized_state_daemon() {
+    let (application, _harness, mut client, session_id) = workflow_client_with_app(FakeBehavior {
+        response_delay: Duration::from_millis(5),
+        ..FakeBehavior::default()
+    })
+    .await;
+    prompt_and_grant(&mut client, session_id, "partial run").await;
+    let _ = wait_for_session_event(&mut client, session_id, |event| {
+        event.kind == EventKind::SessionCompleted
+    })
+    .await;
+    let history = application.session_history(session_id).expect("history");
+    let run = history
+        .iter()
+        .rev()
+        .find(|event| event.kind == "workflow_transition")
+        .and_then(|event| event.payload.get("run").cloned())
+        .and_then(|value| serde_json::from_value::<WorkflowRun>(value).ok())
+        .expect("durable run snapshot");
+    assert_eq!(run.phase, WorkflowPhase::Completed);
+    assert_eq!(run.workflow_id.as_str(), "primary");
+}
+
+#[test]
+fn step_tool_allowlist_is_configuration_local_gateway() {
+    let config = primary_workflow_config();
+    let denied = resolve_mcp_tool_access(&ToolPolicyContext {
+        config: &config,
+        tool_id: "prod-deploy",
+        operation: "deploy",
+        role_id: Some("codex-review"),
+        workflow_id: Some("primary"),
+        workflow_step_id: Some("review"),
+        session_denied: BTreeSet::default(),
+    });
+    assert!(
+        denied.is_err()
+            || denied
+                .as_ref()
+                .is_ok_and(|access| access.decision.mode == PermissionMode::Denied),
+        "excluded mutating tool must fail closed before transport"
+    );
+}
+
+async fn workflow_client(fake: FakeBehavior) -> (LocalDaemonHarness, ProtocolTestClient, Uuid) {
+    let (_app, harness, client, session_id) = workflow_client_with_app(fake).await;
+    (harness, client, session_id)
+}
+
+async fn workflow_client_with_app(
+    fake: FakeBehavior,
+) -> (
+    Arc<Application>,
+    LocalDaemonHarness,
+    ProtocolTestClient,
+    Uuid,
+) {
+    let startup = StartupConfiguration::from_configuration(primary_workflow_config())
+        .expect("workflow startup");
+    let application = Application::in_memory(startup, fake).expect("application");
+    let harness = LocalDaemonHarness::start(Arc::clone(&application)).expect("harness");
+    let mut client = ProtocolTestClient::connect(harness.endpoint(), "feature-008")
+        .await
+        .expect("client");
+    let created: CreateSessionResult = serde_json::from_value(
+        client
+            .call(protocol_command(
+                None,
+                Command::SessionCreate(CreateSessionParams {
+                    persistent: true,
+                    configuration_overrides: None,
+                    workflow: Some("primary".to_owned()),
+                }),
+            ))
+            .await
+            .expect("create"),
+    )
+    .expect("create result");
+    let attach: AttachSessionResult = serde_json::from_value(
+        client
+            .call(protocol_command(
+                Some(created.session_id),
+                Command::SessionAttach(AttachSessionParams { after_sequence: 0 }),
+            ))
+            .await
+            .expect("attach"),
+    )
+    .expect("attach result");
+    assert_eq!(attach.state, SessionState::Ready);
+    (application, harness, client, created.session_id)
+}
+
+fn protocol_command(session_id: Option<Uuid>, command: Command) -> ClientCommand {
+    ClientCommand {
+        protocol: workbench_protocol::PROTOCOL_V1.to_owned(),
+        request_id: Uuid::now_v7(),
+        session_id,
+        command,
+    }
+}
+
+async fn prompt_and_grant(client: &mut ProtocolTestClient, session_id: Uuid, text: &str) {
+    client
+        .call(protocol_command(
+            Some(session_id),
+            Command::SessionPrompt(PromptParams {
+                text: text.to_owned(),
+                explicit_target: None,
+            }),
+        ))
+        .await
+        .expect("prompt");
+    let session: SessionResult = serde_json::from_value(
+        client
+            .call(protocol_command(
+                Some(session_id),
+                Command::SessionGet(EmptyParams {}),
+            ))
+            .await
+            .expect("session.get"),
+    )
+    .expect("session result");
+    if let Some(approval_id) = session.pending_approval_id {
+        client
+            .call(protocol_command(
+                Some(session_id),
+                Command::SessionApprovalResolve(ApprovalParams {
+                    approval_id,
+                    decision: ApprovalDecision::Grant,
+                }),
+            ))
+            .await
+            .expect("grant approval");
+    }
+}
+
+async fn wait_for_session_event<F>(
+    client: &mut ProtocolTestClient,
+    session_id: Uuid,
+    mut predicate: F,
+) -> Vec<SessionEvent>
+where
+    F: FnMut(&SessionEvent) -> bool,
+{
+    let mut collected = Vec::new();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let event = client.next_event().await.expect("event");
+            assert_eq!(event.session_id, session_id);
+            let done = predicate(&event);
+            collected.push(event);
+            if done {
+                return collected;
+            }
+        }
+    })
+    .await
+    .expect("event before deadline")
+}
+
+#[allow(dead_code)]
+fn _client_context_marker() -> ClientContext {
+    ClientContext {
+        uid: 1000,
+        client_name: "feature-008".to_owned(),
+    }
+}
+
 fn primary_workflow_config() -> WorkbenchConfiguration {
     let mut config = WorkbenchConfiguration::safe_builtins();
+    // Offline workflow acceptance dispatches paid-inference fakes without an
+    // interactive approval gate so multi-step advancement can complete.
+    config.policies.default_tool_mode = workbench_config::model::DefaultToolMode::ReadOnly;
     for role_id in [
         "claude-spec",
         "codex-review",

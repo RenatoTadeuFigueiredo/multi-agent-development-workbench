@@ -43,6 +43,7 @@ pub enum EventKind {
     SessionExported,
     SessionDeletionRequested,
     SessionDeleted,
+    WorkflowTransition,
 }
 
 /// Redacted role resolution retained with a session.
@@ -178,6 +179,15 @@ pub enum EventPayload {
         deletion_id: DeletionId,
         key_destroyed: bool,
     },
+    /// Bounded workflow phase facts (identifiers only; no prompts or payloads).
+    WorkflowTransition {
+        workflow_id: crate::value::WorkflowId,
+        run_id: NonEmptyText,
+        step_id: NonEmptyText,
+        iteration: u32,
+        phase: String,
+        reason: String,
+    },
 }
 
 impl EventPayload {
@@ -212,6 +222,7 @@ impl EventPayload {
             Self::SessionExported { .. } => EventKind::SessionExported,
             Self::SessionDeletionRequested { .. } => EventKind::SessionDeletionRequested,
             Self::SessionDeleted { .. } => EventKind::SessionDeleted,
+            Self::WorkflowTransition { .. } => EventKind::WorkflowTransition,
         }
     }
 

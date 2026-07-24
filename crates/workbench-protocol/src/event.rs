@@ -48,6 +48,8 @@ pub enum EventKind {
     SessionExported,
     SessionDeletionRequested,
     SessionDeleted,
+    /// Bounded multi-stage workflow phase transition (Feature 008).
+    WorkflowTransition,
 }
 
 impl SessionEvent {

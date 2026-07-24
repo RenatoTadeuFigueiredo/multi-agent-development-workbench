@@ -38,6 +38,7 @@ use workbench_core::{
         RoutingInputs, RoutingOutcome, RoutingPlan, SelectedRule,
     },
     value::{DataSourceId, ModelAlias, NonEmptyText, ProviderId, RoleId, ToolId},
+    workflow::{WorkflowPhase, WorkflowRun},
 };
 use workbench_mcp::McpGateway;
 use workbench_protocol::{
@@ -66,6 +67,11 @@ use crate::{
     storage_backend::{LockedStorage, StorageBackend},
     subscription::{SessionSubscription, SubscriptionHub},
     telemetry::BoundedTelemetry,
+    workflow_exec::{
+        FINDINGS_MARKER, active_step, content_has_findings, effective_step_tools,
+        latest_redirect_instruction, recover_run, refresh_step_bounds, session_workflow_id,
+        start_run, transition_payload,
+    },
 };
 
 #[cfg(test)]
@@ -80,6 +86,8 @@ pub struct FakeBehavior {
     pub response_delay: Duration,
     pub confirms_cancellation: bool,
     pub cancellation_deadline: Duration,
+    /// When true, offline fake completions emit the explicit findings marker.
+    pub report_findings: bool,
 }
 
 impl Default for FakeBehavior {
@@ -88,6 +96,7 @@ impl Default for FakeBehavior {
             response_delay: Duration::from_millis(10),
             confirms_cancellation: true,
             cancellation_deadline: Duration::from_secs(5),
+            report_findings: false,
         }
     }
 }
@@ -221,6 +230,8 @@ pub struct Application {
     session_configs: Mutex<HashMap<Uuid, WorkbenchConfiguration>>,
     pinned_locks: Mutex<HashMap<Uuid, WorkbenchLock>>,
     known_sessions: Mutex<HashSet<Uuid>>,
+    /// Sessions that pinned a declarative workflow id at create time.
+    session_workflows: Mutex<HashMap<Uuid, String>>,
     active: AsyncMutex<HashMap<Uuid, Arc<ActiveExecution>>>,
     subscriptions: Arc<SubscriptionHub>,
     telemetry: Arc<dyn Telemetry>,
@@ -324,6 +335,7 @@ impl Application {
             session_configs: Mutex::new(HashMap::new()),
             pinned_locks: Mutex::new(HashMap::new()),
             known_sessions: Mutex::new(HashSet::new()),
+            session_workflows: Mutex::new(HashMap::new()),
             active: AsyncMutex::new(HashMap::new()),
             subscriptions: Arc::new(SubscriptionHub::default()),
             telemetry,
@@ -546,6 +558,14 @@ impl Application {
             .lock()
             .map_err(|_| StorageError::StorageUnavailable(None))?
             .insert(stored.session_id);
+        if let Ok(history) = self.storage.replay(stored.session_id, 0)
+            && let Some(workflow_id) = session_workflow_id(&history)
+        {
+            self.session_workflows
+                .lock()
+                .map_err(|_| StorageError::StorageUnavailable(None))?
+                .insert(stored.session_id, workflow_id);
+        }
         Ok(())
     }
 
@@ -652,6 +672,10 @@ impl Application {
             .map_err(|_| StorageError::StorageUnavailable(None))?
             .remove(&session_id);
         self.known_sessions
+            .lock()
+            .map_err(|_| StorageError::StorageUnavailable(None))?
+            .remove(&session_id);
+        self.session_workflows
             .lock()
             .map_err(|_| StorageError::StorageUnavailable(None))?
             .remove(&session_id);
@@ -860,6 +884,13 @@ impl Application {
         let (resolved, snapshot, session_lock) = self
             .startup
             .resolve_session(params.configuration_overrides.as_ref())?;
+        if let Some(workflow_id) = params.workflow.as_deref()
+            && !resolved.configuration.workflows.contains_key(workflow_id)
+        {
+            return Err(DaemonError::InvalidRequest(
+                "session workflow is not present in the resolved configuration",
+            ));
+        }
         let session_id = Uuid::now_v7();
         let lock_hash = session_lock.hash()?;
         let configuration_hash = snapshot.content_hash.clone();
@@ -869,6 +900,13 @@ impl Application {
             lock_hash: lock_hash.clone(),
             state: ReadyState::Ready,
         })?;
+        let mut initial_event_payload = json!({
+            "configuration_hash": configuration_hash,
+            "lock_hash": lock_hash,
+        });
+        if let Some(workflow_id) = params.workflow.as_deref() {
+            initial_event_payload["workflow_id"] = Value::String(workflow_id.to_owned());
+        }
         let outcome = self.storage.create_session(&CreateSession {
             session_id,
             request_id,
@@ -877,10 +915,7 @@ impl Application {
             command_outcome: command_outcome.clone(),
             configuration_snapshot: serde_json::to_value(&snapshot)?,
             lock_snapshot: serde_json::to_value(&session_lock)?,
-            initial_event_payload: json!({
-                "configuration_hash": configuration_hash,
-                "lock_hash": lock_hash,
-            }),
+            initial_event_payload,
         })?;
         let result = match outcome {
             CommandOutcome::Recorded(value) => {
@@ -896,6 +931,12 @@ impl Application {
                     .lock()
                     .map_err(|_| DaemonError::Internal)?
                     .insert(session_id);
+                if let Some(workflow_id) = params.workflow.clone() {
+                    self.session_workflows
+                        .lock()
+                        .map_err(|_| DaemonError::Internal)?
+                        .insert(session_id, workflow_id);
+                }
                 value
             }
             CommandOutcome::Replay(value) => {
@@ -999,7 +1040,28 @@ impl Application {
             None,
             None,
         )];
-        match self.plan_route(session_id, params.explicit_target.as_deref())? {
+        let workflow_target = self.workflow_route_target(session_id, &history)?;
+        if let Some(workflow_start) = workflow_target.as_ref()
+            && recover_run(&history).is_none()
+        {
+            events.push(command_event(
+                session_id,
+                request_id,
+                now,
+                EventKind::WorkflowTransition,
+                transition_payload(&workflow_start.run, "started"),
+                None,
+                None,
+            ));
+        }
+        let explicit = params.explicit_target.as_deref();
+        let workflow_role = workflow_target.as_ref().map(|target| target.role.as_str());
+        match self.plan_route(
+            session_id,
+            explicit,
+            workflow_role,
+            workflow_target.as_ref().map(|target| &target.context),
+        )? {
             RouteDecision::CapabilityUnavailable { selected_rule } => {
                 let failure = durable_failure(DaemonError::CapabilityUnavailable);
                 let (outcome, _) = self.commit_command_events(
@@ -1043,12 +1105,16 @@ impl Application {
             }
             RouteDecision::Selected { plan, permission } => {
                 let selected_rule = selected_rule_name(plan.selected_by);
+                let mut route_payload = routing_payload(&plan);
+                if let Some(target) = workflow_target.as_ref() {
+                    enrich_workflow_routing(&mut route_payload, &target.run);
+                }
                 events.push(command_event(
                     session_id,
                     request_id,
                     now,
                     EventKind::RoutingPlanned,
-                    routing_payload(&plan),
+                    route_payload,
                     None,
                     None,
                 ));
@@ -1106,13 +1172,17 @@ impl Application {
                 )?;
                 self.telemetry.record_route(selected_rule, "success");
                 if !replayed {
+                    let mut dispatch_prompt = prompt_content;
+                    if let Some(instruction) = latest_redirect_instruction(&history) {
+                        dispatch_prompt = format!("{dispatch_prompt}\n\nRedirect: {instruction}");
+                    }
                     self.activate_attempt(
                         session_id,
                         request_id,
                         attempt_id,
                         plan.destination.provider,
                         plan.destination.runtime_model,
-                        prompt_content,
+                        dispatch_prompt,
                     )
                     .await?;
                 }
@@ -1195,6 +1265,22 @@ impl Application {
             &outcome,
             &events,
         )?;
+        if self.session_has_workflow(session_id) {
+            let history = self.history(session_id)?;
+            if let Some(mut run) = recover_run(&history)
+                && !run.phase.is_terminal()
+            {
+                let _ = run.pause();
+                let _ = self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::WorkflowTransition,
+                    transition_payload(&run, "paused"),
+                    None,
+                    None,
+                );
+            }
+        }
         replay_command_outcome(outcome)
     }
 
@@ -1248,6 +1334,32 @@ impl Application {
         if replayed {
             return value_success(outcome);
         }
+        if self.session_has_workflow(session_id) {
+            let history = self.history(session_id)?;
+            if let Some(mut run) = recover_run(&history)
+                && matches!(
+                    run.phase,
+                    WorkflowPhase::Paused | WorkflowPhase::AwaitingHuman
+                )
+            {
+                let _ = run.resume();
+                self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::WorkflowTransition,
+                    transition_payload(&run, "resumed"),
+                    None,
+                    None,
+                )?;
+                if run.phase.permits_dispatch()
+                    && self.active.lock().await.get(&session_id).is_none()
+                {
+                    self.dispatch_workflow_step(session_id, request_id, run)
+                        .await?;
+                    return value_success(outcome);
+                }
+            }
+        }
         if self
             .active
             .lock()
@@ -1258,6 +1370,12 @@ impl Application {
             self.schedule_fake_completion(session_id);
         }
         value_success(outcome)
+    }
+
+    fn session_has_workflow(&self, session_id: Uuid) -> bool {
+        self.session_workflows
+            .lock()
+            .is_ok_and(|map| map.contains_key(&session_id))
     }
 
     fn handle_redirect(
@@ -1791,20 +1909,31 @@ impl Application {
         &self,
         session_id: Uuid,
         explicit_target: Option<&str>,
+        workflow_role: Option<&str>,
+        workflow_context: Option<&WorkflowRouteContext>,
     ) -> Result<RouteDecision, DaemonError> {
         let config = self.session_configuration(session_id)?;
         let mut available = self.provider_catalog.clone();
         available.extend(fake_provider_capabilities(&config));
         let selected_rule = if explicit_target.is_some() {
             "explicit"
+        } else if workflow_role.is_some() {
+            "workflow"
         } else {
             "coordinator"
         };
-        let role_name = explicit_target.unwrap_or(&config.routing.default_role);
+        let role_name = explicit_target
+            .or(workflow_role)
+            .unwrap_or(&config.routing.default_role);
         let resolved = match resolve_role(&config, role_name, &available) {
             Ok(resolved) => resolved,
             Err(workbench_config::ConfigError::CapabilityUnavailable { .. }) => {
-                return Ok(RouteDecision::CapabilityUnavailable { selected_rule });
+                return Self::try_workflow_fallback(
+                    &config,
+                    &available,
+                    selected_rule,
+                    workflow_context,
+                );
             }
             Err(workbench_config::ConfigError::Invalid { path, .. }) if path == "role" => {
                 return Ok(RouteDecision::Clarification {
@@ -1818,11 +1947,20 @@ impl Application {
                 ));
             }
         };
-        let candidate =
-            route_candidate(&config, &resolved, effective_provider_permission(&config))?;
+        let candidate = route_candidate_for_step(
+            &config,
+            &resolved,
+            effective_provider_permission(&config),
+            workflow_context,
+        )?;
         let inputs = if explicit_target.is_some() {
             RoutingInputs {
                 explicit: Some(candidate),
+                ..RoutingInputs::default()
+            }
+        } else if workflow_role.is_some() {
+            RoutingInputs {
+                workflow: Some(candidate),
                 ..RoutingInputs::default()
             }
         } else {
@@ -1844,6 +1982,98 @@ impl Application {
                 selected_rule,
             }),
         }
+    }
+
+    fn try_workflow_fallback(
+        config: &WorkbenchConfiguration,
+        available: &BTreeMap<String, ConfigProviderCapabilities>,
+        selected_rule: &'static str,
+        workflow_context: Option<&WorkflowRouteContext>,
+    ) -> Result<RouteDecision, DaemonError> {
+        let Some(context) = workflow_context else {
+            return Ok(RouteDecision::CapabilityUnavailable { selected_rule });
+        };
+        for alias in &context.fallbacks {
+            let Some(model) = config.models.get(alias) else {
+                continue;
+            };
+            let Some(capabilities) = available.get(&model.provider) else {
+                continue;
+            };
+            if capabilities.authentication != Authentication::Available {
+                continue;
+            }
+            let resolved = ResolvedModel {
+                role: context.role.clone(),
+                model_alias: alias.clone(),
+                provider: model.provider.clone(),
+                runtime_model: model.runtime_model.clone(),
+                used_fallback: true,
+            };
+            let candidate = route_candidate_for_step(
+                config,
+                &resolved,
+                effective_provider_permission(config),
+                Some(context),
+            )?;
+            return match OrderedRouter::new(config.routing.confidence_threshold)
+                .map_err(|_| DaemonError::InvalidRequest("routing threshold is invalid"))?
+                .resolve(RoutingInputs {
+                    workflow: Some(candidate),
+                    ..RoutingInputs::default()
+                }) {
+                RoutingOutcome::Selected(plan) => Ok(RouteDecision::Selected {
+                    permission: permission_from_scope(plan.context.permission),
+                    plan,
+                }),
+                RoutingOutcome::NeedsClarification { reason, .. } => {
+                    Ok(RouteDecision::Clarification {
+                        reason: reason.to_owned(),
+                        selected_rule,
+                    })
+                }
+            };
+        }
+        Ok(RouteDecision::CapabilityUnavailable { selected_rule })
+    }
+
+    fn workflow_route_target(
+        &self,
+        session_id: Uuid,
+        history: &[workbench_storage::PersistedEvent],
+    ) -> Result<Option<WorkflowRouteTarget>, DaemonError> {
+        let Some(workflow_id) = session_workflow_id(history) else {
+            return Ok(None);
+        };
+        let config = self.session_configuration(session_id)?;
+        let run = if let Some(existing) = recover_run(history) {
+            existing
+        } else {
+            start_run(&config, &workflow_id, Uuid::now_v7())
+                .map(|(run, _)| run)
+                .map_err(|_| {
+                    DaemonError::InvalidRequest("workflow could not be started from configuration")
+                })?
+        };
+        if run.phase.is_terminal() {
+            return Ok(None);
+        }
+        let workflow = config
+            .workflows
+            .get(workflow_id.as_str())
+            .ok_or(DaemonError::InvalidRequest("workflow is not configured"))?;
+        let step = active_step(workflow, &run).ok_or(DaemonError::InvalidRequest(
+            "workflow active step is missing",
+        ))?;
+        Ok(Some(WorkflowRouteTarget {
+            run,
+            role: step.role.clone(),
+            context: WorkflowRouteContext {
+                role: step.role.clone(),
+                step_tools: step.tools.clone(),
+                fallbacks: step.fallbacks.clone(),
+            },
+        }))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2024,17 +2254,38 @@ impl Application {
                 return Ok(());
             }
             let lock = self.session_lock(session_id).await;
-            let _guard = lock.lock().await;
+            let guard = lock.lock().await;
             let Some(active) = self.active_for_attempt(session_id, attempt_id).await else {
                 return Ok(());
             };
             match item {
                 Ok(output) => {
+                    let is_completed = matches!(output, ProviderOutput::Completed { .. });
                     if self
                         .record_provider_output(session_id, &active, output)?
                         .is_terminal()
                     {
+                        let request_id = active.request_id;
+                        let history = self.history(session_id)?;
+                        let should_advance =
+                            is_completed && session_workflow_id(&history).is_some();
+                        let findings = history.iter().rev().any(|event| {
+                            event.kind == "provider_event"
+                                && event.attempt_id == Some(attempt_id)
+                                && event
+                                    .payload
+                                    .get("content")
+                                    .and_then(Value::as_str)
+                                    .is_some_and(content_has_findings)
+                        });
                         self.remove_active_attempt(session_id, attempt_id).await;
+                        drop(guard);
+                        if should_advance {
+                            self.advance_workflow_after_attempt(
+                                session_id, request_id, attempt_id, findings,
+                            )
+                            .await?;
+                        }
                         return Ok(());
                     }
                 }
@@ -2144,6 +2395,14 @@ impl Application {
                 if self.current_session_state(session_id)? == SessionState::CancelRequested {
                     return Ok(ProviderOutputState::CancellationPending);
                 }
+                let history = self.history(session_id)?;
+                if session_workflow_id(&history).is_some() {
+                    // Workflow advancement is async; mark terminal for stream consumer
+                    // and continue via advance_workflow_after_attempt.
+                    let _ = summary;
+                    self.telemetry.record_attempt("success");
+                    return Ok(ProviderOutputState::Terminal);
+                }
                 self.append(
                     session_id,
                     Some(active.request_id),
@@ -2235,17 +2494,23 @@ impl Application {
             return Ok(());
         }
         let lock = self.session_lock(session_id).await;
-        let _guard = lock.lock().await;
+        let guard = lock.lock().await;
         let Some(active) = self.active.lock().await.get(&session_id).cloned() else {
             return Ok(());
         };
         if !active.is_fake() {
             return Ok(());
         }
-        let folded = fold_session(&self.history(session_id)?)?;
+        let history = self.history(session_id)?;
+        let folded = fold_session(&history)?;
         if folded.state != SessionState::Running {
             return Ok(());
         }
+        let content = if self.fake.report_findings {
+            format!("deterministic fake provider response; {FINDINGS_MARKER}")
+        } else {
+            "deterministic fake provider response".to_owned()
+        };
         self.append(
             session_id,
             Some(active.request_id),
@@ -2253,11 +2518,23 @@ impl Application {
             json!({
                 "attempt_id": active.attempt_id,
                 "event_type": "message",
-                "content": "deterministic fake provider response"
+                "content": content
             }),
             Some(active.attempt_id),
             Some("paid-inference"),
         )?;
+        self.active.lock().await.remove(&session_id);
+        if recover_run(&history).is_some() || session_workflow_id(&history).is_some() {
+            let findings = content_has_findings(&content);
+            let request_id = active.request_id;
+            let attempt_id = active.attempt_id;
+            // Drop the session lock before awaiting further dispatches so the
+            // spawned fake completion future remains Send.
+            drop(guard);
+            return self
+                .advance_workflow_after_attempt(session_id, request_id, attempt_id, findings)
+                .await;
+        }
         self.append(
             session_id,
             Some(active.request_id),
@@ -2266,7 +2543,265 @@ impl Application {
             Some(active.attempt_id),
             Some("paid-inference"),
         )?;
-        self.active.lock().await.remove(&session_id);
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_lines)]
+    async fn advance_workflow_after_attempt(
+        self: &Arc<Self>,
+        session_id: Uuid,
+        request_id: Uuid,
+        attempt_id: Uuid,
+        findings: bool,
+    ) -> Result<(), DaemonError> {
+        let lock = self.session_lock(session_id).await;
+        let guard = lock.lock().await;
+        let history = self.history(session_id)?;
+        let config = self.session_configuration(session_id)?;
+        let Some(workflow_id) = session_workflow_id(&history) else {
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::SessionCompleted,
+                terminal_payload("workflow session missing workflow id"),
+                Some(attempt_id),
+                Some("paid-inference"),
+            )?;
+            return Ok(());
+        };
+        let mut run = recover_run(&history).ok_or(DaemonError::StorageUnavailable)?;
+        if run.phase.is_terminal() {
+            return Ok(());
+        }
+        let workflow = config
+            .workflows
+            .get(workflow_id.as_str())
+            .ok_or(DaemonError::InvalidRequest("workflow is not configured"))?
+            .clone();
+        if let Some(step) = active_step(&workflow, &run) {
+            refresh_step_bounds(&mut run, step, &workflow);
+        }
+        let continue_dispatch = if findings && run.on_findings_step_index.is_some() {
+            run.apply_findings()
+                .map_err(|_| DaemonError::InvalidTransition)?;
+            if run.phase == WorkflowPhase::AwaitingHuman {
+                self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::WorkflowTransition,
+                    transition_payload(&run, "awaiting_human"),
+                    Some(attempt_id),
+                    None,
+                )?;
+                let control_id = Uuid::now_v7();
+                self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::PauseRequested,
+                    json!({
+                        "control_id": control_id,
+                        "actor": "system:workflow"
+                    }),
+                    None,
+                    None,
+                )?;
+                self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::SessionPaused,
+                    json!({
+                        "control_id": control_id,
+                        "actor": "system:workflow"
+                    }),
+                    None,
+                    None,
+                )?;
+                return Ok(());
+            }
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::WorkflowTransition,
+                transition_payload(&run, "findings"),
+                Some(attempt_id),
+                None,
+            )?;
+            true
+        } else {
+            // Clean success: if the completed step declared on_findings, this is
+            // a clean review pass — reset the correction counter for later stages.
+            let clean_findings_step = run.on_findings_step_index.is_some();
+            run.advance_after_success()
+                .map_err(|_| DaemonError::InvalidTransition)?;
+            if clean_findings_step {
+                run.reset_iteration();
+            }
+            if run.phase == WorkflowPhase::Completed {
+                self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::WorkflowTransition,
+                    transition_payload(&run, "completed"),
+                    Some(attempt_id),
+                    None,
+                )?;
+                self.append(
+                    session_id,
+                    Some(request_id),
+                    EventKind::SessionCompleted,
+                    terminal_payload("workflow completed"),
+                    Some(attempt_id),
+                    Some("paid-inference"),
+                )?;
+                self.telemetry.record_attempt("success");
+                return Ok(());
+            }
+            if let Some(step) = active_step(&workflow, &run) {
+                refresh_step_bounds(&mut run, step, &workflow);
+            }
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::WorkflowTransition,
+                transition_payload(&run, "advanced"),
+                Some(attempt_id),
+                None,
+            )?;
+            true
+        };
+        drop(guard);
+        if continue_dispatch {
+            self.dispatch_workflow_step(session_id, request_id, run)
+                .await?;
+        }
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_lines)]
+    async fn dispatch_workflow_step(
+        self: &Arc<Self>,
+        session_id: Uuid,
+        request_id: Uuid,
+        run: WorkflowRun,
+    ) -> Result<(), DaemonError> {
+        if !run.phase.permits_dispatch() {
+            return Ok(());
+        }
+        let lock = self.session_lock(session_id).await;
+        let guard = lock.lock().await;
+        let history = self.history(session_id)?;
+        let target = self
+            .workflow_route_target(session_id, &history)?
+            .ok_or(DaemonError::InvalidRequest("workflow has no active step"))?;
+        let decision = self.plan_route(
+            session_id,
+            None,
+            Some(target.role.as_str()),
+            Some(&target.context),
+        )?;
+        let RouteDecision::Selected { plan, permission } = decision else {
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::SessionFailed,
+                terminal_payload("workflow step could not be routed"),
+                None,
+                Some("paid-inference"),
+            )?;
+            return Ok(());
+        };
+        if permission == DefaultToolMode::Denied {
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::SessionFailed,
+                terminal_payload("workflow step denied by policy"),
+                None,
+                Some("paid-inference"),
+            )?;
+            return Ok(());
+        }
+        let mut route_payload = routing_payload(&plan);
+        enrich_workflow_routing(&mut route_payload, &run);
+        self.append(
+            session_id,
+            Some(request_id),
+            EventKind::RoutingPlanned,
+            route_payload,
+            None,
+            None,
+        )?;
+        let attempt_id = Uuid::now_v7();
+        let now = OffsetDateTime::now_utc();
+        for event in dispatch_events(session_id, request_id, now, attempt_id, None) {
+            let persisted = self.storage.append_event(&event)?;
+            self.subscriptions.publish(&protocol_event(persisted)?);
+        }
+        self.telemetry.record_route("workflow", "success");
+        let mut prompt = history
+            .iter()
+            .rev()
+            .find(|event| event.kind == "input_recorded")
+            .and_then(|event| event.payload.get("content").and_then(Value::as_str))
+            .unwrap_or("continue workflow")
+            .to_owned();
+        if let Some(instruction) = latest_redirect_instruction(&history) {
+            prompt = format!("{prompt}\n\nRedirect: {instruction}");
+        }
+        let configuration = self.session_configuration(session_id)?;
+        let kind = configuration
+            .providers
+            .get(plan.destination.provider.as_str())
+            .map(|provider| provider.kind)
+            .ok_or(DaemonError::CapabilityUnavailable)?;
+        let provider = plan.destination.provider.clone();
+        let runtime_model = plan.destination.runtime_model.clone();
+        drop(guard);
+        // Prefer the Send-safe fake path for offline multi-step advancement.
+        // Live adapters are scheduled without nesting non-Send prompt streams
+        // into the current task.
+        if kind == ProviderType::Fake {
+            self.activate_fake_attempt(session_id, request_id, attempt_id)
+                .await;
+            return Ok(());
+        }
+        let Some(adapter) = self.providers.adapter(&provider) else {
+            self.record_provider_failure(
+                session_id,
+                request_id,
+                attempt_id,
+                &ProviderFailure {
+                    category: workbench_core::FailureCategory::CapabilityUnavailable,
+                    user_safe_message: "configured provider adapter is unavailable".to_owned(),
+                    definite: true,
+                },
+            )?;
+            return Ok(());
+        };
+        let handle = match adapter.start_session().await {
+            Ok(handle) => handle,
+            Err(failure) => {
+                self.record_provider_failure(session_id, request_id, attempt_id, &failure)?;
+                return Ok(());
+            }
+        };
+        let prompt = ProviderPrompt {
+            session_id: SessionId::from_uuid(session_id),
+            attempt_id: AttemptId::from_uuid(attempt_id),
+            runtime_model,
+            content: NonEmptyText::parse(prompt)
+                .map_err(|_| DaemonError::InvalidRequest("prompt text must not be empty"))?,
+        };
+        self.active.lock().await.insert(
+            session_id,
+            Arc::new(ActiveExecution::provider(
+                attempt_id,
+                request_id,
+                Arc::clone(&adapter),
+                handle.clone(),
+            )),
+        );
+        self.schedule_provider_activation(session_id, attempt_id, adapter, handle, prompt);
         Ok(())
     }
 
@@ -2459,6 +2994,19 @@ impl Application {
         Ok(events)
     }
 
+    /// Replays durable session events for recovery and acceptance harnesses.
+    ///
+    /// # Errors
+    ///
+    /// Returns when storage cannot load the session history.
+    pub fn session_history(
+        &self,
+        session_id: Uuid,
+    ) -> Result<Vec<workbench_storage::PersistedEvent>, StorageError> {
+        self.history(session_id)
+            .map_err(|_| StorageError::StorageUnavailable(None))
+    }
+
     fn session_configuration(
         &self,
         session_id: Uuid,
@@ -2538,6 +3086,16 @@ impl Application {
 
     fn current_session_state(&self, session_id: Uuid) -> Result<SessionState, DaemonError> {
         parse_session_state(&self.storage.load_session_state(session_id)?)
+    }
+
+    /// Returns the folded session lifecycle state for control and acceptance paths.
+    ///
+    /// # Errors
+    ///
+    /// Returns when the session is missing or history cannot be folded.
+    pub fn session_state(&self, session_id: Uuid) -> Result<SessionState, StorageError> {
+        self.current_session_state(session_id)
+            .map_err(|_| StorageError::StorageUnavailable(None))
     }
 
     fn request_deletion(
@@ -2791,15 +3349,21 @@ fn fake_provider_capabilities(
         .collect()
 }
 
-fn route_candidate(
+fn route_candidate_for_step(
     config: &WorkbenchConfiguration,
     resolved: &ResolvedModel,
     permission: DefaultToolMode,
+    workflow_context: Option<&WorkflowRouteContext>,
 ) -> Result<RouteCandidate, DaemonError> {
     let role = config
         .roles
         .get(&resolved.role)
         .ok_or(DaemonError::StorageUnavailable)?;
+    let tools = if let Some(context) = workflow_context {
+        effective_step_tools(&role.tools, &context.step_tools)
+    } else {
+        role.tools.clone()
+    };
     RouteCandidate::new(
         "prompt",
         RouteDestination {
@@ -2811,10 +3375,8 @@ fn route_candidate(
             runtime_model: resolved.runtime_model.clone(),
         },
         RouteContext {
-            tools: role
-                .tools
-                .iter()
-                .cloned()
+            tools: tools
+                .into_iter()
                 .map(ToolId::parse)
                 .collect::<Result<Vec<_>, _>>()
                 .map_err(|_| DaemonError::Internal)?,
@@ -2835,6 +3397,38 @@ fn route_candidate(
         1.0,
     )
     .map_err(|_| DaemonError::Internal)
+}
+
+#[derive(Clone, Debug)]
+struct WorkflowRouteContext {
+    role: String,
+    step_tools: Vec<String>,
+    fallbacks: Vec<String>,
+}
+
+struct WorkflowRouteTarget {
+    run: WorkflowRun,
+    role: String,
+    context: WorkflowRouteContext,
+}
+
+fn enrich_workflow_routing(payload: &mut Value, run: &WorkflowRun) {
+    if let Some(object) = payload.as_object_mut() {
+        object.insert(
+            "workflow_id".to_owned(),
+            Value::String(run.workflow_id.as_str().to_owned()),
+        );
+        object.insert(
+            "step_id".to_owned(),
+            Value::String(
+                run.active_step_id()
+                    .map_or("none", NonEmptyText::as_str)
+                    .to_owned(),
+            ),
+        );
+        object.insert("iteration".to_owned(), json!(run.iteration));
+        object.insert("step_index".to_owned(), json!(run.active_step_index));
+    }
 }
 
 fn effective_provider_permission(config: &WorkbenchConfiguration) -> DefaultToolMode {
@@ -3077,6 +3671,7 @@ fn parse_event_kind(kind: &str) -> Result<EventKind, DaemonError> {
         "session_exported" => Ok(EventKind::SessionExported),
         "session_deletion_requested" => Ok(EventKind::SessionDeletionRequested),
         "session_deleted" => Ok(EventKind::SessionDeleted),
+        "workflow_transition" => Ok(EventKind::WorkflowTransition),
         _ => Err(DaemonError::StorageUnavailable),
     }
 }
@@ -3110,6 +3705,7 @@ const fn event_kind_name(kind: EventKind) -> &'static str {
         EventKind::SessionExported => "session_exported",
         EventKind::SessionDeletionRequested => "session_deletion_requested",
         EventKind::SessionDeleted => "session_deleted",
+        EventKind::WorkflowTransition => "workflow_transition",
     }
 }
 
@@ -3541,6 +4137,7 @@ mod tests {
                     Command::SessionCreate(CreateSessionParams {
                         persistent: true,
                         configuration_overrides: None,
+                        workflow: None,
                     }),
                     None,
                 ),
@@ -4220,6 +4817,7 @@ mod tests {
             command: Command::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+                workflow: None,
             }),
         };
         let first_application = Application::new(
@@ -5387,6 +5985,7 @@ mod tests {
             command: Command::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+                workflow: None,
             }),
         };
         let created = application
@@ -5738,6 +6337,7 @@ mod tests {
                 response_delay: Duration::from_secs(1),
                 confirms_cancellation: false,
                 cancellation_deadline: Duration::from_millis(5),
+                report_findings: false,
             },
             telemetry.clone(),
         )

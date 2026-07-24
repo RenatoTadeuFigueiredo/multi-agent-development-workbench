@@ -53,6 +53,7 @@ pub async fn verify_local_client_contract() -> Result<ClientContractReport, Clie
             Command::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+                workflow: None,
             }),
         ))
         .await?;

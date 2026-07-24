@@ -320,6 +320,7 @@ async fn provider_runtime_and_daemon_execute_the_offline_flow() {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -477,6 +478,7 @@ async fn provider_runtime_and_daemon_execute_the_offline_flow() {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -642,6 +644,7 @@ async fn daemon_cancels_during_provider_setup_within_the_public_deadline() {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await

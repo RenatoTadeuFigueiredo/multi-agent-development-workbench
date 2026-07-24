@@ -16,17 +16,20 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Current State
 
 - Run `make context` before relying on this snapshot.
-- Features 001–006 are on `main` at `df633fcc` (Codex adapter, issue #12 / PR #19).
-- Feature 007 (central MCP lifecycle and tool permissions, issue #13) is
-  shipping: daemon-owned `workbench-mcp` gateway with pins, allowlists,
-  approvals, offline fakes, and Feature 007 acceptance.
-- Next ready product increment after #13 merge:
-  [issue #14](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14),
-  configurable multi-agent workflow executor.
-- [Specification](doc/arch/sdd/007-central-mcp-lifecycle-and-tool-permissions/spec.md): MCP gateway requirements, security, acceptance, and scope
-- [Technical plan](doc/arch/sdd/007-central-mcp-lifecycle-and-tool-permissions/plan.md): registry, stdio/HTTP, policy, tests
-- [Decision](doc/arch/adr/0008-central-mcp-lifecycle-and-tool-permissions.md): daemon-owned central MCP gateway rationale
-- [Executable scenarios](doc/arch/specs/features/central-mcp-lifecycle-and-tool-permissions.feature): Gherkin acceptance contract
+- Features 001–007 are on `main` (MCP gateway via issue #13 / PR #20).
+- Feature 008 domain foundation is on `main` (issue #14 / PR #21). Daemon
+  multi-step workflow executor completion is on
+  `008-workflow-executor-completion` (session.create `workflow`,
+  `workflow_transition` events, sequential + bounded `on_findings` loops,
+  pause/resume/cancel/redirect, recovery snapshots, offline fakes).
+- Next ready product increment after #14 merge:
+  [issue #15](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15),
+  real-time VS Code workflow controls.
+- [Specification](doc/arch/sdd/008-execute-configurable-multi-agent-workflows-that-resolve/spec.md): workflow executor requirements
+- [Technical plan](doc/arch/sdd/008-execute-configurable-multi-agent-workflows-that-resolve/plan.md): runtime, events, acceptance
+- [Decision](doc/arch/adr/0009-execute-configurable-multi-agent-workflows-that-resolve.md): daemon-owned sequential workflow executor
+- [Executable scenarios](doc/arch/specs/features/execute-configurable-multi-agent-workflows-that-resolve.feature): Gherkin acceptance contract
+- [MCP decision](doc/arch/adr/0008-central-mcp-lifecycle-and-tool-permissions.md): central gateway (Feature 007)
 - [Codex specification](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/spec.md): Codex adapter requirements
 - [Claude specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements
 - [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export

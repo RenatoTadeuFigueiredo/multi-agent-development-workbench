@@ -181,6 +181,12 @@ fn is_non_transitioning(state: SessionState, payload: &EventPayload) -> bool {
                 | EventPayload::DispatchAcknowledged { .. }
                 | EventPayload::ProviderEvent { .. }
                 | EventPayload::ToolEvent { .. }
+                | EventPayload::WorkflowTransition { .. }
+                | EventPayload::RoutingPlanned { .. }
+                | EventPayload::InputRecorded { .. }
+        ) | (
+            SessionState::Ready | SessionState::Paused,
+            EventPayload::WorkflowTransition { .. }
         )
     ) || (state != SessionState::Deleted && matches!(payload, EventPayload::SessionExported { .. }))
 }

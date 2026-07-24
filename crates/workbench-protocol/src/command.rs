@@ -58,6 +58,9 @@ pub struct CreateSessionParams {
     pub persistent: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub configuration_overrides: Option<HashMap<String, Value>>,
+    /// Optional declarative workflow id from resolved configuration.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub workflow: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -272,8 +275,13 @@ impl Command {
                     return Err("supported_protocols must be non-empty and unique".to_owned());
                 }
             }
-            Self::SessionCreate(params) if !params.persistent => {
-                return Err("feature 001 supports persistent sessions only".to_owned());
+            Self::SessionCreate(params) => {
+                if !params.persistent {
+                    return Err("feature 001 supports persistent sessions only".to_owned());
+                }
+                if let Some(workflow) = &params.workflow {
+                    validate_identifier(workflow)?;
+                }
             }
             Self::SessionList(params) => {
                 if !(1..=100).contains(&params.limit) {

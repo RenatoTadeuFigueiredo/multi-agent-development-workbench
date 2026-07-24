@@ -103,6 +103,10 @@ impl WorkflowRun {
 
     /// Advances after a successful step without findings.
     ///
+    /// Correction iteration is preserved so `max_iterations` remains durable
+    /// across `on_findings` loops. Call [`Self::reset_iteration`] after a clean
+    /// pass of a findings-capable step when the next stage should start fresh.
+    ///
     /// # Errors
     ///
     /// Returns when the run cannot dispatch or is already terminal.
@@ -113,8 +117,12 @@ impl WorkflowRun {
             return Ok(());
         }
         self.active_step_index += 1;
-        self.iteration = 1;
         Ok(())
+    }
+
+    /// Resets the correction iteration after a clean step pass.
+    pub fn reset_iteration(&mut self) {
+        self.iteration = 1;
     }
 
     /// Routes to the correction target when findings are present.
@@ -248,16 +256,19 @@ mod tests {
             Some("specify")
         );
         run.advance_after_success().expect("1");
+        run.reset_iteration();
         assert_eq!(
             run.active_step_id().map(NonEmptyText::as_str),
             Some("review")
         );
         run.advance_after_success().expect("2");
+        run.reset_iteration();
         assert_eq!(
             run.active_step_id().map(NonEmptyText::as_str),
             Some("implement")
         );
         run.advance_after_success().expect("3");
+        run.reset_iteration();
         assert_eq!(
             run.active_step_id().map(NonEmptyText::as_str),
             Some("validate")
