@@ -12,6 +12,7 @@ storage, or provider logic.
 | `workbench config validate` | Resolve all non-session layers and report schema or reference errors. |
 | `workbench config lock` | Atomically write the deterministic repository-scope lock. |
 | `workbench session create` | `session.create`; print the new session ID and hashes. |
+| `workbench session list --limit <n> [--before-session-id <id>]` | `session.list`; print a bounded metadata-only page for the resolved local daemon. |
 | `workbench session attach <id> --after <sequence>` | `session.attach`; replay and follow events. |
 | `workbench prompt <id> [--role <role>] <text>` | `session.prompt`; optionally set the explicit target. |
 | `workbench session pause\|resume\|cancel <id>` | Corresponding idempotent control command. |

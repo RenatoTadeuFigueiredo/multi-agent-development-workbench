@@ -39,7 +39,7 @@ with a different method or parameter hash returns `invalid_request`.
 `session.create` stores its request mapping and new session ID in the same
 transaction.
 
-`initialize`, `status.get`, `session.get`, and `session.attach` are read or
+`initialize`, `status.get`, `session.list`, `session.get`, and `session.attach` are read or
 connection operations. They do not persist command outcomes and may be
 reexecuted with a new connection to return current state.
 
@@ -51,12 +51,14 @@ the non-sensitive tombstone.
 ## Commands
 
 All commands carry `protocol` and `request_id`. Commands other than
-`initialize`, `status.get`, and `session.create` also carry `session_id`.
+`initialize`, `status.get`, `session.list`, and `session.create` also carry
+`session_id`.
 
 | Method | Required parameters | Allowed state and result |
 |---|---|---|
 | `initialize` | `client_name`, `client_version`, `supported_protocols[]` | Before any other command; returns selected protocol and limits. |
 | `status.get` | None | Returns redacted daemon, protocol, storage, key-store, migration, and adapter health. |
+| `session.list` | `limit` in `1..=100` (default `50`); optional exclusive `before_session_id` | Reads one deterministic page of persistent summaries without subscribing. Every summary contains only `session_id`, folded `state`, `created_at`, and optional `terminal_at`; it excludes events, prompts, configuration, hashes, provider data, keys, and audit content. The response includes `next_before_session_id` only when another page exists. |
 | `session.create` | `persistent: true`; optional `configuration_overrides` | Creates a persistent session; returns session ID, configuration hash, lock hash, and `ready`. |
 | `session.get` | None | Any non-deleted state; returns the current folded state without subscribing. |
 | `session.attach` | `after_sequence` (zero allowed) | Any non-deleted state; returns current state and begins replay after the cursor. |
