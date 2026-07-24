@@ -1693,6 +1693,7 @@ fn preflight_fixture(
         "fallback".to_owned(),
         ConfigProvider {
             kind: ProviderType::Fake,
+            driver: None,
             executable: None,
             credential_ref: None,
             privacy: None,

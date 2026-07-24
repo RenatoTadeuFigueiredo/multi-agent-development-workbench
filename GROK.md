@@ -59,6 +59,8 @@ make check          # current non-mutating validation and test gate
   analyze → implement → validate.
 - Keep `AGENTS.md`, `GROK.md`, `README.md`, and the `doc/arch` corpus in sync
   with code; persist all artifacts in English.
+- Keep Grok ACP behavior in `workbench-acp` and Claude stream JSON behavior in
+  `workbench-claude`; neither provider protocol belongs in the domain.
 
 ## Spec-first protocol
 

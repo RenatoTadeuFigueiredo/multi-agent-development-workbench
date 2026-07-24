@@ -3,7 +3,7 @@
 ![Claude, Codex, Grok e OpenRouter conectados a um núcleo portátil de orquestração em Rust](assets/readme-hero.svg)
 
 <p align="center">
-  <img alt="Status do projeto: validação do adaptador ACP supervisionado" src="https://img.shields.io/badge/status-valida%C3%A7%C3%A3o%20do%20adaptador%20ACP-2563EB">
+  <img alt="Status do projeto: adaptadores Claude e Grok validados" src="https://img.shields.io/badge/status-adaptadores%20Claude%20%2B%20Grok-2563EB">
   <img alt="Linguagem do núcleo: Rust" src="https://img.shields.io/badge/core-Rust-DEA584?logo=rust&logoColor=111827">
   <img alt="Interface principal: VS Code" src="https://img.shields.io/badge/interface-VS%20Code-007ACC?logo=visualstudiocode&logoColor=white">
   <img alt="Licença: Apache 2.0" src="https://img.shields.io/github/license/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=2563EB">
@@ -27,12 +27,12 @@
 </p>
 
 > [!IMPORTANT]
-> As Features 001–004 fornecem o núcleo de orquestração em Rust, sessões
+> As Features 001–005 fornecem o núcleo de orquestração em Rust, sessões
 > criptografadas e isoladas por workspace, CLI headless, ponte fina para o VS
-> Code, descoberta de sessões e a primeira fronteira supervisionada de provider
-> de produção: Grok Build por ACP v1. Claude, Codex, OpenRouter, MCP
-> compartilhado, servidor ACP do Workbench e TUI derivada do Grok permanecem
-> incrementos futuros.
+> Code, descoberta de sessões, Grok Build por ACP v1 e um adaptador
+> supervisionado e somente leitura para a assinatura do Claude Code. Codex,
+> OpenRouter, MCP compartilhado, servidor ACP do Workbench e TUI derivada do
+> Grok permanecem incrementos futuros.
 
 ## Sumário
 
@@ -44,7 +44,7 @@
 - [Próximos passos](#próximos-passos)
 - [Fonte de verdade do Speckit](doc/arch/functional/product-overview.md)
 
-🧭 **Fase atual:** Feature 004 implementada e validada.
+🧭 **Fase atual:** Feature 005 implementada e validada localmente.
 
 ## Resumo executivo
 
@@ -52,9 +52,9 @@ O Workbench de Desenvolvimento Multiagente está construindo um único local par
 planejar, executar, revisar e supervisionar trabalhos de desenvolvimento
 realizados por diferentes agentes de IA. A fundação implementada comprova o
 plano de controle independente de fornecedores com um adaptador falso
-determinístico e um provider Grok Build supervisionado por ACP. Adaptadores
-futuros adicionarão Claude, Codex e modelos do OpenRouter aos mesmos contratos
-orientados a papéis.
+determinístico e providers supervisionados do Grok Build por ACP e do Claude
+Code por stream JSON. Adaptadores futuros adicionarão Codex e modelos do
+OpenRouter aos mesmos contratos orientados a papéis.
 
 A interface principal é o **Visual Studio Code**, aproveitando suas sessões
 agênticas, APIs de extensão, ferramentas Git e preview nativo de Markdown. A
@@ -240,6 +240,7 @@ crates/
 ├── workbench-daemon/        # Serviços da aplicação e IPC Unix local
 ├── workbench-cli/           # Ciclo do daemon e comandos headless
 ├── workbench-acp/           # Cliente ACP v1 limitado e supervisão de processo
+├── workbench-claude/        # Stream JSON do Claude e supervisão por tentativa
 └── workbench-testkit/       # Fakes, contratos, aceitação e SLOs
 ```
 
@@ -260,9 +261,11 @@ O
 documenta prompts, acompanhamento de eventos, controles, saída JSON e o gate
 do núcleo. O
 [runbook do Grok ACP](docs/operations/grok-acp-provider.md) cobre a fronteira
-do provider de produção. Cliente de terminal, gateway MCP compartilhado,
-servidor ACP do Workbench e providers adicionais permanecem incrementos
-planejados.
+do provider de produção. O
+[runbook do Claude Code](docs/operations/claude-code-provider.pt-BR.md) cobre o
+adaptador de assinatura somente leitura. Cliente de terminal, gateway MCP
+compartilhado, servidor ACP do Workbench e providers adicionais permanecem
+incrementos planejados.
 
 A extensão do VS Code é o único componente próprio fora de Rust, pois extensões
 do VS Code executam em um host TypeScript/JavaScript. Ela permanece um cliente
@@ -289,28 +292,16 @@ version: 1
 providers:
   claude:
     type: subscription-cli
-  codex:
-    type: subscription-cli
+    driver: claude-code
+    executable: /caminho/absoluto/canonico/para/claude-versionado
   grok:
     type: acp
     executable: /caminho/absoluto/canonico/para/grok
-  openrouter:
-    type: api
-    credential_ref: platform:openrouter
-    privacy:
-      zero_data_retention: true
-      data_collection: deny
 
 models:
-  coordinator:
-    provider: codex
-    runtime_model: gpt-5.6-sol
   specification:
     provider: claude
-    runtime_model: fable-5
-  review:
-    provider: codex
-    runtime_model: gpt-5.6-sol
+    runtime_model: fable
   implementation:
     provider: grok
     runtime_model: grok-4.5
@@ -320,16 +311,15 @@ models:
 
 roles:
   workspace-coordinator:
-    model: coordinator
+    model: review-fallback
   product-architect:
     model: specification
   critical-reviewer:
-    model: review
-    fallback_models: [review-fallback]
+    model: review-fallback
   implementer:
     model: implementation
   code-reviewer:
-    model: review
+    model: review-fallback
 
 routing:
   default_role: workspace-coordinator
@@ -358,7 +348,9 @@ workflows:
 Este é um exemplo da camada do repositório. Os padrões seguros preenchem campos
 vazios omitidos dos papéis; ferramentas e fontes de dados precisam ser
 declaradas antes de serem referenciadas por um papel. A configuração resolvida
-é totalmente explícita e deve obedecer ao schema versionado.
+é totalmente explícita e deve obedecer ao schema versionado. Codex e
+OpenRouter continuam como adaptadores planejados e não devem ser configurados
+como providers executáveis antes da entrega de seus drivers.
 
 As configurações serão resolvidas a partir dos padrões seguros embutidos, da
 configuração do usuário, de `.workbench/workbench.yaml` e dos overrides
@@ -426,12 +418,21 @@ Os agentes nativos utilizarão as assinaturas existentes; o OpenRouter será uma
 
 | Agente ou fornecedor | Forma de autenticação | Cobrança |
 |---|---|---|
-| Claude | Login oficial do Claude Code | Claude Max |
+| Claude | Login oficial do Claude Code | Controlada pelo provider; o uso atual de `claude -p`, Agent SDK e aplicações terceiras consome os limites da assinatura |
 | Codex | Login do Codex com ChatGPT | ChatGPT Pro |
 | Grok | Login por navegador ou dispositivo do Grok Build | SuperGrok Heavy |
 | OpenRouter | Chave de API armazenada no keychain do sistema | Créditos do OpenRouter, cobrados por uso |
 
-As credenciais permanecerão sob responsabilidade das CLIs dos fornecedores ou do keychain do sistema operacional e não poderão ser copiadas para arquivos de workflow ou para o banco de sessões. A interface distinguirá claramente o uso das assinaturas do uso por API e mostrará o consumo de tokens e o custo do OpenRouter por etapa.
+As credenciais permanecerão sob responsabilidade das CLIs dos fornecedores ou
+do keychain do sistema operacional e não poderão ser copiadas para arquivos de
+workflow ou para o banco de sessões. A Anthropic controla elegibilidade e
+cobrança da assinatura; o Workbench não oferece login do Claude nem promete
+que um plano cobre uso programático. A interface distinguirá rotas por
+assinatura do uso por API e mostrará o consumo e custo do OpenRouter por etapa.
+A Anthropic pausou em 15 de junho de 2026 o crédito separado anunciado para o
+Agent SDK; consulte a
+[orientação atual do plano](https://support.claude.com/en/articles/15036540-use-the-claude-agent-sdk-with-your-claude-plan)
+antes do uso.
 
 O terminal do Workbench derivado do Grok não reutilizará nem acessará o
 armazenamento de credenciais da assinatura Grok. Somente o processo oficial e
@@ -512,7 +513,7 @@ Este repositório utiliza a [Licença Apache 2.0](LICENSE). Componentes de terce
 
 A primeira versão utilizável incluirá:
 
-1. Adaptadores para Claude, Codex e Grok com autenticação pelas assinaturas.
+1. Adaptadores para Claude, Codex e Grok com autenticação controlada pelos providers.
 2. Runtime de agente genérico em Rust e adaptador OpenRouter com controles de capacidade e custo.
 3. Workflows sequenciais de especificação, revisão, implementação e validação.
 4. Sessões persistentes criptografadas com pausa, retomada, cancelamento e
@@ -532,7 +533,7 @@ Branches paralelas de funcionalidades, workers remotos, editor visual de workflo
 
 ## Validações realizadas
 
-- O workspace Rust com oito crates compila um daemon local para o mesmo usuário
+- O workspace Rust com nove crates compila um daemon local para o mesmo usuário
   e uma CLI headless com isolamento criptografado por workspace, execução falsa
   determinística e uma fronteira supervisionada do Grok Build por ACP v1.
 - Payloads sensíveis de sessões são criptografados no SQLite; as root keys usam
@@ -547,6 +548,10 @@ Branches paralelas de funcionalidades, workers remotos, editor visual de workflo
   expandem para 23 casos concretos com fingerprints, cujos 11 testes de
   evidência atravessam as camadas de aplicação, adaptador, supervisor,
   transporte e processo falso.
+- A Feature 005 adiciona o adaptador isolado `workbench-claude`, codec stream
+  JSON estrito de 8 MiB, preflight exclusivo para assinatura, perfil fixo
+  somente leitura, um processo por tentativa, interrupção correlacionada e
+  27/27 casos de aceitação com fingerprint sem rede ou quota.
 - A verificação do Speckit 0.18.10 é consultiva para as Features 001 e 004: ela
   registra zero bindings carregados porque seu registro de executáveis não
   carrega os testes Rust externos. Os runners do próprio repositório são os
@@ -570,8 +575,9 @@ Branches paralelas de funcionalidades, workers remotos, editor visual de workflo
 - A inspeção do código confirmou que o pager atual inicia apenas seu GrokShell
   em processo; o backend de terminal do Workbench permanece um incremento
   separado do fork.
-- Adaptadores de produção para Claude, Codex, OpenRouter e MCP compartilhado
-  permanecem features futuras contra o contrato de provider já provado.
+- Adaptadores de produção para Codex, OpenRouter e MCP compartilhado permanecem
+  features futuras. Ferramentas de escrita e a ponte central de permissões/MCP
+  do Claude também continuam fora do escopo.
 
 ## Critérios de sucesso
 
@@ -604,10 +610,11 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 | Ponte fina de sessões do VS Code | Implementado | Feature 002 |
 | Descoberta e isolamento de sessões por workspace | Implementado | Feature 003 |
 | Provider supervisionado do Grok Build por ACP | Implementado e validado | Feature 004 |
-| Workspace Cargo e harnesses de aceitação determinísticos | Implementado | Oito crates Rust |
+| Provider Claude Code supervisionado e somente leitura | Implementado e validado localmente | Feature 005 |
+| Workspace Cargo e harnesses de aceitação determinísticos | Implementado | Nove crates Rust |
 | Extensão do VS Code | Fundação implementada | Extensão TypeScript |
 | Spike do backend ACP externo e rebase entre dois snapshots do fork | Pendente | Feature futura do Speckit |
-| Adaptadores Claude, Codex, OpenRouter e MCP compartilhado | Pendente | Features futuras do Speckit |
+| Adaptadores Codex, OpenRouter e MCP compartilhado | Pendente | Features futuras do Speckit |
 
 O workspace fixa Rust 1.95.0 e as dependências diretas. O gate padrão
 `make check` é determinístico e offline; a cobertura real de Keychain/Secret
@@ -616,9 +623,9 @@ Service é executada pelo gate explícito `make test-platform` no macOS e Linux.
 ## Desenvolvimento orientado por especificações
 
 Este README define a visão do produto; `doc/arch/` define os requisitos de
-implementação. As features 001–004 concluíram o workflow do Speckit até
-`implement`. A implementação e as evidências locais e do pull request da
-Feature 004 estão concluídas:
+implementação. As features 001–005 concluíram o workflow do Speckit até
+`implement`. A Feature 005 possui evidência local completa; a evidência do pull
+request será registrada somente após a revisão:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
@@ -631,8 +638,8 @@ ativa antes do código de produto.
 
 ## Próximos passos
 
-1. Especificar e implementar separadamente os adaptadores Claude, Codex,
-   OpenRouter e MCP compartilhado contra o contrato de provider já provado.
+1. Especificar e implementar separadamente os adaptadores Codex, OpenRouter e
+   MCP compartilhado contra o contrato de provider já provado.
 2. Implementar o servidor ACP do Workbench, o backend do fork do terminal e a
    interface mais rica de workflows antes do piloto multi-provider completo.
 

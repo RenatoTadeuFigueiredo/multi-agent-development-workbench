@@ -15,12 +15,13 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    model::{ProviderType, WorkbenchConfiguration},
+    model::{Provider, ProviderDriver, ProviderType, WorkbenchConfiguration},
     snapshot::{ConfigurationSnapshot, canonical_json},
     validate::{ConfigError, validate_digest},
 };
 
 pub const ACP_PROTOCOL: &str = "acp/1";
+pub const CLAUDE_CODE_STREAM_PROTOCOL: &str = "claude-code-stream-json/1";
 
 #[derive(Clone, Debug)]
 pub struct AdapterInput {
@@ -39,6 +40,21 @@ impl AdapterInput {
         let executable = canonicalize_adapter_executable(executable.as_ref())?;
         Ok(Self {
             protocol: ACP_PROTOCOL.to_owned(),
+            version: version.into(),
+            executable_sha256: sha256_file(&executable)?,
+            executable,
+        })
+    }
+
+    /// Creates a Claude Code stream-json input after resolving a safe
+    /// executable.
+    pub fn claude_code(
+        executable: impl AsRef<Path>,
+        version: impl Into<String>,
+    ) -> Result<Self, ConfigError> {
+        let executable = canonicalize_adapter_executable(executable.as_ref())?;
+        Ok(Self {
+            protocol: CLAUDE_CODE_STREAM_PROTOCOL.to_owned(),
             version: version.into(),
             executable_sha256: sha256_file(&executable)?,
             executable,
@@ -128,7 +144,7 @@ impl WorkbenchLock {
                         "adapter input {name} differs from its configured executable"
                     )));
                 }
-                validate_adapter_identity(name, provider.kind, input)?;
+                validate_adapter_identity(name, provider, input)?;
                 validate_digest(
                     &input.executable_sha256,
                     &format!("adapter_inputs.{name}.executable_sha256"),
@@ -152,6 +168,14 @@ impl WorkbenchLock {
             if provider.kind == ProviderType::Acp && provider.executable.is_none() {
                 return Err(ConfigError::Lock(format!(
                     "ACP provider {name} has no configured executable"
+                )));
+            }
+            if provider.kind == ProviderType::SubscriptionCli
+                && (provider.driver != Some(ProviderDriver::ClaudeCode)
+                    || provider.executable.is_none())
+            {
+                return Err(ConfigError::Lock(format!(
+                    "Claude Code provider {name} has no configured driver or executable"
                 )));
             }
             if provider.kind != ProviderType::Fake
@@ -298,21 +322,22 @@ impl WorkbenchLock {
     ) -> Result<(), ConfigError> {
         self.verify()?;
         for (name, provider) in &config.providers {
-            if provider.kind != ProviderType::Acp {
+            if provider.kind == ProviderType::Fake || provider.executable.is_none() {
                 continue;
             }
-            let executable = provider.executable.as_deref().ok_or_else(|| {
-                ConfigError::Lock(format!("ACP provider {name} has no executable"))
-            })?;
+            let executable = provider
+                .executable
+                .as_deref()
+                .ok_or_else(|| ConfigError::Lock(format!("provider {name} has no executable")))?;
             let adapter = self.adapters.get(name).ok_or_else(|| {
-                ConfigError::Lock(format!("ACP provider {name} has no pinned adapter"))
+                ConfigError::Lock(format!("provider {name} has no pinned adapter"))
             })?;
             let executable = canonicalize_adapter_executable(Path::new(executable))?;
-            if adapter.protocol != ACP_PROTOCOL
+            if adapter.protocol != expected_adapter_protocol(provider)?
                 || adapter.executable_sha256 != sha256_file(&executable)?
             {
                 return Err(ConfigError::Lock(format!(
-                    "ACP provider {name} differs from its lock pin"
+                    "provider {name} differs from its lock pin"
                 )));
             }
         }
@@ -374,7 +399,7 @@ fn lock_mcps(config: &WorkbenchConfiguration) -> BTreeMap<String, LockedMcp> {
 
 fn validate_adapter_identity(
     name: &str,
-    provider_type: ProviderType,
+    provider: &Provider,
     input: &AdapterInput,
 ) -> Result<(), ConfigError> {
     if input.protocol.is_empty()
@@ -386,12 +411,28 @@ fn validate_adapter_identity(
             "adapter {name} reported an invalid version"
         )));
     }
-    if provider_type == ProviderType::Acp && input.protocol != ACP_PROTOCOL {
+    let expected = expected_adapter_protocol(provider)?;
+    if input.protocol != expected {
         return Err(ConfigError::Lock(format!(
-            "ACP adapter {name} must use protocol {ACP_PROTOCOL}"
+            "adapter {name} must use protocol {expected}"
         )));
     }
     Ok(())
+}
+
+fn expected_adapter_protocol(provider: &Provider) -> Result<&'static str, ConfigError> {
+    match (provider.kind, provider.driver) {
+        (ProviderType::Acp, None) => Ok(ACP_PROTOCOL),
+        (ProviderType::SubscriptionCli, Some(ProviderDriver::ClaudeCode)) => {
+            Ok(CLAUDE_CODE_STREAM_PROTOCOL)
+        }
+        (ProviderType::Fake, None) => Err(ConfigError::Lock(
+            "fake providers do not have executable adapter protocols".to_owned(),
+        )),
+        _ => Err(ConfigError::Lock(
+            "provider has an unsupported executable adapter identity".to_owned(),
+        )),
+    }
 }
 
 pub fn canonicalize_adapter_executable(path: &Path) -> Result<PathBuf, ConfigError> {

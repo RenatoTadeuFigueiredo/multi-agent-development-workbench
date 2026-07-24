@@ -1869,6 +1869,19 @@ impl Application {
             content: NonEmptyText::parse(prompt)
                 .map_err(|_| DaemonError::InvalidRequest("prompt text must not be empty"))?,
         };
+        if kind == ProviderType::SubscriptionCli {
+            self.active.lock().await.insert(
+                session_id,
+                Arc::new(ActiveExecution::provider(
+                    attempt_id,
+                    request_id,
+                    Arc::clone(&adapter),
+                    handle.clone(),
+                )),
+            );
+            self.schedule_provider_activation(session_id, attempt_id, adapter, handle, prompt);
+            return Ok(());
+        }
         let stream = match adapter.prompt_stream(&handle, prompt).await {
             Ok(stream) => stream,
             Err(failure) => {
@@ -1895,6 +1908,68 @@ impl Application {
                 );
             }
         }));
+        Ok(())
+    }
+
+    fn schedule_provider_activation(
+        self: &Arc<Self>,
+        session_id: Uuid,
+        attempt_id: Uuid,
+        adapter: Arc<dyn ProviderAdapter>,
+        handle: ProviderSessionHandle,
+        prompt: ProviderPrompt,
+    ) {
+        let application = Arc::clone(self);
+        drop(tokio::spawn(async move {
+            match adapter.prompt_stream(&handle, prompt).await {
+                Ok(stream) => {
+                    if let Err(error) = application
+                        .consume_provider_stream(session_id, attempt_id, stream)
+                        .await
+                    {
+                        application.telemetry.record_attempt("failed");
+                        warn!(
+                            category = error.code_name(),
+                            "provider stream processing failed"
+                        );
+                    }
+                }
+                Err(failure) => {
+                    if let Err(error) = application
+                        .finish_provider_activation_failure(session_id, attempt_id, &failure)
+                        .await
+                    {
+                        application.telemetry.record_attempt("failed");
+                        warn!(
+                            category = error.code_name(),
+                            "provider activation failure could not be recorded"
+                        );
+                    }
+                }
+            }
+        }));
+    }
+
+    async fn finish_provider_activation_failure(
+        &self,
+        session_id: Uuid,
+        attempt_id: Uuid,
+        failure: &ProviderFailure,
+    ) -> Result<(), DaemonError> {
+        let _lifecycle_guard = self.lifecycle_gate.read().await;
+        if self.shutting_down.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        let lock = self.session_lock(session_id).await;
+        let _guard = lock.lock().await;
+        let Some(active) = self.active_for_attempt(session_id, attempt_id).await else {
+            return Ok(());
+        };
+        if self.current_session_state(session_id)? == SessionState::CancelRequested {
+            return Ok(());
+        }
+        self.record_provider_failure(session_id, active.request_id, attempt_id, failure)?;
+        self.remove_active_attempt(session_id, attempt_id).await;
         Ok(())
     }
 
@@ -4235,6 +4310,7 @@ mod tests {
             "fallback".to_owned(),
             workbench_config::model::Provider {
                 kind: ProviderType::Fake,
+                driver: None,
                 executable: None,
                 credential_ref: None,
                 privacy: None,

@@ -14,9 +14,10 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 
 ## Active Feature
 
-- [Specification](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/spec.md): requirements, security, acceptance, and scope
-- [Technical plan](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/plan.md): crate boundaries, protocols, storage, tests, and risks
-- [Decision](doc/arch/adr/0001-build-the-workbench-orchestration-kernel-foundation-as-a.md): provider-independent daemon rationale
+- [Specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements, security, acceptance, and scope
+- [Technical plan](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/plan.md): stream JSON, supervision, configuration, and tests
+- [Decision](doc/arch/adr/0006-add-a-supervised-claude-code-subscription-adapter-that-pins.md): supervised official Claude Code rationale
+- [Feature quickstart](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/quickstart.md): configure, lock, validate, and run
 - [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export
 - [Executable scenarios](doc/arch/specs/features/build-the-workbench-orchestration-kernel-foundation-as-a.feature): Gherkin acceptance contract
 - [Local protocol](doc/arch/contracts/workbench-local-protocol.yaml): versioned command, reply, event, and error envelopes
@@ -26,6 +27,7 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Architecture
 
 - [Configuration and routing](docs/architecture/configuration-routing-and-providers.md): roles, aliases, providers, and routing order
+- [Claude operations](docs/operations/claude-code-provider.md): auth, billing, updates, failures, and quota-free validation
 - [Terminal integration](docs/architecture/grok-build-terminal-integration.md): Grok Build fork and ACP boundary
 - [Headless CLI](doc/arch/domain/cli-surface.md): commands, JSON output, and stable exit codes
 - [Local operations](doc/arch/operations/operations.md): runtime layout, recovery, and backup

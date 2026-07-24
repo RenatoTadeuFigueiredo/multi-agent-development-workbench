@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/workbench-acp",
+    "crates/workbench-claude",
     "crates/workbench-cli",
     "crates/workbench-config",
     "crates/workbench-core",

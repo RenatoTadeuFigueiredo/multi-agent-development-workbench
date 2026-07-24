@@ -2995,6 +2995,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "workbench-claude"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "workbench-core",
+]
+
+[[package]]
 name = "workbench-cli"
 version = "0.1.0"
 dependencies = [
@@ -3067,6 +3083,7 @@ dependencies = [
  "tracing-subscriber",
  "uuid",
  "workbench-acp",
+ "workbench-claude",
  "workbench-config",
  "workbench-core",
  "workbench-protocol",
@@ -3133,6 +3150,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "workbench-claude",
  "workbench-config",
  "workbench-core",
  "workbench-daemon",

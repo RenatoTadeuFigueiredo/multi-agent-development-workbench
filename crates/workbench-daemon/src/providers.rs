@@ -11,15 +11,17 @@ use std::{
     time::Duration,
 };
 
-use rustix::process::getuid;
+use rustix::process::{Pid, Signal, getuid, kill_process_group, test_kill_process_group};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 use thiserror::Error;
 use tokio::{io::AsyncReadExt, process::Command};
 use workbench_acp::{GrokLaunchProfile, GrokProviderAdapter};
+use workbench_claude::{ClaudeLaunchProfile, ClaudeProviderAdapter};
 use workbench_config::{
-    ACP_PROTOCOL, AdapterInput, ConfigError, canonicalize_adapter_executable,
-    model::{ApprovalMode, Capability, EffectClass, ProviderType},
+    ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, ConfigError,
+    canonicalize_adapter_executable,
+    model::{ApprovalMode, Capability, EffectClass, ProviderDriver, ProviderType},
     preflight::{
         Authentication, ProviderCapabilities as ConfigProviderCapabilities, ProviderOperation,
     },
@@ -38,6 +40,11 @@ use crate::StartupConfiguration;
 const VERSION_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
 const MAX_VERSION_OUTPUT_BYTES: usize = 4_096;
 const MAX_VERSION_READ_BYTES: u64 = 4_097;
+const AUTH_PROBE_TIMEOUT: Duration = Duration::from_secs(5);
+const MAX_AUTH_OUTPUT_BYTES: usize = 4_096;
+const MAX_AUTH_READ_BYTES: u64 = 4_097;
+const PROBE_SHUTDOWN_GRACE: Duration = Duration::from_millis(250);
+const CLAUDE_PROCESS_REAP_RESERVE: Duration = Duration::from_millis(450);
 /// Leaves time inside the public cancellation deadline for the daemon to
 /// persist and publish the terminal reconciliation outcome.
 const CANCELLATION_FINALIZATION_RESERVE: Duration = Duration::from_millis(500);
@@ -58,15 +65,55 @@ impl ProviderRegistry for StaticProviderRegistry {
 pub struct ProviderRuntime {
     registry: Arc<StaticProviderRegistry>,
     catalog: BTreeMap<String, ConfigProviderCapabilities>,
-    managed: Vec<Arc<GrokProviderAdapter>>,
+    managed: Vec<ManagedAdapter>,
     _snapshots: TempDir,
 }
 
 struct ProviderDescriptor {
+    kind: AdapterProbeKind,
     provider_id: ProviderId,
     version: String,
     protocol: String,
     executable: PathBuf,
+}
+
+#[derive(Clone)]
+enum ManagedAdapter {
+    Acp(Arc<GrokProviderAdapter>),
+    ClaudeCode(Arc<ClaudeProviderAdapter>),
+}
+
+/// Executable protocol selected explicitly by resolved provider
+/// configuration before a lock probe.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AdapterProbeKind {
+    Acp,
+    ClaudeCode,
+}
+
+/// Canonical executable and driver used for explicit lock regeneration.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AdapterProbe {
+    pub kind: AdapterProbeKind,
+    pub executable: PathBuf,
+}
+
+impl AdapterProbe {
+    #[must_use]
+    pub fn acp(executable: PathBuf) -> Self {
+        Self {
+            kind: AdapterProbeKind::Acp,
+            executable,
+        }
+    }
+
+    #[must_use]
+    pub fn claude_code(executable: PathBuf) -> Self {
+        Self {
+            kind: AdapterProbeKind::ClaudeCode,
+            executable,
+        }
+    }
 }
 
 impl ProviderRuntime {
@@ -115,30 +162,19 @@ impl ProviderRuntime {
         ))?;
 
         for (name, descriptor) in descriptors {
-            let adapter = match GrokProviderAdapter::connect(
-                descriptor.provider_id.clone(),
-                descriptor.version.clone(),
-                GrokLaunchProfile::new(&descriptor.executable, workspace),
-                cancellation_deadline,
-            )
-            .await
-            {
-                Ok(adapter) => Arc::new(adapter),
-                Err(error) => {
-                    if !shutdown_managed(&managed).await {
-                        return Err(ProviderRuntimeError::Reap);
+            let (adapter, owned) =
+                match connect_descriptor(&descriptor, workspace, cancellation_deadline).await {
+                    Ok(connected) => connected,
+                    Err(error) => {
+                        cleanup_after_startup_error(&managed, &error).await?;
+                        return Err(error.into());
                     }
-                    if error.category() == workbench_core::FailureCategory::Internal {
-                        return Err(ProviderRuntimeError::Reap);
-                    }
-                    return Err(error.into());
-                }
-            };
+                };
             let capabilities = match adapter.capabilities().await {
                 Ok(capabilities) => capabilities,
                 Err(error) => {
                     let mut cleanup = managed.clone();
-                    cleanup.push(adapter);
+                    cleanup.push(owned);
                     if !shutdown_managed(&cleanup).await {
                         return Err(ProviderRuntimeError::Reap);
                     }
@@ -149,18 +185,17 @@ impl ProviderRuntime {
                 || capabilities.protocol != descriptor.protocol
             {
                 let mut cleanup = managed.clone();
-                cleanup.push(adapter);
+                cleanup.push(owned);
                 if !shutdown_managed(&cleanup).await {
                     return Err(ProviderRuntimeError::Reap);
                 }
                 return Err(ProviderRuntimeError::Incompatible(
-                    "ACP adapter identity differs from the lock",
+                    "provider adapter identity differs from the lock",
                 ));
             }
             catalog.insert(name.clone(), config_capabilities(&capabilities));
-            let erased: Arc<dyn ProviderAdapter> = adapter.clone();
-            adapters.insert(descriptor.provider_id, erased);
-            managed.push(adapter);
+            adapters.insert(descriptor.provider_id, adapter);
+            managed.push(owned);
         }
 
         Ok(Self {
@@ -196,6 +231,46 @@ impl ProviderRuntime {
     }
 }
 
+async fn connect_descriptor(
+    descriptor: &ProviderDescriptor,
+    workspace: &Path,
+    cancellation_deadline: Duration,
+) -> Result<(Arc<dyn ProviderAdapter>, ManagedAdapter), CoreError> {
+    match descriptor.kind {
+        AdapterProbeKind::Acp => {
+            let adapter = Arc::new(
+                GrokProviderAdapter::connect(
+                    descriptor.provider_id.clone(),
+                    descriptor.version.clone(),
+                    GrokLaunchProfile::new(&descriptor.executable, workspace),
+                    cancellation_deadline,
+                )
+                .await?,
+            );
+            let erased: Arc<dyn ProviderAdapter> = adapter.clone();
+            Ok((erased, ManagedAdapter::Acp(adapter)))
+        }
+        AdapterProbeKind::ClaudeCode => {
+            let initialization_timeout = cancellation_deadline
+                .checked_sub(CLAUDE_PROCESS_REAP_RESERVE)
+                .filter(|timeout| !timeout.is_zero())
+                .unwrap_or(cancellation_deadline / 2);
+            let adapter = Arc::new(
+                ClaudeProviderAdapter::connect(
+                    descriptor.provider_id.clone(),
+                    descriptor.version.clone(),
+                    ClaudeLaunchProfile::new(&descriptor.executable, workspace)
+                        .initialization_timeout(initialization_timeout),
+                    cancellation_deadline,
+                )
+                .await?,
+            );
+            let erased: Arc<dyn ProviderAdapter> = adapter.clone();
+            Ok((erased, ManagedAdapter::ClaudeCode(adapter)))
+        }
+    }
+}
+
 fn provider_cancellation_budget(
     public_deadline: Duration,
 ) -> Result<Duration, ProviderRuntimeError> {
@@ -213,22 +288,31 @@ fn provider_descriptors(
 ) -> Result<BTreeMap<String, ProviderDescriptor>, ProviderRuntimeError> {
     let mut descriptors = BTreeMap::new();
     for (name, provider) in &startup.resolved.providers {
-        if provider.kind != ProviderType::Acp {
-            continue;
-        }
+        let kind = match (provider.kind, provider.driver) {
+            (ProviderType::Acp, None) => AdapterProbeKind::Acp,
+            (ProviderType::SubscriptionCli, Some(ProviderDriver::ClaudeCode)) => {
+                AdapterProbeKind::ClaudeCode
+            }
+            _ => continue,
+        };
         let provider_id = ProviderId::parse(name.clone())?;
         let executable =
             provider
                 .executable
                 .as_deref()
                 .ok_or(ProviderRuntimeError::Incompatible(
-                    "ACP executable is not configured",
+                    "provider executable is not configured",
                 ))?;
         let locked =
-            startup.base_lock.adapters.get(name).ok_or({
-                ProviderRuntimeError::Incompatible("ACP adapter is absent from the lock")
-            })?;
+            startup
+                .base_lock
+                .adapters
+                .get(name)
+                .ok_or(ProviderRuntimeError::Incompatible(
+                    "provider adapter is absent from the lock",
+                ))?;
         let executable = snapshot_locked_executable(
+            kind,
             name,
             Path::new(executable),
             &locked.executable_sha256,
@@ -237,6 +321,7 @@ fn provider_descriptors(
         descriptors.insert(
             name.clone(),
             ProviderDescriptor {
+                kind,
                 provider_id,
                 version: locked.version.clone(),
                 protocol: locked.protocol.clone(),
@@ -248,6 +333,7 @@ fn provider_descriptors(
 }
 
 fn snapshot_locked_executable(
+    kind: AdapterProbeKind,
     name: &str,
     source: &Path,
     expected_sha256: &str,
@@ -255,9 +341,10 @@ fn snapshot_locked_executable(
 ) -> Result<PathBuf, ProviderRuntimeError> {
     let (target, digest) = copy_executable_snapshot(name, source, snapshot_directory)?;
     if digest != expected_sha256 {
-        return Err(ProviderRuntimeError::Incompatible(
-            "ACP executable differs from the lock",
-        ));
+        return Err(ProviderRuntimeError::Incompatible(match kind {
+            AdapterProbeKind::Acp => "ACP executable differs from the lock",
+            AdapterProbeKind::ClaudeCode => "Claude Code executable differs from the lock",
+        }));
     }
     Ok(target)
 }
@@ -324,30 +411,306 @@ pub async fn probe_adapter_inputs(
     executables: &BTreeMap<String, PathBuf>,
     workspace: &Path,
 ) -> Result<BTreeMap<String, AdapterInput>, ProviderRuntimeError> {
-    let validated = executables
+    let probes = executables
         .iter()
-        .map(|(name, executable)| Ok((name.clone(), canonicalize_adapter_executable(executable)?)))
+        .map(|(name, executable)| (name.clone(), AdapterProbe::acp(executable.clone())))
+        .collect();
+    probe_configured_adapter_inputs(&probes, workspace).await
+}
+
+/// Probes explicitly configured adapter executables for lock regeneration.
+///
+/// # Errors
+///
+/// Returns a redacted error when a probe target is unsafe, incompatible,
+/// unauthenticated, oversized, malformed, or cannot be reaped.
+pub async fn probe_configured_adapter_inputs(
+    probes: &BTreeMap<String, AdapterProbe>,
+    workspace: &Path,
+) -> Result<BTreeMap<String, AdapterInput>, ProviderRuntimeError> {
+    let validated = probes
+        .iter()
+        .map(|(name, probe)| {
+            Ok((
+                name.clone(),
+                AdapterProbe {
+                    kind: probe.kind,
+                    executable: canonicalize_adapter_executable(&probe.executable)?,
+                },
+            ))
+        })
         .collect::<Result<BTreeMap<_, _>, ConfigError>>()?;
     let snapshots = tempfile::Builder::new()
         .prefix(".adapter-probe-")
         .tempdir_in(workspace)
         .map_err(|_| ProviderRuntimeError::Snapshot)?;
     let mut inputs = BTreeMap::new();
-    for (name, executable) in validated {
+    for (name, probe) in validated {
         let (snapshot, executable_sha256) =
-            copy_executable_snapshot(&name, &executable, snapshots.path())?;
-        let version = probe_grok_version(&snapshot, workspace).await?;
+            copy_executable_snapshot(&name, &probe.executable, snapshots.path())?;
+        let (protocol, version) = match probe.kind {
+            AdapterProbeKind::Acp => (
+                ACP_PROTOCOL,
+                probe_grok_version(&snapshot, workspace).await?,
+            ),
+            AdapterProbeKind::ClaudeCode => {
+                let version = probe_claude_version(&snapshot, workspace).await?;
+                probe_claude_subscription_auth(&snapshot, workspace).await?;
+                (CLAUDE_CODE_STREAM_PROTOCOL, version)
+            }
+        };
         inputs.insert(
             name,
             AdapterInput {
-                protocol: ACP_PROTOCOL.to_owned(),
+                protocol: protocol.to_owned(),
                 version,
-                executable,
+                executable: probe.executable,
                 executable_sha256,
             },
         );
     }
     Ok(inputs)
+}
+
+async fn probe_claude_version(
+    executable: &Path,
+    workspace: &Path,
+) -> Result<String, ProviderRuntimeError> {
+    let mut command = Command::new(executable);
+    command
+        .arg("--version")
+        .env("DISABLE_AUTOUPDATER", "1")
+        .current_dir(workspace)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .kill_on_drop(true);
+    sanitize_claude_billing_environment(&mut command);
+    let bytes = run_bounded_probe(
+        command,
+        VERSION_PROBE_TIMEOUT,
+        MAX_VERSION_READ_BYTES,
+        MAX_VERSION_OUTPUT_BYTES,
+    )
+    .await?;
+    normalize_claude_version(&bytes)
+}
+
+async fn probe_claude_subscription_auth(
+    executable: &Path,
+    workspace: &Path,
+) -> Result<(), ProviderRuntimeError> {
+    let mut command = Command::new(executable);
+    command
+        .args(["auth", "status", "--json"])
+        .env("DISABLE_AUTOUPDATER", "1")
+        .current_dir(workspace)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .kill_on_drop(true);
+    sanitize_claude_billing_environment(&mut command);
+    let bytes = run_bounded_probe(
+        command,
+        AUTH_PROBE_TIMEOUT,
+        MAX_AUTH_READ_BYTES,
+        MAX_AUTH_OUTPUT_BYTES,
+    )
+    .await?;
+    validate_claude_subscription_auth(&bytes)
+}
+
+async fn run_bounded_probe(
+    mut command: Command,
+    timeout: Duration,
+    max_read_bytes: u64,
+    max_output_bytes: usize,
+) -> Result<Vec<u8>, ProviderRuntimeError> {
+    let mut child = command
+        .spawn()
+        .map_err(|_| ProviderRuntimeError::Probe("adapter probe failed"))?;
+    let process_group = child
+        .id()
+        .and_then(|raw_pid| Pid::from_raw(raw_pid.cast_signed()));
+    let Some(stdout) = child.stdout.take() else {
+        if !reap_failed_probe_group(&mut child, process_group).await {
+            return Err(ProviderRuntimeError::Reap);
+        }
+        return Err(ProviderRuntimeError::Probe("adapter probe failed"));
+    };
+    let read = async {
+        let mut bytes = Vec::new();
+        stdout
+            .take(max_read_bytes)
+            .read_to_end(&mut bytes)
+            .await
+            .map(|_| bytes)
+    };
+    let bytes = match tokio::time::timeout(timeout, read).await {
+        Ok(Ok(bytes)) if bytes.len() <= max_output_bytes => bytes,
+        _ => {
+            if !reap_failed_probe_group(&mut child, process_group).await {
+                return Err(ProviderRuntimeError::Reap);
+            }
+            return Err(ProviderRuntimeError::Probe("adapter probe failed"));
+        }
+    };
+    let Ok(Ok(status)) = tokio::time::timeout(timeout, child.wait()).await else {
+        if !reap_failed_probe_group(&mut child, process_group).await {
+            return Err(ProviderRuntimeError::Reap);
+        }
+        return Err(ProviderRuntimeError::Probe("adapter probe failed"));
+    };
+    let group_state = cleanup_remaining_probe_group(process_group).await;
+    if group_state == ProbeGroupState::ReapFailed {
+        return Err(ProviderRuntimeError::Reap);
+    }
+    if !status.success() {
+        return Err(ProviderRuntimeError::Probe("adapter probe failed"));
+    }
+    if group_state == ProbeGroupState::ResidualReaped {
+        return Err(ProviderRuntimeError::Probe(
+            "adapter probe spawned an unexpected child",
+        ));
+    }
+    Ok(bytes)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProbeGroupState {
+    Clean,
+    ResidualReaped,
+    ReapFailed,
+}
+
+async fn cleanup_remaining_probe_group(process_group: Option<Pid>) -> ProbeGroupState {
+    let Some(process_group) = process_group else {
+        return ProbeGroupState::ReapFailed;
+    };
+    if test_kill_process_group(process_group).is_err() {
+        return ProbeGroupState::Clean;
+    }
+    let _ignored = kill_process_group(process_group, Signal::TERM);
+    if wait_for_probe_group_exit(process_group).await {
+        return ProbeGroupState::ResidualReaped;
+    }
+    let _ignored = kill_process_group(process_group, Signal::KILL);
+    if wait_for_probe_group_exit(process_group).await {
+        ProbeGroupState::ResidualReaped
+    } else {
+        ProbeGroupState::ReapFailed
+    }
+}
+
+async fn wait_for_probe_group_exit(process_group: Pid) -> bool {
+    let exited = async {
+        while test_kill_process_group(process_group).is_ok() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    };
+    tokio::time::timeout(PROBE_SHUTDOWN_GRACE, exited)
+        .await
+        .is_ok()
+}
+
+async fn reap_failed_probe_group(
+    child: &mut tokio::process::Child,
+    process_group: Option<Pid>,
+) -> bool {
+    if let Some(process_group) = process_group {
+        let _ignored = kill_process_group(process_group, Signal::KILL);
+    }
+    let _ignored = child.start_kill();
+    let child_reaped = matches!(
+        tokio::time::timeout(VERSION_PROBE_TIMEOUT, child.wait()).await,
+        Ok(Ok(_))
+    );
+    child_reaped
+        && cleanup_remaining_probe_group(process_group).await != ProbeGroupState::ReapFailed
+}
+
+fn normalize_claude_version(bytes: &[u8]) -> Result<String, ProviderRuntimeError> {
+    let output = std::str::from_utf8(bytes)
+        .map_err(|_| ProviderRuntimeError::Probe("Claude Code version probe failed"))?
+        .trim();
+    let version = output
+        .strip_suffix(" (Claude Code)")
+        .unwrap_or(output)
+        .trim();
+    let mut components = version.split('.');
+    let major = components
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    let minor = components
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    let patch = components
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    if components.next().is_some()
+        || !matches!((major, minor, patch), (Some(_), Some(_), Some(_)))
+        || version.len() > 255
+        || version.chars().any(char::is_control)
+    {
+        return Err(ProviderRuntimeError::Probe(
+            "Claude Code version probe failed",
+        ));
+    }
+    if (
+        major.unwrap_or_default(),
+        minor.unwrap_or_default(),
+        patch.unwrap_or_default(),
+    ) < (2, 1, 214)
+    {
+        return Err(ProviderRuntimeError::Incompatible(
+            "Claude Code 2.1.214 or newer is required",
+        ));
+    }
+    Ok(version.to_owned())
+}
+
+fn validate_claude_subscription_auth(bytes: &[u8]) -> Result<(), ProviderRuntimeError> {
+    #[derive(serde::Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct AuthStatus {
+        logged_in: bool,
+        auth_method: String,
+        api_provider: String,
+    }
+
+    let status: AuthStatus = serde_json::from_slice(bytes)
+        .map_err(|_| ProviderRuntimeError::Probe("Claude Code auth probe failed"))?;
+    let subscription = matches!(status.auth_method.as_str(), "claude.ai" | "claudeai");
+    if !status.logged_in
+        || !subscription
+        || status.api_provider != "firstParty"
+        || status.auth_method.len() > 64
+        || status.api_provider.len() > 64
+    {
+        return Err(ProviderRuntimeError::Incompatible(
+            "Claude Code subscription authentication is unavailable",
+        ));
+    }
+    Ok(())
+}
+
+pub(crate) fn sanitize_claude_billing_environment(command: &mut Command) {
+    for name in [
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_AUTH_TOKEN",
+        "CLAUDE_CODE_OAUTH_TOKEN",
+        "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_USE_BEDROCK",
+        "CLAUDE_CODE_USE_VERTEX",
+        "CLAUDE_CODE_USE_FOUNDRY",
+        "ANTHROPIC_BEDROCK_BASE_URL",
+        "ANTHROPIC_VERTEX_BASE_URL",
+        "ANTHROPIC_FOUNDRY_BASE_URL",
+    ] {
+        command.env_remove(name);
+    }
 }
 
 async fn probe_grok_version(
@@ -431,11 +794,29 @@ async fn reap_failed_probe(child: &mut tokio::process::Child) -> bool {
     )
 }
 
-async fn shutdown_managed(adapters: &[Arc<GrokProviderAdapter>]) -> bool {
-    futures_util::future::join_all(adapters.iter().rev().map(|adapter| adapter.shutdown()))
-        .await
-        .into_iter()
-        .all(|report| report.reaped)
+async fn cleanup_after_startup_error(
+    managed: &[ManagedAdapter],
+    error: &CoreError,
+) -> Result<(), ProviderRuntimeError> {
+    if !shutdown_managed(managed).await
+        || error.category() == workbench_core::FailureCategory::Internal
+    {
+        Err(ProviderRuntimeError::Reap)
+    } else {
+        Ok(())
+    }
+}
+
+async fn shutdown_managed(adapters: &[ManagedAdapter]) -> bool {
+    futures_util::future::join_all(adapters.iter().rev().map(|adapter| async move {
+        match adapter {
+            ManagedAdapter::Acp(adapter) => adapter.shutdown().await.reaped,
+            ManagedAdapter::ClaudeCode(adapter) => adapter.shutdown().await.reaped,
+        }
+    }))
+    .await
+    .into_iter()
+    .all(|reaped| reaped)
 }
 
 fn config_capabilities(capabilities: &ProviderCapabilities) -> ConfigProviderCapabilities {
@@ -497,12 +878,16 @@ mod tests {
     use std::{collections::BTreeMap, fs, os::unix::fs::PermissionsExt, time::Duration};
 
     use tempfile::TempDir;
+    use tokio::process::Command;
 
     use sha2::{Digest, Sha256};
 
     use super::{
-        CANCELLATION_FINALIZATION_RESERVE, ProviderRuntime, normalize_grok_version,
-        probe_adapter_inputs, provider_cancellation_budget, snapshot_locked_executable,
+        AdapterProbe, AdapterProbeKind, CANCELLATION_FINALIZATION_RESERVE, ProviderRuntime,
+        normalize_claude_version, normalize_grok_version, probe_adapter_inputs,
+        probe_claude_version, probe_configured_adapter_inputs, provider_cancellation_budget,
+        sanitize_claude_billing_environment, snapshot_locked_executable,
+        validate_claude_subscription_auth,
     };
     use crate::StartupConfiguration;
 
@@ -567,6 +952,106 @@ mod tests {
         assert_eq!(inputs["grok"].protocol, "acp/1");
     }
 
+    #[tokio::test]
+    async fn probes_claude_version_and_subscription_auth_without_inference() {
+        let workspace = TempDir::new_in(std::env::current_dir().expect("current directory"))
+            .expect("workspace");
+        let executable = workspace.path().join("fake-claude");
+        fs::write(
+            &executable,
+            "#!/bin/sh\n\
+             test \"$DISABLE_AUTOUPDATER\" = \"1\" || exit 72\n\
+             if test \"$1\" = \"--version\"; then\n\
+               printf '2.1.218 (Claude Code)\\n'\n\
+               exit 0\n\
+             fi\n\
+             test \"$1\" = \"auth\" || exit 73\n\
+             test \"$2\" = \"status\" || exit 74\n\
+             test \"$3\" = \"--json\" || exit 75\n\
+             printf '{\"loggedIn\":true,\"authMethod\":\"claude.ai\",\"apiProvider\":\"firstParty\"}\\n'\n",
+        )
+        .expect("probe executable");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))
+            .expect("probe permissions");
+        let executable = executable.canonicalize().expect("canonical executable");
+        let inputs = probe_configured_adapter_inputs(
+            &BTreeMap::from([("claude".to_owned(), AdapterProbe::claude_code(executable))]),
+            workspace.path(),
+        )
+        .await
+        .expect("Claude adapter input");
+
+        assert_eq!(inputs["claude"].version, "2.1.218");
+        assert_eq!(inputs["claude"].protocol, "claude-code-stream-json/1");
+    }
+
+    #[tokio::test]
+    async fn claude_probe_rejects_and_reaps_unexpected_descendants() {
+        let workspace = TempDir::new_in(std::env::current_dir().expect("current directory"))
+            .expect("workspace");
+        let executable = workspace.path().join("forking-claude");
+        fs::write(
+            &executable,
+            "#!/bin/sh\n\
+             sleep 30 </dev/null >/dev/null 2>&1 &\n\
+             printf '2.1.218 (Claude Code)\\n'\n",
+        )
+        .expect("probe executable");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))
+            .expect("probe permissions");
+
+        let error = probe_claude_version(&executable, workspace.path())
+            .await
+            .expect_err("a successful probe must not leave descendants");
+
+        assert_eq!(
+            error.to_string(),
+            "adapter probe spawned an unexpected child"
+        );
+    }
+
+    #[tokio::test]
+    async fn claude_probe_removes_inherited_billing_selectors() {
+        let workspace = TempDir::new_in(std::env::current_dir().expect("current directory"))
+            .expect("workspace");
+        let executable = workspace.path().join("environment-check");
+        fs::write(
+            &executable,
+            "#!/bin/sh\n\
+             test -z \"${ANTHROPIC_API_KEY+x}\" || exit 80\n\
+             test -z \"${CLAUDE_CODE_USE_BEDROCK+x}\" || exit 81\n",
+        )
+        .expect("probe executable");
+        fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))
+            .expect("probe permissions");
+        let mut command = Command::new(executable);
+        command
+            .env("ANTHROPIC_API_KEY", "secret-marker")
+            .env("CLAUDE_CODE_USE_BEDROCK", "1")
+            .current_dir(workspace.path());
+        sanitize_claude_billing_environment(&mut command);
+
+        assert!(command.status().await.expect("environment check").success());
+    }
+
+    #[test]
+    fn claude_probe_rejects_old_versions_and_non_subscription_auth() {
+        assert!(normalize_claude_version(b"2.1.214 (Claude Code)\n").is_ok());
+        assert!(normalize_claude_version(b"2.1.213 (Claude Code)\n").is_err());
+        assert!(
+            validate_claude_subscription_auth(
+                br#"{"loggedIn":true,"authMethod":"apiKey","apiProvider":"firstParty"}"#
+            )
+            .is_err()
+        );
+        assert!(
+            validate_claude_subscription_auth(
+                br#"{"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"}"#
+            )
+            .is_ok()
+        );
+    }
+
     #[test]
     fn executes_an_immutable_private_snapshot_of_the_locked_bytes() {
         let workspace = TempDir::new_in(std::env::current_dir().expect("current directory"))
@@ -579,6 +1064,7 @@ mod tests {
         let expected_sha256 = hex::encode(Sha256::digest(b"locked executable bytes"));
 
         let snapshot = snapshot_locked_executable(
+            AdapterProbeKind::Acp,
             "grok",
             &executable.canonicalize().expect("canonical executable"),
             &expected_sha256,

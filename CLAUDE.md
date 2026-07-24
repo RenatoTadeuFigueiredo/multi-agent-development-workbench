@@ -45,6 +45,8 @@ make check          # current non-mutating validation and test gate
   analyze → implement → validate.
 - Keep `AGENTS.md`, `README.md`, and the `doc/arch` corpus in sync with code;
   persist all artifacts in English.
+- Keep Claude-specific stream JSON, launch, auth, and process behavior inside
+  `workbench-claude`; the daemon composes it only through the provider port.
 
 ## Spec-first protocol
 

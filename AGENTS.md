@@ -11,7 +11,8 @@ Domain rules and ports live in `crates/workbench-core`; layered configuration
 in `workbench-config`; encrypted SQLite persistence in `workbench-storage`;
 protocol DTOs and local NDJSON framing in `workbench-protocol`; bounded ACP
 transport and Grok supervision in `workbench-acp`; daemon composition and Unix
-IPC in `workbench-daemon`; the headless client in `workbench-cli`; and
+IPC in `workbench-daemon`; strict Claude stream JSON and per-attempt process
+supervision in `workbench-claude`; the headless client in `workbench-cli`; and
 deterministic fakes and acceptance tests in `workbench-testkit`. Product
 specifications are under `doc/arch/`, supporting design notes under `docs/`,
 and generated contract checks under `scripts/`. The Grok-derived terminal
@@ -23,7 +24,7 @@ remains in its separate fork.
 - `make check` — run formatting, Clippy, contracts, tests, acceptance, SLO, and
   Speckit gates.
 - `make test-acceptance` — run the Rust acceptance harnesses for Features
-  001–004.
+  001–005.
 - `make test-platform` — exercise the real Keychain or Secret Service adapter;
   this intentionally requires an unlocked OS credential store.
 - `cargo run -p workbench-cli -- config validate` — validate resolved local

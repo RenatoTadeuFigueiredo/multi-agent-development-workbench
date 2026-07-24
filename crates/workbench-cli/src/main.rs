@@ -15,7 +15,7 @@ use workbench_cli::{
 use workbench_config::ConfigError;
 use workbench_daemon::{
     DaemonRuntime, StartupConfiguration,
-    providers::probe_adapter_inputs,
+    providers::probe_configured_adapter_inputs,
     runtime::{RuntimeError, init_tracing},
     runtime_paths::{RuntimePathError, RuntimePaths},
 };
@@ -124,11 +124,11 @@ async fn run_config(
     repository_root: &Path,
     write_lock: bool,
 ) -> Result<(), CommandFailure> {
-    let executables =
-        StartupConfiguration::adapter_executables(repository_root, cli.configuration.as_deref())
+    let probes =
+        StartupConfiguration::adapter_probes(repository_root, cli.configuration.as_deref())
             .map_err(|error| CommandFailure::configuration(&error))?;
     let inspected = if write_lock {
-        let inputs = probe_adapter_inputs(&executables, repository_root)
+        let inputs = probe_configured_adapter_inputs(&probes, repository_root)
             .await
             .map_err(|error| CommandFailure::provider(&error))?;
         StartupConfiguration::inspect_with_adapter_inputs(
@@ -137,7 +137,7 @@ async fn run_config(
             &inputs,
         )
         .map_err(|error| CommandFailure::configuration(&error))?
-    } else if executables.is_empty() {
+    } else if probes.is_empty() {
         StartupConfiguration::inspect(repository_root, cli.configuration.as_deref())
             .map_err(|error| CommandFailure::configuration(&error))?
     } else {

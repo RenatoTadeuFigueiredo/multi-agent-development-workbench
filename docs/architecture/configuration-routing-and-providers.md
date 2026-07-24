@@ -2,10 +2,11 @@
 
 ## Status
 
-Accepted architecture. Features 001–004 implement the configuration
-foundation, workspace-scoped sessions, thin VS Code bridge, and supervised
-Grok ACP provider. Additional providers, shared MCP, and the complete
-role-routing workflow remain gated by the project's Speckit process.
+Accepted architecture. Features 001–005 implement the configuration
+foundation, workspace-scoped sessions, thin VS Code bridge, supervised Grok
+ACP provider, and supervised read-only Claude Code provider. Additional
+providers, shared MCP, and the complete role-routing workflow remain gated by
+the project's Speckit process.
 
 ## Decision
 
@@ -60,6 +61,10 @@ workflows:
 version: 1
 
 providers:
+  claude:
+    type: subscription-cli
+    driver: claude-code
+    executable: /absolute/canonical/path/to/versioned/claude
   codex:
     type: subscription-cli
   grok:
@@ -73,6 +78,9 @@ providers:
       data_collection: deny
 
 models:
+  specification:
+    provider: claude
+    runtime_model: fable
   coordinator:
     provider: codex
     runtime_model: gpt-5.6-sol
@@ -157,6 +165,13 @@ The MVP may compile first-party CLI adapters into the Rust workspace while
 loading generic API and ACP-backed models from configuration. This keeps the
 contract modular without making dynamic third-party code execution a release
 requirement.
+
+`subscription-cli` is a provider family, not an implicit executable choice.
+Feature 005 requires `driver: claude-code` and an explicit canonical executable.
+Its lock identity is `claude-code-stream-json/1` plus the exact probed version
+and SHA-256. Claude Code authentication remains provider-owned; Workbench
+accepts an already authenticated subscription status, offers no login, and
+removes inherited API-key and cloud-provider selectors before launch.
 
 Removing a provider disables it for new routing, validates affected aliases and
 fallbacks, and preserves redacted historical session metadata. Existing

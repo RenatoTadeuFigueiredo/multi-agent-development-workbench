@@ -25,6 +25,8 @@ pub struct Provider {
     #[serde(rename = "type")]
     pub kind: ProviderType,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub driver: Option<ProviderDriver>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub executable: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub credential_ref: Option<String>,
@@ -39,6 +41,12 @@ pub enum ProviderType {
     Api,
     Acp,
     Fake,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ProviderDriver {
+    ClaudeCode,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -237,6 +245,7 @@ impl WorkbenchConfiguration {
             "fake".to_owned(),
             Provider {
                 kind: ProviderType::Fake,
+                driver: None,
                 executable: None,
                 credential_ref: None,
                 privacy: None,

@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 
 use thiserror::Error;
 
-use crate::model::{EffectClass, ProviderType, ToolKind, WorkbenchConfiguration};
+use crate::model::{EffectClass, ProviderDriver, ProviderType, ToolKind, WorkbenchConfiguration};
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum ConfigError {
@@ -64,6 +64,25 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
             return invalid(
                 &format!("providers.{name}.executable"),
                 "ACP providers require an explicit executable",
+            );
+        }
+        if provider.kind == ProviderType::SubscriptionCli {
+            if provider.driver != Some(ProviderDriver::ClaudeCode) {
+                return invalid(
+                    &format!("providers.{name}.driver"),
+                    "subscription CLI providers require a supported driver",
+                );
+            }
+            if provider.executable.as_deref().is_none_or(str::is_empty) {
+                return invalid(
+                    &format!("providers.{name}.executable"),
+                    "subscription CLI providers require an explicit executable",
+                );
+            }
+        } else if provider.driver.is_some() {
+            return invalid(
+                &format!("providers.{name}.driver"),
+                "driver is only valid for subscription CLI providers",
             );
         }
         if let Some(reference) = &provider.credential_ref {
