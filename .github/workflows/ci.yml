@@ -89,3 +89,16 @@ jobs:
           path: target/sbom/*.cdx.json
           if-no-files-found: error
           retention-days: 14
+
+  vscode-extension:
+    name: vscode extension
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Compile and test the offline VS Code bridge
+        working-directory: extensions/workbench-vscode
+        run: |
+          node --version
+          npm ci --ignore-scripts
+          npm run compile
+          npm test

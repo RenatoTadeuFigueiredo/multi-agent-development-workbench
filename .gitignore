@@ -11,3 +11,7 @@
 .DS_Store
 .idea/
 .vscode/
+
+# VS Code bridge dependencies and compiled output
+/extensions/workbench-vscode/node_modules/
+/extensions/workbench-vscode/dist/
