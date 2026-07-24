@@ -238,6 +238,7 @@ crates/
 ├── workbench-cli/           # Daemon lifecycle and headless client commands
 ├── workbench-acp/           # Bounded ACP v1 client and process supervision
 ├── workbench-claude/        # Claude stream-JSON and per-attempt supervision
+├── workbench-codex/         # Codex exec JSONL and per-attempt supervision
 └── workbench-testkit/       # Deterministic fakes, contracts, acceptance, SLOs
 ```
 
@@ -537,6 +538,10 @@ Parallel feature branches, remote workers, a visual workflow designer, team coll
   stream-JSON codec, subscription-only auth preflight, fixed read-only launch
   profile, per-attempt child ownership, correlated interruption, and 27/27
   fingerprinted quota-free acceptance cases.
+- Feature 006 adds the isolated `workbench-codex` adapter for ChatGPT-backed
+  `codex exec --json`, strict 8 MiB JSONL framing, ChatGPT-only login preflight,
+  fixed read-only ephemeral launch profile, process-group reaping, and 23/23
+  bound quota-free acceptance cases.
 - Speckit 0.18.10 verification is advisory for Features 001 and 004: it reports
   zero loaded bindings because its executable registry does not load their
   external Rust tests. The repository-owned runners are the authoritative

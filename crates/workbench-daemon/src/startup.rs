@@ -70,6 +70,9 @@ impl StartupConfiguration {
                 (ProviderType::SubscriptionCli, Some(ProviderDriver::ClaudeCode)) => {
                     crate::providers::AdapterProbeKind::ClaudeCode
                 }
+                (ProviderType::SubscriptionCli, Some(ProviderDriver::Codex)) => {
+                    crate::providers::AdapterProbeKind::Codex
+                }
                 _ => continue,
             };
             let executable = provider
@@ -82,6 +85,7 @@ impl StartupConfiguration {
                 crate::providers::AdapterProbeKind::ClaudeCode => {
                     AdapterProbe::claude_code(executable)
                 }
+                crate::providers::AdapterProbeKind::Codex => AdapterProbe::codex(executable),
             };
             probes.insert(name.clone(), probe);
         }
@@ -430,7 +434,7 @@ fn is_executable_adapter(provider: &workbench_config::model::Provider) -> bool {
         (ProviderType::Acp, None)
             | (
                 ProviderType::SubscriptionCli,
-                Some(ProviderDriver::ClaudeCode)
+                Some(ProviderDriver::ClaudeCode | ProviderDriver::Codex)
             )
     )
 }

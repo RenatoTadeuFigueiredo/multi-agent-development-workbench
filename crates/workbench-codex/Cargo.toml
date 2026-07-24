@@ -1,0 +1,29 @@
+[package]
+name = "workbench-codex"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+async-trait.workspace = true
+futures-util.workspace = true
+rustix.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+uuid.workspace = true
+workbench-core = { path = "../workbench-core" }
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[test]]
+name = "provider_adapter"
+path = "tests/provider_adapter.rs"
+harness = false
+
+[lints]
+workspace = true

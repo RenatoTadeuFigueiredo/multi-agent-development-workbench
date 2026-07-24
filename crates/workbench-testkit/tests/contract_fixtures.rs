@@ -10,6 +10,7 @@ const SOURCES: &[&str] = &[
     "doc/arch/datamodels/workbench-lock.schema.json",
     "doc/arch/schemas/add-a-supervised-acp-adapter-for-an-externally-installed.cue",
     "doc/arch/schemas/add-a-supervised-claude-code-subscription-adapter-that-pins.cue",
+    "doc/arch/schemas/add-a-supervised-codex-subscription-adapter-that-pins-an.cue",
     "doc/arch/schemas/build-the-workbench-orchestration-kernel-foundation-as-a.cue",
     "doc/arch/statecharts/session-lifecycle.md",
 ];

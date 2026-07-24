@@ -47,6 +47,7 @@ pub enum ProviderType {
 #[serde(rename_all = "kebab-case")]
 pub enum ProviderDriver {
     ClaudeCode,
+    Codex,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

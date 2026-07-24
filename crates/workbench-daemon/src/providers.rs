@@ -18,8 +18,9 @@ use thiserror::Error;
 use tokio::{io::AsyncReadExt, process::Command};
 use workbench_acp::{GrokLaunchProfile, GrokProviderAdapter};
 use workbench_claude::{ClaudeLaunchProfile, ClaudeProviderAdapter};
+use workbench_codex::{CodexLaunchProfile, CodexProviderAdapter};
 use workbench_config::{
-    ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, ConfigError,
+    ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, CODEX_EXEC_JSONL_PROTOCOL, ConfigError,
     canonicalize_adapter_executable,
     model::{ApprovalMode, Capability, EffectClass, ProviderDriver, ProviderType},
     preflight::{
@@ -81,6 +82,7 @@ struct ProviderDescriptor {
 enum ManagedAdapter {
     Acp(Arc<GrokProviderAdapter>),
     ClaudeCode(Arc<ClaudeProviderAdapter>),
+    Codex(Arc<CodexProviderAdapter>),
 }
 
 /// Executable protocol selected explicitly by resolved provider
@@ -89,6 +91,7 @@ enum ManagedAdapter {
 pub enum AdapterProbeKind {
     Acp,
     ClaudeCode,
+    Codex,
 }
 
 /// Canonical executable and driver used for explicit lock regeneration.
@@ -111,6 +114,14 @@ impl AdapterProbe {
     pub fn claude_code(executable: PathBuf) -> Self {
         Self {
             kind: AdapterProbeKind::ClaudeCode,
+            executable,
+        }
+    }
+
+    #[must_use]
+    pub fn codex(executable: PathBuf) -> Self {
+        Self {
+            kind: AdapterProbeKind::Codex,
             executable,
         }
     }
@@ -268,6 +279,24 @@ async fn connect_descriptor(
             let erased: Arc<dyn ProviderAdapter> = adapter.clone();
             Ok((erased, ManagedAdapter::ClaudeCode(adapter)))
         }
+        AdapterProbeKind::Codex => {
+            let preflight_timeout = cancellation_deadline
+                .checked_sub(CLAUDE_PROCESS_REAP_RESERVE)
+                .filter(|timeout| !timeout.is_zero())
+                .unwrap_or(cancellation_deadline / 2);
+            let adapter = Arc::new(
+                CodexProviderAdapter::connect(
+                    descriptor.provider_id.clone(),
+                    descriptor.version.clone(),
+                    CodexLaunchProfile::new(&descriptor.executable, workspace)
+                        .preflight_timeout(preflight_timeout),
+                    cancellation_deadline,
+                )
+                .await?,
+            );
+            let erased: Arc<dyn ProviderAdapter> = adapter.clone();
+            Ok((erased, ManagedAdapter::Codex(adapter)))
+        }
     }
 }
 
@@ -293,6 +322,7 @@ fn provider_descriptors(
             (ProviderType::SubscriptionCli, Some(ProviderDriver::ClaudeCode)) => {
                 AdapterProbeKind::ClaudeCode
             }
+            (ProviderType::SubscriptionCli, Some(ProviderDriver::Codex)) => AdapterProbeKind::Codex,
             _ => continue,
         };
         let provider_id = ProviderId::parse(name.clone())?;
@@ -344,6 +374,7 @@ fn snapshot_locked_executable(
         return Err(ProviderRuntimeError::Incompatible(match kind {
             AdapterProbeKind::Acp => "ACP executable differs from the lock",
             AdapterProbeKind::ClaudeCode => "Claude Code executable differs from the lock",
+            AdapterProbeKind::Codex => "Codex executable differs from the lock",
         }));
     }
     Ok(target)
@@ -458,6 +489,11 @@ pub async fn probe_configured_adapter_inputs(
                 probe_claude_subscription_auth(&snapshot, workspace).await?;
                 (CLAUDE_CODE_STREAM_PROTOCOL, version)
             }
+            AdapterProbeKind::Codex => {
+                let version = probe_codex_version(&snapshot, workspace).await?;
+                probe_codex_subscription_auth(&snapshot, workspace).await?;
+                (CODEX_EXEC_JSONL_PROTOCOL, version)
+            }
         };
         inputs.insert(
             name,
@@ -520,6 +556,54 @@ async fn probe_claude_subscription_auth(
     )
     .await?;
     validate_claude_subscription_auth(&bytes)
+}
+
+async fn probe_codex_version(
+    executable: &Path,
+    workspace: &Path,
+) -> Result<String, ProviderRuntimeError> {
+    let mut command = Command::new(executable);
+    command
+        .arg("--version")
+        .current_dir(workspace)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .kill_on_drop(true);
+    sanitize_codex_billing_environment(&mut command);
+    let bytes = run_bounded_probe(
+        command,
+        VERSION_PROBE_TIMEOUT,
+        MAX_VERSION_READ_BYTES,
+        MAX_VERSION_OUTPUT_BYTES,
+    )
+    .await?;
+    normalize_codex_version(&bytes)
+}
+
+async fn probe_codex_subscription_auth(
+    executable: &Path,
+    workspace: &Path,
+) -> Result<(), ProviderRuntimeError> {
+    let mut command = Command::new(executable);
+    command
+        .args(["login", "status"])
+        .current_dir(workspace)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .process_group(0)
+        .kill_on_drop(true);
+    sanitize_codex_billing_environment(&mut command);
+    let bytes = run_bounded_probe(
+        command,
+        AUTH_PROBE_TIMEOUT,
+        MAX_AUTH_READ_BYTES,
+        MAX_AUTH_OUTPUT_BYTES,
+    )
+    .await?;
+    validate_codex_subscription_auth(&bytes)
 }
 
 async fn run_bounded_probe(
@@ -713,6 +797,85 @@ pub(crate) fn sanitize_claude_billing_environment(command: &mut Command) {
     }
 }
 
+pub(crate) fn sanitize_codex_billing_environment(command: &mut Command) {
+    for name in [
+        "OPENAI_API_KEY",
+        "CODEX_API_KEY",
+        "OPENAI_BASE_URL",
+        "OPENAI_API_BASE",
+        "OPENAI_ORG_ID",
+        "OPENAI_ORGANIZATION",
+        "OPENAI_PROJECT",
+        "CODEX_OSS_BASE_URL",
+        "OLLAMA_BASE_URL",
+        "OPENAI_API_KEY_PATH",
+    ] {
+        command.env_remove(name);
+    }
+}
+
+fn normalize_codex_version(bytes: &[u8]) -> Result<String, ProviderRuntimeError> {
+    let output = std::str::from_utf8(bytes)
+        .map_err(|_| ProviderRuntimeError::Probe("Codex version probe failed"))?
+        .trim();
+    if output.lines().count() != 1 {
+        return Err(ProviderRuntimeError::Probe("Codex version probe failed"));
+    }
+    let version = output
+        .strip_prefix("codex-cli ")
+        .or_else(|| output.strip_prefix("codex "))
+        .unwrap_or(output)
+        .trim();
+    let mut components = version.split('.');
+    let major = components
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    let minor = components
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    let patch = components
+        .next()
+        .and_then(|value| value.parse::<u64>().ok());
+    if components.next().is_some()
+        || !matches!((major, minor, patch), (Some(_), Some(_), Some(_)))
+        || version.len() > 255
+        || version.chars().any(char::is_control)
+    {
+        return Err(ProviderRuntimeError::Probe("Codex version probe failed"));
+    }
+    if (
+        major.unwrap_or_default(),
+        minor.unwrap_or_default(),
+        patch.unwrap_or_default(),
+    ) < (0, 145, 0)
+    {
+        return Err(ProviderRuntimeError::Incompatible(
+            "Codex CLI 0.145.0 or newer is required",
+        ));
+    }
+    Ok(version.to_owned())
+}
+
+fn validate_codex_subscription_auth(bytes: &[u8]) -> Result<(), ProviderRuntimeError> {
+    let output = std::str::from_utf8(bytes)
+        .map_err(|_| ProviderRuntimeError::Probe("Codex auth probe failed"))?
+        .trim();
+    if output.lines().count() > 8 || output.len() > MAX_AUTH_OUTPUT_BYTES {
+        return Err(ProviderRuntimeError::Probe("Codex auth probe failed"));
+    }
+    let normalized = output.to_ascii_lowercase();
+    if normalized.contains("logged in using chatgpt")
+        && !normalized.contains("api key")
+        && !normalized.contains("api-key")
+    {
+        Ok(())
+    } else {
+        Err(ProviderRuntimeError::Incompatible(
+            "Codex subscription authentication is unavailable",
+        ))
+    }
+}
+
 async fn probe_grok_version(
     executable: &Path,
     workspace: &Path,
@@ -812,6 +975,7 @@ async fn shutdown_managed(adapters: &[ManagedAdapter]) -> bool {
         match adapter {
             ManagedAdapter::Acp(adapter) => adapter.shutdown().await.reaped,
             ManagedAdapter::ClaudeCode(adapter) => adapter.shutdown().await.reaped,
+            ManagedAdapter::Codex(adapter) => adapter.shutdown().await.reaped,
         }
     }))
     .await
@@ -884,10 +1048,11 @@ mod tests {
 
     use super::{
         AdapterProbe, AdapterProbeKind, CANCELLATION_FINALIZATION_RESERVE, ProviderRuntime,
-        normalize_claude_version, normalize_grok_version, probe_adapter_inputs,
-        probe_claude_version, probe_configured_adapter_inputs, provider_cancellation_budget,
-        sanitize_claude_billing_environment, snapshot_locked_executable,
-        validate_claude_subscription_auth,
+        normalize_claude_version, normalize_codex_version, normalize_grok_version,
+        probe_adapter_inputs, probe_claude_version, probe_configured_adapter_inputs,
+        provider_cancellation_budget, sanitize_claude_billing_environment,
+        sanitize_codex_billing_environment, snapshot_locked_executable,
+        validate_claude_subscription_auth, validate_codex_subscription_auth,
     };
     use crate::StartupConfiguration;
 
@@ -1050,6 +1215,17 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    #[test]
+    fn codex_probe_rejects_old_versions_and_non_chatgpt_auth() {
+        assert!(normalize_codex_version(b"codex-cli 0.145.0\n").is_ok());
+        assert!(normalize_codex_version(b"codex-cli 0.144.9\n").is_err());
+        assert!(validate_codex_subscription_auth(b"Logged in using ChatGPT\n").is_ok());
+        assert!(validate_codex_subscription_auth(b"Logged in using an API key\n").is_err());
+        assert!(validate_codex_subscription_auth(b"Not logged in\n").is_err());
+        let mut command = Command::new("true");
+        sanitize_codex_billing_environment(&mut command);
     }
 
     #[test]

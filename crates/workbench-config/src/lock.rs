@@ -22,6 +22,7 @@ use crate::{
 
 pub const ACP_PROTOCOL: &str = "acp/1";
 pub const CLAUDE_CODE_STREAM_PROTOCOL: &str = "claude-code-stream-json/1";
+pub const CODEX_EXEC_JSONL_PROTOCOL: &str = "codex-exec-jsonl/1";
 
 #[derive(Clone, Debug)]
 pub struct AdapterInput {
@@ -55,6 +56,20 @@ impl AdapterInput {
         let executable = canonicalize_adapter_executable(executable.as_ref())?;
         Ok(Self {
             protocol: CLAUDE_CODE_STREAM_PROTOCOL.to_owned(),
+            version: version.into(),
+            executable_sha256: sha256_file(&executable)?,
+            executable,
+        })
+    }
+
+    /// Creates a Codex exec JSONL input after resolving a safe executable.
+    pub fn codex(
+        executable: impl AsRef<Path>,
+        version: impl Into<String>,
+    ) -> Result<Self, ConfigError> {
+        let executable = canonicalize_adapter_executable(executable.as_ref())?;
+        Ok(Self {
+            protocol: CODEX_EXEC_JSONL_PROTOCOL.to_owned(),
             version: version.into(),
             executable_sha256: sha256_file(&executable)?,
             executable,
@@ -171,11 +186,13 @@ impl WorkbenchLock {
                 )));
             }
             if provider.kind == ProviderType::SubscriptionCli
-                && (provider.driver != Some(ProviderDriver::ClaudeCode)
-                    || provider.executable.is_none())
+                && (!matches!(
+                    provider.driver,
+                    Some(ProviderDriver::ClaudeCode | ProviderDriver::Codex)
+                ) || provider.executable.is_none())
             {
                 return Err(ConfigError::Lock(format!(
-                    "Claude Code provider {name} has no configured driver or executable"
+                    "subscription CLI provider {name} has no configured driver or executable"
                 )));
             }
             if provider.kind != ProviderType::Fake
@@ -425,6 +442,9 @@ fn expected_adapter_protocol(provider: &Provider) -> Result<&'static str, Config
         (ProviderType::Acp, None) => Ok(ACP_PROTOCOL),
         (ProviderType::SubscriptionCli, Some(ProviderDriver::ClaudeCode)) => {
             Ok(CLAUDE_CODE_STREAM_PROTOCOL)
+        }
+        (ProviderType::SubscriptionCli, Some(ProviderDriver::Codex)) => {
+            Ok(CODEX_EXEC_JSONL_PROTOCOL)
         }
         (ProviderType::Fake, None) => Err(ConfigError::Lock(
             "fake providers do not have executable adapter protocols".to_owned(),

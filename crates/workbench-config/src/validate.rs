@@ -67,7 +67,10 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
             );
         }
         if provider.kind == ProviderType::SubscriptionCli {
-            if provider.driver != Some(ProviderDriver::ClaudeCode) {
+            if !matches!(
+                provider.driver,
+                Some(ProviderDriver::ClaudeCode | ProviderDriver::Codex)
+            ) {
                 return invalid(
                     &format!("providers.{name}.driver"),
                     "subscription CLI providers require a supported driver",
