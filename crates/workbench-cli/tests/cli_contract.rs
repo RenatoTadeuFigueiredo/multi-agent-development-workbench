@@ -1,9 +1,12 @@
 use std::{
     io::Write as _,
-    os::unix::fs::{MetadataExt as _, PermissionsExt as _},
+    os::unix::fs::PermissionsExt as _,
     path::Path,
     process::{Command, Output, Stdio},
 };
+
+#[cfg(target_os = "macos")]
+use std::os::unix::fs::MetadataExt as _;
 
 use futures_util::{SinkExt as _, StreamExt as _};
 use serde_json::Value;
