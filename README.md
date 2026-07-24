@@ -549,6 +549,10 @@ Parallel feature branches, remote workers, a visual workflow designer, team coll
   four required jobs green in
   [GitHub Actions run 30106637866](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30106637866):
   macOS, Linux with Secret Service, supply chain, and VS Code.
+- Feature 005 merged through
+  [PR #10](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/pull/10);
+  all four required jobs passed again on the resulting `main` commit in
+  [GitHub Actions run 30114671439](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30114671439).
 - The production adapter launches the configured executable directly as
   `grok agent --no-leader stdio`, disables its auto-updater, pins its digest,
   negotiates ACP v1, and keeps Grok-owned authentication outside Workbench.
@@ -595,7 +599,7 @@ The MVP is successful when a user can submit one feature request and:
 | Thin VS Code session bridge | Implemented | Feature 002 |
 | Workspace-local session discovery and isolation | Implemented | Feature 003 |
 | Supervised Grok Build ACP provider | Implemented and validated | Feature 004 |
-| Supervised read-only Claude Code provider | Implemented and validated locally | Feature 005 |
+| Supervised read-only Claude Code provider | Implemented and validated | Feature 005 |
 | Cargo workspace and deterministic acceptance harnesses | Implemented | Nine Rust crates |
 | VS Code extension | Implemented foundation | TypeScript extension |
 | Fork external-ACP backend and two-snapshot rebase spike | Pending | Later Speckit feature |
@@ -610,8 +614,8 @@ Linux.
 
 This README defines the product vision; `doc/arch/` defines implementation
 requirements. Features 001–005 have completed the Speckit workflow through
-`implement`. Feature 005 has complete local implementation evidence; pull
-request evidence is recorded only after review:
+`implement`. Feature 005 records complete local, pull-request, merge, and
+post-merge CI evidence:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
@@ -623,10 +627,16 @@ a tracked change and a new or active Speckit feature before product code.
 
 ## Next Steps
 
-1. Specify and implement Codex, OpenRouter, and shared MCP adapters
-   independently against the proven provider contract.
-2. Implement the Workbench ACP server, the terminal fork backend, and the
-   richer workflow UI before piloting the complete multi-provider workflow.
+Run `make context` in a fresh session and use
+[`docs/project/STATUS.md`](docs/project/STATUS.md) as the durable handoff. The
+ordered roadmap is:
+
+1. [Codex subscription adapter](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/12).
+2. [Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
+3. [Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14).
+4. [Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
+5. [OpenRouter provider with cost controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
+6. [Workbench ACP server and terminal client](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17).
 
 ## References
 

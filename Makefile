@@ -8,13 +8,21 @@
 
 .PHONY: supply-chain-policy secret-scan advisory-check-ci \
 	license-source-check-ci sbom supply-chain-ci
-.PHONY: help build fmt lint test contract-test test-platform test-acceptance \
-	test-acp test-claude test-slo check spec-gate validate verify analyze spec-status
+.PHONY: help context test-context build fmt lint test contract-test test-platform \
+	test-acceptance test-acp test-claude test-slo check spec-gate validate \
+	verify analyze spec-status
 
 CARGO_OFFLINE := CARGO_NET_OFFLINE=true cargo
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*##/ {printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+context: ## Reconstruct the current project state for a fresh session
+	@./scripts/project-context.sh
+
+test-context: ## Validate the project-context entry point without network access
+	sh -n ./scripts/project-context.sh
+	@WORKBENCH_CONTEXT_OFFLINE=1 ./scripts/project-context.sh >/dev/null 2>&1
 
 build: ## Build every Rust workspace crate
 	$(CARGO_OFFLINE) build --workspace --locked
@@ -105,5 +113,5 @@ spec-gate: ## Run Speckit gates, or the committed corpus fallback when unavailab
 spec-status: ## Show the active feature and current workflow phase
 	speckit status
 
-check: supply-chain-policy secret-scan lint contract-test test test-acceptance \
+check: test-context supply-chain-policy secret-scan lint contract-test test test-acceptance \
 	test-slo spec-gate ## Run the complete offline gate

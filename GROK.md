@@ -31,6 +31,7 @@ doc/arch/
 ## Commands
 
 ```
+make context        # reconstruct durable state in a fresh session
 speckit status      # active feature + current workflow phase
 speckit next        # the recommended next command
 speckit validate    # validate the doc/arch corpus before committing
@@ -59,6 +60,8 @@ make check          # current non-mutating validation and test gate
   analyze → implement → validate.
 - Keep `AGENTS.md`, `GROK.md`, `README.md`, and the `doc/arch` corpus in sync
   with code; persist all artifacts in English.
+- Treat `docs/project/STATUS.md` plus live Git, Speckit, and GitHub output as
+  authoritative over conversational memory.
 - Keep Grok ACP behavior in `workbench-acp` and Claude stream JSON behavior in
   `workbench-claude`; neither provider protocol belongs in the domain.
 
