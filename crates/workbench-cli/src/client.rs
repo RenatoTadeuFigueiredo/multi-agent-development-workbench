@@ -12,8 +12,8 @@ use workbench_protocol::{
     command::InitializeParams,
     response::{
         ApprovalResult, AttachSessionResult, ControlResult, CreateSessionResult, DeleteResult,
-        ExportResult, InitializeResult, PromptResult, ReconciliationResult, SessionResult,
-        StatusResult,
+        ExportResult, InitializeResult, ListSessionsResult, PromptResult, ReconciliationResult,
+        SessionResult, StatusResult,
     },
 };
 
@@ -187,6 +187,7 @@ fn validate_method_result(command: &Command, value: &Value) -> Result<(), Client
         Command::Initialize(_) => require!(InitializeResult),
         Command::StatusGet(_) => require!(StatusResult),
         Command::SessionCreate(_) => require!(CreateSessionResult),
+        Command::SessionList(_) => require!(ListSessionsResult),
         Command::SessionGet(_) => require!(SessionResult),
         Command::SessionAttach(_) => require!(AttachSessionResult),
         Command::SessionPrompt(_) => require!(PromptResult),

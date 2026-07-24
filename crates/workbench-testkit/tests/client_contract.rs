@@ -17,6 +17,7 @@ async fn local_client_contract_covers_live_methods_and_event_replay() {
             "session.delete",
             "session.export",
             "session.get",
+            "session.list",
             "session.pause",
             "session.prompt",
             "session.reconcile",

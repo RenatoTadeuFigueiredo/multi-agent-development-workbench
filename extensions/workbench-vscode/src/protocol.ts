@@ -4,6 +4,25 @@ import { Socket } from "node:net";
 
 const PROTOCOL = "workbench/1";
 const DEFAULT_MAX_FRAME_BYTES = 8 * 1024 * 1024;
+const MAX_SESSION_LIST_ITEMS = 100;
+const UUID_V7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const RFC3339_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
+const SESSION_STATES = [
+  "ready",
+  "running",
+  "pausing",
+  "paused",
+  "awaiting_clarification",
+  "awaiting_approval",
+  "cancel_requested",
+  "outcome_unknown",
+  "completed",
+  "failed",
+  "cancelled",
+  "abandoned",
+  "deleting",
+] as const;
+type SessionState = typeof SESSION_STATES[number];
 
 export type SessionEvent = {
   protocol: typeof PROTOCOL;
@@ -14,6 +33,18 @@ export type SessionEvent = {
   kind: string;
   occurred_at: string;
   data: Record<string, unknown>;
+};
+
+export type SessionSummary = {
+  session_id: string;
+  state: SessionState;
+  created_at: string;
+  terminal_at?: string;
+};
+
+export type ListSessionsResult = {
+  sessions: SessionSummary[];
+  next_before_session_id?: string;
 };
 
 type ProtocolError = { code: string; message: string; retryable: boolean; correlation_id: string };
@@ -34,6 +65,33 @@ export interface Transport {
 }
 
 export type TransportConnector = (endpoint: string) => Promise<Transport>;
+
+export async function createPersistentSession(
+  endpoint: string,
+  connect: TransportConnector = NdjsonTransport.connect,
+): Promise<string> {
+  const result = await requestFromDaemon(endpoint, connect, "session.create", { persistent: true });
+  if (!isRecord(result) || typeof result.session_id !== "string") {
+    throw new WorkbenchProtocolError("invalid_result", "The daemon returned an invalid session creation result.");
+  }
+  return result.session_id;
+}
+
+export async function listSessions(
+  endpoint: string,
+  limit = 50,
+  beforeSessionId?: string,
+  connect: TransportConnector = NdjsonTransport.connect,
+): Promise<ListSessionsResult> {
+  const result = await requestFromDaemon(endpoint, connect, "session.list", {
+    limit,
+    ...(beforeSessionId ? { before_session_id: beforeSessionId } : {}),
+  });
+  if (!isListSessionsResult(result)) {
+    throw new WorkbenchProtocolError("invalid_result", "The daemon returned an invalid session list.");
+  }
+  return result;
+}
 
 export class NdjsonTransport extends EventEmitter implements Transport {
   private readonly pending = new Map<string, { resolve: (value: unknown) => void; reject: (error: Error) => void }>();
@@ -132,6 +190,28 @@ export class NdjsonTransport extends EventEmitter implements Transport {
   }
 }
 
+async function requestFromDaemon(
+  endpoint: string,
+  connect: TransportConnector,
+  method: string,
+  params: Record<string, unknown>,
+): Promise<unknown> {
+  const transport = await connect(endpoint);
+  try {
+    const initialize = await transport.request("initialize", {
+      client_name: "workbench-vscode",
+      client_version: "0.1.0",
+      supported_protocols: [PROTOCOL],
+    });
+    if (!isRecord(initialize) || initialize.selected_protocol !== PROTOCOL) {
+      throw new WorkbenchProtocolError("unsupported_version", "The daemon selected an incompatible protocol.");
+    }
+    return await transport.request(method, params);
+  } finally {
+    transport.close();
+  }
+}
+
 export class SessionController {
   private cursor = 0;
   private readonly seen = new Set<string>();
@@ -216,6 +296,42 @@ export class SessionController {
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+function isListSessionsResult(value: unknown): value is ListSessionsResult {
+  return isRecord(value)
+    && hasExactFields(value, ["sessions"], ["next_before_session_id"])
+    && Array.isArray(value.sessions)
+    && value.sessions.length <= MAX_SESSION_LIST_ITEMS
+    && value.sessions.every(isSessionSummary)
+    && (value.next_before_session_id === undefined || isUuidV7(value.next_before_session_id));
+}
+function isSessionSummary(value: unknown): value is SessionSummary {
+  return isRecord(value)
+    && hasExactFields(value, ["session_id", "state", "created_at"], ["terminal_at"])
+    && isUuidV7(value.session_id)
+    && isSessionState(value.state)
+    && isRfc3339Timestamp(value.created_at)
+    && (value.terminal_at === undefined || isRfc3339Timestamp(value.terminal_at));
+}
+function hasExactFields(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[],
+): boolean {
+  const allowed = new Set([...required, ...optional]);
+  return required.every((field) => Object.hasOwn(value, field))
+    && Object.keys(value).every((field) => allowed.has(field));
+}
+function isUuidV7(value: unknown): value is string {
+  return typeof value === "string" && UUID_V7_PATTERN.test(value);
+}
+function isSessionState(value: unknown): value is SessionState {
+  return typeof value === "string" && (SESSION_STATES as readonly string[]).includes(value);
+}
+function isRfc3339Timestamp(value: unknown): value is string {
+  return typeof value === "string"
+    && RFC3339_PATTERN.test(value)
+    && !Number.isNaN(Date.parse(value));
+}
 function isSessionEvent(event: SessionEvent): boolean {
   return event.protocol === PROTOCOL && typeof event.event_id === "string" && typeof event.session_id === "string" && Number.isSafeInteger(event.sequence) && event.sequence > 0 && typeof event.kind === "string" && typeof event.occurred_at === "string" && isRecord(event.data);
 }

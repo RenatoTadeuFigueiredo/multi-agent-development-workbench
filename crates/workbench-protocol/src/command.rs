@@ -26,6 +26,7 @@ pub enum Command {
     Initialize(InitializeParams),
     StatusGet(EmptyParams),
     SessionCreate(CreateSessionParams),
+    SessionList(ListSessionsParams),
     SessionGet(EmptyParams),
     SessionAttach(AttachSessionParams),
     SessionPrompt(PromptParams),
@@ -57,6 +58,19 @@ pub struct CreateSessionParams {
     pub persistent: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub configuration_overrides: Option<HashMap<String, Value>>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListSessionsParams {
+    #[serde(default = "default_session_list_limit")]
+    pub limit: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub before_session_id: Option<Uuid>,
+}
+
+const fn default_session_list_limit() -> u16 {
+    50
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -191,6 +205,7 @@ impl Command {
             Self::Initialize(_) => "initialize",
             Self::StatusGet(_) => "status.get",
             Self::SessionCreate(_) => "session.create",
+            Self::SessionList(_) => "session.list",
             Self::SessionGet(_) => "session.get",
             Self::SessionAttach(_) => "session.attach",
             Self::SessionPrompt(_) => "session.prompt",
@@ -208,7 +223,10 @@ impl Command {
     pub fn requires_session(&self) -> bool {
         !matches!(
             self,
-            Self::Initialize(_) | Self::StatusGet(_) | Self::SessionCreate(_)
+            Self::Initialize(_)
+                | Self::StatusGet(_)
+                | Self::SessionCreate(_)
+                | Self::SessionList(_)
         )
     }
 
@@ -221,6 +239,7 @@ impl Command {
             | Self::SessionResume(value)
             | Self::SessionCancel(value) => serde_json::to_value(value)?,
             Self::SessionCreate(value) => serde_json::to_value(value)?,
+            Self::SessionList(value) => serde_json::to_value(value)?,
             Self::SessionAttach(value) => serde_json::to_value(value)?,
             Self::SessionPrompt(value) => serde_json::to_value(value)?,
             Self::SessionRedirect(value) => serde_json::to_value(value)?,
@@ -255,6 +274,14 @@ impl Command {
             }
             Self::SessionCreate(params) if !params.persistent => {
                 return Err("feature 001 supports persistent sessions only".to_owned());
+            }
+            Self::SessionList(params) => {
+                if !(1..=100).contains(&params.limit) {
+                    return Err("limit must be between 1 and 100".to_owned());
+                }
+                if let Some(before_session_id) = params.before_session_id {
+                    require_uuid_v7(before_session_id, "before_session_id")?;
+                }
             }
             Self::SessionPrompt(params) => {
                 validate_content(&params.text, "text")?;
@@ -310,6 +337,7 @@ fn parse_command<E: serde::de::Error>(method: &str, params: Value) -> Result<Com
         "initialize" => parse!(Initialize, InitializeParams),
         "status.get" => parse!(StatusGet, EmptyParams),
         "session.create" => parse!(SessionCreate, CreateSessionParams),
+        "session.list" => parse!(SessionList, ListSessionsParams),
         "session.get" => parse!(SessionGet, EmptyParams),
         "session.attach" => parse!(SessionAttach, AttachSessionParams),
         "session.prompt" => parse!(SessionPrompt, PromptParams),

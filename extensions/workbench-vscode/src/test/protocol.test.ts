@@ -4,7 +4,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SessionController, SessionEvent, Transport, WorkbenchProtocolError } from "../protocol";
+import {
+  createPersistentSession,
+  listSessions,
+  SessionController,
+  SessionEvent,
+  Transport,
+  WorkbenchProtocolError,
+} from "../protocol";
 
 test("negotiates, attaches, receives events, and sends prompt with the committed wire contract", async () => {
   const directory = await mkdtemp(join(tmpdir(), "workbench-vscode-"));
@@ -82,6 +89,78 @@ test("reconnects from the durable cursor and deduplicates replayed events", asyn
   controller.close();
 });
 
+test("creates and lists paginated sessions through separately negotiated metadata-only requests", async () => {
+  const create = new DiscoveryTransport({ session_id: "018f47ef-9052-7b86-b31d-3f8962457777" });
+  const list = new DiscoveryTransport({
+    sessions: [{
+      session_id: "018f47ef-9052-7b86-b31d-3f8962457777",
+      state: "ready",
+      created_at: "2026-01-01T00:00:00Z",
+    }],
+    next_before_session_id: "018f47ef-9052-7b86-b31d-3f8962457777",
+  });
+  const nextPage = new DiscoveryTransport({ sessions: [] });
+  const transports = [create, list, nextPage];
+  const connect = async (): Promise<Transport> => {
+    const transport = transports.shift();
+    if (!transport) throw new WorkbenchProtocolError("unavailable", "unavailable");
+    return transport;
+  };
+
+  assert.equal(await createPersistentSession("unused", connect), "018f47ef-9052-7b86-b31d-3f8962457777");
+  const result = await listSessions("unused", 20, "018f47ef-9052-7b86-b31d-3f8962457776", connect);
+  const emptyResult = await listSessions("unused", 20, result.next_before_session_id, connect);
+
+  assert.deepEqual(create.requests, [
+    ["initialize", { client_name: "workbench-vscode", client_version: "0.1.0", supported_protocols: ["workbench/1"] }],
+    ["session.create", { persistent: true }],
+  ]);
+  assert.deepEqual(list.requests, [
+    ["initialize", { client_name: "workbench-vscode", client_version: "0.1.0", supported_protocols: ["workbench/1"] }],
+    ["session.list", { limit: 20, before_session_id: "018f47ef-9052-7b86-b31d-3f8962457776" }],
+  ]);
+  assert.equal(result.sessions[0].state, "ready");
+  assert.equal(result.next_before_session_id, "018f47ef-9052-7b86-b31d-3f8962457777");
+  assert.deepEqual(emptyResult, { sessions: [] });
+  assert.ok(create.closed);
+  assert.ok(list.closed);
+  assert.deepEqual(nextPage.requests, [
+    ["initialize", { client_name: "workbench-vscode", client_version: "0.1.0", supported_protocols: ["workbench/1"] }],
+    ["session.list", { limit: 20, before_session_id: "018f47ef-9052-7b86-b31d-3f8962457777" }],
+  ]);
+  assert.ok(nextPage.closed);
+});
+
+test("rejects session-list results that violate the bounded metadata-only contract", async () => {
+  const summary = {
+    session_id: "018f47ef-9052-7b86-b31d-3f8962457777",
+    state: "ready",
+    created_at: "2026-01-01T00:00:00Z",
+  };
+  const invalidResults: unknown[] = [
+    { sessions: [], unexpected: true },
+    { sessions: Array.from({ length: 101 }, () => summary) },
+    { sessions: [{ ...summary, prompt: "must not cross the discovery boundary" }] },
+    { sessions: [{ ...summary, session_id: "550e8400-e29b-41d4-a716-446655440000" }] },
+    { sessions: [{ ...summary, state: "invented" }] },
+    { sessions: [{ ...summary, created_at: "not-a-timestamp" }] },
+    { sessions: [{ ...summary, terminal_at: "not-a-timestamp" }] },
+    {
+      sessions: [summary],
+      next_before_session_id: "550e8400-e29b-41d4-a716-446655440000",
+    },
+  ];
+
+  for (const result of invalidResults) {
+    const transport = new DiscoveryTransport(result);
+    await assert.rejects(
+      () => listSessions("unused", 50, undefined, async () => transport),
+      (error: unknown) => error instanceof WorkbenchProtocolError && error.code === "invalid_result",
+    );
+    assert.ok(transport.closed);
+  }
+});
+
 class FakeTransport implements Transport {
   private eventListener?: (event: SessionEvent) => void;
   private closedListener?: () => void;
@@ -97,6 +176,22 @@ class FakeTransport implements Transport {
   onClosed(listener: () => void): void { this.closedListener = listener; }
   emit(value: SessionEvent): void { this.eventListener?.(value); }
   disconnect(): void { this.closedListener?.(); }
+}
+
+class DiscoveryTransport implements Transport {
+  readonly requests: Array<[string, Record<string, unknown>]> = [];
+  closed = false;
+
+  constructor(private readonly result: unknown) {}
+
+  async request(method: string, params: Record<string, unknown>): Promise<unknown> {
+    this.requests.push([method, params]);
+    if (method === "initialize") return { selected_protocol: "workbench/1" };
+    return this.result;
+  }
+  close(): void { this.closed = true; }
+  onEvent(): void { /* discovery requests do not subscribe */ }
+  onClosed(): void { /* discovery requests do not subscribe */ }
 }
 
 function event(sequence: number, eventId: string): SessionEvent {

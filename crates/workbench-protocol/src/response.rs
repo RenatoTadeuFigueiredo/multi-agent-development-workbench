@@ -114,6 +114,24 @@ pub struct CreateSessionResult {
     pub state: ReadyState,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListSessionsResult {
+    pub sessions: Vec<SessionSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_before_session_id: Option<Uuid>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SessionSummary {
+    pub session_id: Uuid,
+    pub state: SessionState,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_at: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadyState {

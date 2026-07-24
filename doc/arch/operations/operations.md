@@ -1,7 +1,8 @@
 # Local Operations
 
-Feature 001 runs one same-user Workbench daemon on macOS or Linux. It exposes
-no TCP listener and performs no provider network call in the default profile.
+Workbench runs one same-user daemon per canonical workspace on macOS or Linux.
+It exposes no TCP listener and performs no provider network call in the default
+profile.
 
 ## Local Startup
 
@@ -26,9 +27,15 @@ key-store, and adapter health.
 | Data | macOS | Linux |
 |---|---|---|
 | User configuration | `~/Library/Application Support/Workbench/config.yaml` | `${XDG_CONFIG_HOME:-~/.config}/workbench/config.yaml` |
-| State directory | `~/Library/Application Support/Workbench/state/` | `${XDG_STATE_HOME:-~/.local/state}/workbench/` |
-| IPC endpoint | `<user-temp>/workbench-<uid>/workbench.sock` | `${XDG_RUNTIME_DIR}/workbench/workbench.sock` |
+| State directory | `~/Library/Application Support/Workbench/state/<workspace-id>/` | `${XDG_STATE_HOME:-~/.local/state}/workbench/<workspace-id>/` |
+| IPC endpoint | `<user-temp>/workbench-<uid>/<workspace-id>.sock` | `${XDG_RUNTIME_DIR}/workbench/<workspace-id>.sock` |
 | Root and session-key envelopes | macOS Keychain | Secret Service login collection |
+
+`<workspace-id>` is the first 16 bytes of SHA-256 over the domain separator
+`workbench-workspace-id-v1\0` followed by the UTF-8 canonical workspace path,
+encoded as 32 lowercase hexadecimal characters. Canonical path aliases
+therefore resolve the same daemon, while distinct workspaces have isolated
+state, locks, and sockets.
 
 State and endpoint directories use mode `0700`; state files, exports, and the
 socket use mode `0600`. The non-secret repository lock follows repository
@@ -61,6 +68,47 @@ availability, migration status, active-session counts, and bounded adapter
 health without revealing paths, prompts, or credentials. A locked key store is
 degraded and blocks persistent work; corruption or migration failure is fatal
 and never triggers an empty-database fallback.
+
+## Legacy Global-State Migration
+
+Releases before workspace-scoped state stored one database directly at
+`<state-root>/workbench.sqlite3`. That database does not identify the workspace
+that owns it, and storage key namespaces are bound to its canonical path.
+Consequently, the new daemon never guesses an owner, copies the SQLite file, or
+opens an empty workspace database while legacy state is present. Startup fails
+with `LegacyStateRequiresMigration` when the legacy database exists and the
+selected workspace database does not.
+
+Use this transition procedure:
+
+1. Keep the legacy database at its original path and run the previous Workbench
+   release.
+2. Export every session that must be retained to an explicit encrypted age
+   bundle:
+
+   ```bash
+   workbench session export <session-id> \
+     --recipient <age-recipient> \
+     --output <session-id>.age
+   ```
+
+3. Verify and retain the encrypted bundles and the recipient private key
+   outside the repository. Do not copy or move the SQLite database into a
+   workspace directory; its path-bound key namespace makes such a copy
+   unusable and unsafe.
+4. This release has no supported `session import` command. If continued access
+   to legacy sessions is required, keep using the previous release and do not
+   remove the legacy database. Import bundles only through a future explicit,
+   supported importer.
+5. To accept a fresh workspace with no imported history, first verify the
+   exports, stop the previous daemon, and archive the legacy database outside
+   the active state root. Starting the new daemon then creates isolated
+   workspace state. Retain the archive and exports until explicit import has
+   completed.
+
+This is deliberately fail-closed: an operator must choose between continued
+legacy access and a fresh workspace after verified export. Deleting the legacy
+database is never part of automatic startup or migration.
 
 ## Environment Variables
 

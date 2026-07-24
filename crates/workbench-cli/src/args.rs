@@ -40,6 +40,7 @@ pub enum ConfigCommand {
 #[derive(Debug, Subcommand)]
 pub enum SessionCommand {
     Create,
+    List(ListArgs),
     Attach(AttachArgs),
     Pause(SessionIdArgs),
     Resume(SessionIdArgs),
@@ -61,6 +62,24 @@ pub struct AttachArgs {
     pub session_id: Uuid,
     #[arg(long, default_value_t = 0)]
     pub after: u64,
+}
+
+#[derive(Debug, Args)]
+pub struct ListArgs {
+    #[arg(long, default_value_t = 50, value_parser = parse_session_list_limit)]
+    pub limit: u16,
+    #[arg(long)]
+    pub before_session_id: Option<Uuid>,
+}
+
+fn parse_session_list_limit(value: &str) -> Result<u16, String> {
+    let limit = value
+        .parse::<u16>()
+        .map_err(|_| "limit must be an integer between 1 and 100".to_owned())?;
+    if !(1..=100).contains(&limit) {
+        return Err("limit must be between 1 and 100".to_owned());
+    }
+    Ok(limit)
 }
 
 #[derive(Debug, Args)]
@@ -169,5 +188,37 @@ mod tests {
             panic!("delete command expected");
         };
         assert_eq!(delete.session_id, delete.confirm);
+    }
+
+    #[test]
+    fn parses_bounded_session_list_cursor() {
+        let cli = Cli::try_parse_from([
+            "workbench",
+            "session",
+            "list",
+            "--limit",
+            "20",
+            "--before-session-id",
+            "018f47ef-9052-7b86-b31d-3f8962457776",
+        ])
+        .expect("valid session list command");
+
+        let Command::Session {
+            command: SessionCommand::List(list),
+        } = cli.command
+        else {
+            panic!("session list command expected");
+        };
+        assert_eq!(list.limit, 20);
+        assert_eq!(
+            list.before_session_id,
+            Some(Uuid::parse_str("018f47ef-9052-7b86-b31d-3f8962457776").expect("static UUID"))
+        );
+    }
+
+    #[test]
+    fn rejects_session_list_limit_outside_the_protocol_bound() {
+        assert!(Cli::try_parse_from(["workbench", "session", "list", "--limit", "0"]).is_err());
+        assert!(Cli::try_parse_from(["workbench", "session", "list", "--limit", "101"]).is_err());
     }
 }

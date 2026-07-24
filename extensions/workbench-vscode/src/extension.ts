@@ -1,8 +1,16 @@
 import * as os from "node:os";
 import * as path from "node:path";
 import * as vscode from "vscode";
-import { SessionController, SessionEvent, WorkbenchProtocolError } from "./protocol";
+import {
+  createPersistentSession,
+  listSessions,
+  SessionController,
+  SessionEvent,
+  SessionSummary,
+  WorkbenchProtocolError,
+} from "./protocol";
 import { renderEvent } from "./render";
+import { workspaceSocketIdForWorkspacePath } from "./workspace";
 
 const documentUri = vscode.Uri.parse("workbench-session:/active.md");
 let controller: SessionController | undefined;
@@ -16,6 +24,8 @@ export function activate(context: vscode.ExtensionContext): void {
     onDidChange: changed.event,
     provideTextDocumentContent: () => transcript,
   }));
+  context.subscriptions.push(vscode.commands.registerCommand("workbench.newSession", newSession));
+  context.subscriptions.push(vscode.commands.registerCommand("workbench.selectSession", selectSession));
   context.subscriptions.push(vscode.commands.registerCommand("workbench.attach", attach));
   context.subscriptions.push(vscode.commands.registerCommand("workbench.prompt", () => prompt()));
   context.subscriptions.push(vscode.commands.registerCommand("workbench.pause", () => control("pause")));
@@ -25,13 +35,101 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 async function attach(): Promise<void> {
-  const selected = await vscode.window.showInputBox({ prompt: "Workbench session ID", ignoreFocusOut: true });
-  if (!selected) return;
+  try {
+    const targetEndpoint = await resolveCommandEndpoint();
+    if (!targetEndpoint) return;
+    const selected = await vscode.window.showInputBox({ prompt: "Workbench session ID", ignoreFocusOut: true });
+    if (!selected) return;
+    await attachSession(selected, targetEndpoint);
+  } catch (error) {
+    vscode.window.showErrorMessage(displayError(error));
+  }
+}
+
+async function newSession(): Promise<void> {
+  try {
+    const targetEndpoint = await resolveCommandEndpoint();
+    if (!targetEndpoint) return;
+    await newSessionAt(targetEndpoint);
+  } catch (error) {
+    vscode.window.showErrorMessage(displayError(error));
+  }
+}
+
+async function selectSession(): Promise<void> {
+  try {
+    const targetEndpoint = await resolveCommandEndpoint();
+    if (!targetEndpoint) return;
+    await selectSessionAt(targetEndpoint);
+  } catch (error) {
+    vscode.window.showErrorMessage(displayError(error));
+  }
+}
+
+async function newSessionAt(targetEndpoint: string): Promise<void> {
+  await attachSession(await createPersistentSession(targetEndpoint), targetEndpoint);
+}
+
+async function selectSessionAt(targetEndpoint: string): Promise<void> {
+  const sessionItems: SessionQuickPickItem[] = [];
+  const seenSessionIds = new Set<string>();
+  let beforeSessionId: string | undefined;
+  let nextBeforeSessionId: string | undefined;
+
+  do {
+    const page = await listSessions(targetEndpoint, 50, beforeSessionId);
+    for (const session of page.sessions) {
+      if (seenSessionIds.has(session.session_id)) continue;
+      seenSessionIds.add(session.session_id);
+      sessionItems.push({
+        label: session.session_id,
+        description: session.state,
+        detail: sessionDetail(session),
+        session,
+      });
+    }
+    nextBeforeSessionId = page.next_before_session_id;
+
+    if (sessionItems.length === 0) {
+      const action = await vscode.window.showInformationMessage(
+        "No Workbench sessions exist for this workspace.",
+        "New Session",
+      );
+      if (action === "New Session") await newSessionAt(targetEndpoint);
+      return;
+    }
+
+    const selected = await vscode.window.showQuickPick(
+      [
+        ...sessionItems,
+        ...(nextBeforeSessionId ? [{
+          label: "Load more sessions…",
+          description: "Load the next page from this workspace",
+          loadMore: true,
+        }] : []),
+      ],
+      { placeHolder: "Select a Workbench session for this workspace" },
+    );
+    if (!selected) return;
+    if (selected.session) {
+      await attachSession(selected.session.session_id, targetEndpoint);
+      return;
+    }
+    beforeSessionId = nextBeforeSessionId;
+  } while (beforeSessionId);
+}
+
+type SessionQuickPickItem = vscode.QuickPickItem & {
+  session?: SessionSummary;
+  loadMore?: boolean;
+};
+
+async function attachSession(selected: string, targetEndpoint: string): Promise<void> {
   controller?.close();
   sessionId = selected;
   transcript = `# Workbench Session\n\nSession: \`${sessionId}\`\n`;
   changed.fire(documentUri);
-  controller = new SessionController(endpoint(), undefined, appendNotice);
+  controller = new SessionController(targetEndpoint, undefined, appendNotice);
   try {
     await controller.attach(sessionId, appendEvent);
     await vscode.commands.executeCommand("markdown.showPreviewToSide", documentUri);
@@ -72,14 +170,50 @@ function appendNotice(message: string): void {
   changed.fire(documentUri);
 }
 
-function endpoint(): string {
-  const configured = vscode.workspace.getConfiguration("workbench").get<string>("endpoint")?.trim();
+function sessionDetail(session: SessionSummary): string {
+  const terminal = session.terminal_at ? ` · ended ${session.terminal_at}` : "";
+  return `created ${session.created_at}${terminal}`;
+}
+
+async function resolveCommandEndpoint(): Promise<string | undefined> {
+  const workspace = await selectWorkspace();
+  if (!workspace && (vscode.workspace.workspaceFolders?.length ?? 0) > 1) return undefined;
+  return endpoint(workspace);
+}
+
+async function selectWorkspace(): Promise<vscode.WorkspaceFolder | undefined> {
+  const workspaces = vscode.workspace.workspaceFolders ?? [];
+  if (workspaces.length <= 1) return workspaces[0];
+  const selected = await vscode.window.showQuickPick(
+    workspaces.map((workspace) => ({
+      label: workspace.name,
+      description: workspace.uri.fsPath,
+      workspace,
+    })),
+    { placeHolder: "Select the workspace for this Workbench command" },
+  );
+  return selected?.workspace;
+}
+
+function endpoint(workspace: vscode.WorkspaceFolder | undefined): string {
+  const configured = vscode.workspace.getConfiguration("workbench", workspace?.uri).get<string>("endpoint")?.trim();
   if (configured) return configured;
+  if (!workspace) {
+    throw new WorkbenchProtocolError("workspace_required", "Open a workspace or configure workbench.endpoint.");
+  }
+  let workspaceId: string;
+  try {
+    workspaceId = workspaceSocketIdForWorkspacePath(workspace.uri.fsPath);
+  } catch {
+    throw new WorkbenchProtocolError("workspace_unavailable", "The current workspace path is unavailable.");
+  }
   if (process.platform === "linux") {
     const runtime = process.env.XDG_RUNTIME_DIR;
-    if (runtime) return path.join(runtime, "workbench", "workbench.sock");
+    if (runtime) return path.join(runtime, "workbench", `${workspaceId}.sock`);
   }
-  if (process.platform === "darwin") return path.join(process.env.TMPDIR ?? os.tmpdir(), `workbench-${process.getuid?.() ?? 0}`, "workbench.sock");
+  if (process.platform === "darwin") {
+    return path.join(process.env.TMPDIR ?? os.tmpdir(), `workbench-${process.getuid?.() ?? 0}`, `${workspaceId}.sock`);
+  }
   throw new WorkbenchProtocolError("unsupported_platform", "Configure workbench.endpoint for this platform.");
 }
 

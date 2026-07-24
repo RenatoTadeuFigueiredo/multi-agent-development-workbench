@@ -24,6 +24,11 @@ fn parses_every_committed_method_with_strict_params() {
         ),
         ("status.get", json!({}), None),
         ("session.create", json!({"persistent": true}), None),
+        (
+            "session.list",
+            json!({"limit": 25, "before_session_id": other}),
+            None,
+        ),
         ("session.get", json!({}), Some(session)),
         (
             "session.attach",
@@ -80,6 +85,40 @@ fn parses_every_committed_method_with_strict_params() {
         assert_eq!(command.command.method(), method);
         let encoded = serde_json::to_value(&command).expect("command serializes");
         assert_eq!(encoded["method"], method);
+    }
+}
+
+#[test]
+fn session_list_defaults_and_validates_its_bounded_cursor() {
+    let request = Uuid::now_v7();
+    let defaulted: ClientCommand = serde_json::from_value(json!({
+        "protocol": "workbench/1",
+        "request_id": request,
+        "method": "session.list",
+        "params": {}
+    }))
+    .expect("default session list");
+    let workbench_protocol::Command::SessionList(params) = defaulted.command else {
+        panic!("expected session.list");
+    };
+    assert_eq!(params.limit, 50);
+    assert_eq!(params.before_session_id, None);
+
+    for params in [
+        json!({"limit": 0}),
+        json!({"limit": 101}),
+        json!({
+            "before_session_id":
+                "550e8400-e29b-41d4-a716-446655440000"
+        }),
+    ] {
+        let request = json!({
+            "protocol": "workbench/1",
+            "request_id": Uuid::now_v7(),
+            "method": "session.list",
+            "params": params
+        });
+        assert!(serde_json::from_value::<ClientCommand>(request).is_err());
     }
 }
 

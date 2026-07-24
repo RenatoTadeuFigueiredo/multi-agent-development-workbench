@@ -61,14 +61,15 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
                     "--configuration applies only to daemon and config commands",
                 ));
             }
-            run_remote(&cli, command).await
+            run_remote(&cli, &repository_root, command).await
         }
     }
 }
 
 async fn run_daemon(cli: &Cli, repository_root: &Path) -> Result<(), CommandFailure> {
     init_tracing();
-    let paths = RuntimePaths::discover().map_err(|error| CommandFailure::runtime_path(&error))?;
+    let paths = RuntimePaths::discover(repository_root)
+        .map_err(|error| CommandFailure::runtime_path(&error))?;
     let runtime = DaemonRuntime::start_with_configuration(
         &paths,
         repository_root,
@@ -109,8 +110,13 @@ fn run_config(cli: &Cli, repository_root: &Path, write_lock: bool) -> Result<(),
     print_result(cli, &result)
 }
 
-async fn run_remote(cli: &Cli, command: ClientCommand) -> Result<(), CommandFailure> {
-    let paths = RuntimePaths::discover().map_err(|error| CommandFailure::runtime_path(&error))?;
+async fn run_remote(
+    cli: &Cli,
+    repository_root: &Path,
+    command: ClientCommand,
+) -> Result<(), CommandFailure> {
+    let paths = RuntimePaths::discover(repository_root)
+        .map_err(|error| CommandFailure::runtime_path(&error))?;
     let request_id = command.request_id;
     let is_attach = matches!(command.command, ProtocolCommand::SessionAttach(_));
     let prompt_session = if owns_active_prompt(&command) {

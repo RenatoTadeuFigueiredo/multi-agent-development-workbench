@@ -7,12 +7,12 @@ use workbench_protocol::{
     ClientCommand, Command, ErrorCode, PROTOCOL_V1,
     command::{
         ApprovalDecision, ApprovalParams, AttachSessionParams, CreateSessionParams, DeleteParams,
-        EmptyParams, ExportParams, PromptParams, ReconciliationParams, ReconciliationResolution,
-        RedirectParams,
+        EmptyParams, ExportParams, ListSessionsParams, PromptParams, ReconciliationParams,
+        ReconciliationResolution, RedirectParams,
     },
     response::{
         ApprovalResult, AttachSessionResult, ControlResult, CreateSessionResult, ExportResult,
-        PromptResult, SessionResult, StatusResult,
+        ListSessionsResult, PromptResult, SessionResult, StatusResult,
     },
 };
 
@@ -58,6 +58,21 @@ pub async fn verify_local_client_contract() -> Result<ClientContractReport, Clie
         .await?;
     let created = decode::<CreateSessionResult>(created)?;
     methods.insert("session.create");
+
+    let listed = controller
+        .call(command(
+            None,
+            Command::SessionList(ListSessionsParams {
+                limit: 1,
+                before_session_id: None,
+            }),
+        ))
+        .await?;
+    let listed = decode::<ListSessionsResult>(listed)?;
+    if listed.sessions.len() != 1 || listed.sessions[0].session_id != created.session_id {
+        return Err(ClientContractError::InvalidSessionList);
+    }
+    methods.insert("session.list");
 
     let prompt = controller
         .call(command(
@@ -251,4 +266,6 @@ pub enum ClientContractError {
     ExpectedProtocolError,
     #[error("approval-required prompt emitted no approval identifier")]
     MissingApproval,
+    #[error("session.list did not return the created session")]
+    InvalidSessionList,
 }

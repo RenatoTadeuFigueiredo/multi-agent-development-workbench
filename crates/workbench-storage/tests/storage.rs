@@ -232,6 +232,160 @@ fn command_outcomes_replay_and_reject_conflicting_reuse() {
 }
 
 #[test]
+fn session_metadata_listing_is_bounded_cursor_based_and_key_independent() {
+    let store = MemoryKeyStore::new();
+    let mut storage = SqliteStorage::open_in_memory(store.clone()).expect("open metadata storage");
+    let now = OffsetDateTime::now_utc();
+    let session_ids = (0..5)
+        .map(|offset| {
+            let session_id = Uuid::now_v7();
+            create_session(&mut storage, session_id, now + Duration::seconds(offset));
+            session_id
+        })
+        .collect::<Vec<_>>();
+    let terminal_session_id = session_ids[2];
+    let terminal_at = now + Duration::minutes(1);
+    append(
+        &mut storage,
+        terminal_session_id,
+        terminal_at,
+        "session_completed",
+        None,
+        json!({"summary": "done"}),
+    );
+
+    let mut expected = session_ids.clone();
+    expected.sort_by_key(|session_id| std::cmp::Reverse(session_id.to_string()));
+    store.set_available(false);
+
+    let first = storage
+        .list_session_metadata(2, None)
+        .expect("first metadata page without key store");
+    assert_eq!(
+        first
+            .sessions
+            .iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>(),
+        expected[..2]
+    );
+    assert_eq!(first.next_before_session_id, Some(expected[1]));
+
+    let second = storage
+        .list_session_metadata(2, first.next_before_session_id)
+        .expect("second metadata page");
+    assert_eq!(
+        second
+            .sessions
+            .iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>(),
+        expected[2..4]
+    );
+    assert_eq!(second.next_before_session_id, Some(expected[3]));
+
+    let third = storage
+        .list_session_metadata(2, second.next_before_session_id)
+        .expect("final metadata page");
+    assert_eq!(
+        third
+            .sessions
+            .iter()
+            .map(|session| session.session_id)
+            .collect::<Vec<_>>(),
+        expected[4..]
+    );
+    assert_eq!(third.next_before_session_id, None);
+
+    let terminal = first
+        .sessions
+        .iter()
+        .chain(&second.sessions)
+        .chain(&third.sessions)
+        .find(|session| session.session_id == terminal_session_id)
+        .expect("terminal session metadata");
+    assert_eq!(terminal.state, "completed");
+    assert_eq!(terminal.terminal_at, Some(terminal_at));
+    assert!(
+        storage.list_session_metadata(0, None).is_err(),
+        "zero limit must be rejected at the storage boundary"
+    );
+    assert!(
+        storage.list_session_metadata(101, None).is_err(),
+        "oversized limit must be rejected at the storage boundary"
+    );
+
+    store.set_available(true);
+    for session_id in session_ids {
+        let history = storage
+            .replay(session_id, 0)
+            .expect("listing does not mutate event history");
+        let expected_events = usize::from(session_id == terminal_session_id) + 1;
+        assert_eq!(history.len(), expected_events);
+    }
+}
+
+#[test]
+fn session_metadata_projection_matches_redirect_fold_semantics() {
+    let mut storage =
+        SqliteStorage::open_in_memory(MemoryKeyStore::new()).expect("open metadata storage");
+    let now = OffsetDateTime::now_utc();
+    let clarified_session_id = Uuid::now_v7();
+    create_session(&mut storage, clarified_session_id, now);
+    append(
+        &mut storage,
+        clarified_session_id,
+        now + Duration::seconds(1),
+        "clarification_requested",
+        None,
+        json!({"question": "choose a role"}),
+    );
+    append(
+        &mut storage,
+        clarified_session_id,
+        now + Duration::seconds(2),
+        "session_redirected",
+        None,
+        json!({"instruction": "use the coordinator"}),
+    );
+
+    let paused_session_id = Uuid::now_v7();
+    create_session(&mut storage, paused_session_id, now + Duration::seconds(3));
+    append(
+        &mut storage,
+        paused_session_id,
+        now + Duration::seconds(4),
+        "session_paused",
+        None,
+        json!({}),
+    );
+    append(
+        &mut storage,
+        paused_session_id,
+        now + Duration::seconds(5),
+        "session_redirected",
+        None,
+        json!({"instruction": "revise the plan"}),
+    );
+
+    let page = storage
+        .list_session_metadata(100, None)
+        .expect("redirected metadata");
+    let clarified = page
+        .sessions
+        .iter()
+        .find(|session| session.session_id == clarified_session_id)
+        .expect("clarified session");
+    assert_eq!(clarified.state, "ready");
+    let paused = page
+        .sessions
+        .iter()
+        .find(|session| session.session_id == paused_session_id)
+        .expect("paused session");
+    assert_eq!(paused.state, "paused");
+}
+
+#[test]
 fn startup_recovery_marks_started_attempt_unknown_once() {
     let mut storage = SqliteStorage::open_in_memory(MemoryKeyStore::new()).expect("open storage");
     let session_id = Uuid::now_v7();
