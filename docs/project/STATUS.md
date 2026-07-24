@@ -31,10 +31,9 @@ Use this precedence when sources disagree:
 
 ## Delivered Baseline
 
-The last reviewed `main` checkpoint for Features 001–008 is merge commit
-`12804ddcc9b2c9c10ee8d9bbbe0e359b1f66acd0` (issue #14 / PR #22). Feature 009
-(real-time VS Code workflow controls) is in flight on branch
-`009-add-real-time-vs-code-workflow-controls-that-show-routing` (issue #15).
+The last reviewed `main` checkpoint is merge commit
+`709ec20a6167e066cfa75b0ba37f6fab2795443d` (issue #15 / PR #23). Features
+001–009 are on `main`.
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -46,31 +45,29 @@ The last reviewed `main` checkpoint for Features 001–008 is merge commit
 | 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR #19 |
 | 007 | Central MCP lifecycle, pins, allowlists, approvals | Issue #13 / PR #20 |
 | 008 | Configurable multi-agent workflow executor | Issue #14 / PR #21 + #22 |
-| 009 | Real-time VS Code workflow controls (in progress) | Issue #15 |
+| 009 | Real-time VS Code workflow controls | Issue #15 / PR #23 |
 
-Features 001–008 completed the Speckit lifecycle through implementation and
-are on `main`. Feature 008 includes domain runtime, daemon multi-step dispatch,
-durable `workflow_transition` events, offline Claude→Codex→Grok→Codex path via
-fakes, controls, recovery snapshots, and gateway step allowlists.
+Features 001–009 completed the Speckit lifecycle through implementation and
+are on `main`. Feature 009 keeps the VS Code extension a thin protocol client
+with workflow control summary, routing/workflow/approval rendering, status bar,
+lifecycle controls, approval grant/deny, and offline tests.
 
 ## Active Work
 
-- **Branch:** `009-add-real-time-vs-code-workflow-controls-that-show-routing`
-- **Issue:** [#15 — Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15)
-- **Speckit feature:** `009-add-real-time-vs-code-workflow-controls-that-show-routing`
-- **Phase at last handoff:** implement (T001–T005 code complete; T006 validation
-  and PR).
+- **Branch:** `main`
+- **Issue:** none active after #15 merge
+- **Speckit feature:** none (run `speckit specify` for the next increment)
+- **Phase at last handoff:** ready for [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16)
 
 ## Ordered Roadmap
 
-- **In progress:** [#15 — Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
-- **Next ready after #15 merge:** [#16 — OpenRouter provider and cost controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
+- **Next ready:** [#16 — OpenRouter provider and cost controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
+- **Then:** [#17 — Workbench ACP server and terminal client](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17).
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
-| 1 | [#15](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15) | Real-time VS Code workflow controls | Stable workflow control protocol |
-| 2 | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
-| 3 | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows and terminal fork spike |
+| 1 | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
+| 2 | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows and terminal fork spike |
 
 Each product increment requires its own branch from `main`, tracked issue,
 active Speckit feature, and completion of the phase returned by `speckit next`.
@@ -83,8 +80,6 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
   closed until a TLS client is composed; live package registries are opt-in.
 - Feature 008 multi-step auto-advance uses the offline fake path and schedules
   live adapters without nesting non-Send provider streams into stream tasks.
-- Feature 009 extends the VS Code bridge into a workflow control room; merge
-  evidence lands with issue #15.
 - The Workbench ACP server and Grok-derived terminal backend remain pending.
 - Claude and Codex provider-native write tools remain disabled; shared tools go
   through the central MCP gateway allowlist.
