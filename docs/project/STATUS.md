@@ -32,10 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`b602fcef576de20ba4b3d2472ef9f456832d573b` (Features 001–005 plus durable
-context handoff). Feature 006 ships via issue #12 / PR #19 on branch
-`006-add-a-supervised-codex-subscription-adapter-that-pins-an` (merge SHA
-pending after land).
+`df633fcc9ab1723e8c460ebfda5d83359186846d` (Features 001–006, including the
+supervised Codex subscription adapter via issue #12 / PR #19).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -46,14 +44,21 @@ pending after land).
 | 005 | Supervised, read-only Claude Code subscription adapter | Issue #9 / PR #10 |
 | 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR #19 |
 
-Features 001–006 completed the Speckit lifecycle through implementation.
-Feature 006 verification on this branch was green (`speckit validate`,
-`make check`, `feature_006`, `workbench-codex` tests). Merge SHA is recorded
-after the pull request lands on `main`.
+Features 001–006 completed the Speckit lifecycle through implementation and
+are on `main` at the checkpoint above.
+
+## Active Work
+
+- **Branch:** `007-central-mcp-lifecycle-and-tool-permissions`
+- **Issue:** [#13 — Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13)
+- **Speckit feature:** `007-central-mcp-lifecycle-and-tool-permissions`
+- **Phase at last handoff:** analyze complete; `speckit next` is
+  `speckit implement` (start at T001 — config/lock MCP launch identity).
+  Product code not started this session.
 
 ## Ordered Roadmap
 
-- **Next ready:** [#13 — Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
+- **In progress:** [#13 — Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
@@ -68,7 +73,8 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
 
 ## Known Gaps
 
-- OpenRouter and shared MCP production adapters are not implemented.
+- OpenRouter and shared MCP production adapters are not implemented (MCP
+  gateway specification is in progress on Feature 007).
 - Multi-stage workflow execution and correction loops are not implemented.
 - The VS Code extension is a session bridge foundation, not the final workflow
   control room.
@@ -82,6 +88,8 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
 - Speckit corpus health is 87/100. Validation is green; the score remains
   reduced because its executable registry does not load the external Rust
   acceptance runners.
+- An archived accidental draft feature `099-central-mcp-lifecycle-and-tool-permissions`
+  exists from a partial specify collision; implement only against Feature 007.
 
 ## Maintenance Contract
 
