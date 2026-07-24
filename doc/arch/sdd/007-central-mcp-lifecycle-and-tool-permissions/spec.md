@@ -2,7 +2,7 @@
 id: 019f95fd-ffc1-78f0-926d-624aec387400
 number: 007
 slug: central-mcp-lifecycle-and-tool-permissions
-status: analyzed
+status: implemented
 created_at: 2026-07-24T21:17:59.105131Z
 ---
 # Feature Specification: Central MCP Lifecycle and Tool Permissions

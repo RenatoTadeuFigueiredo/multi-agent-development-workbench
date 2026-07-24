@@ -530,9 +530,17 @@
         },
         "max_iterations": {
           "type": "integer",
-          "minimum": 1
+          "minimum": 1,
+          "maximum": 8
         },
         "tools": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/identifier"
+          }
+        },
+        "fallbacks": {
           "type": "array",
           "uniqueItems": true,
           "items": {

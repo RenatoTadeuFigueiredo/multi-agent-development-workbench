@@ -202,6 +202,9 @@ pub struct WorkflowStep {
     /// Optional step allowlist that further restricts the role tool grant.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<String>,
+    /// Ordered model-alias fallbacks when primary preflight fails.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fallbacks: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

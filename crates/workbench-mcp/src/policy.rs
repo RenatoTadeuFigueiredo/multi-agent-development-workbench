@@ -360,6 +360,7 @@ mod tests {
                     on_findings: None,
                     max_iterations: None,
                     tools: vec!["repo-read".to_owned()],
+                    fallbacks: Vec::new(),
                 }],
             },
         );

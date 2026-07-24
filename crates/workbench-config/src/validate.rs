@@ -340,10 +340,12 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                     "references an unknown workflow step",
                 );
             }
-            if step.max_iterations == Some(0) {
+            if let Some(max_iterations) = step.max_iterations
+                && (max_iterations == 0 || max_iterations > 8)
+            {
                 return invalid(
                     &format!("workflows.{name}.steps.{}.max_iterations", step.id),
-                    "must be at least 1",
+                    "must be between 1 and 8",
                 );
             }
             validate_unique(
@@ -355,6 +357,18 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                     return invalid(
                         &format!("workflows.{name}.steps.{}.tools", step.id),
                         "references an unknown tool",
+                    );
+                }
+            }
+            validate_unique(
+                &step.fallbacks,
+                &format!("workflows.{name}.steps.{}.fallbacks", step.id),
+            )?;
+            for alias in &step.fallbacks {
+                if !config.models.contains_key(alias) {
+                    return invalid(
+                        &format!("workflows.{name}.steps.{}.fallbacks", step.id),
+                        "references an unknown model alias",
                     );
                 }
             }

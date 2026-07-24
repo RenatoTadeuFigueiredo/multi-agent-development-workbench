@@ -12,6 +12,7 @@ pub mod ports;
 pub mod routing;
 pub mod session;
 pub mod value;
+pub mod workflow;
 
 pub use error::{CoreError, FailureCategory};
 pub use identity::{
