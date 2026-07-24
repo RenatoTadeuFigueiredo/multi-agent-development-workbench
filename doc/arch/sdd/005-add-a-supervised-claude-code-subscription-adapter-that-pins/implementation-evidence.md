@@ -23,8 +23,9 @@
 - Cancellation during setup is observable inside the public five-second
   deadline. Process groups, bounded output buffering, ordered interrupt
   acknowledgement, durable uncertainty, descendant-free lock probes, and
-  workspace-scoped shutdown were hardened during the final architecture
-  review.
+  terminal publication after attempt cleanup were hardened during the final
+  architecture review so workspace shutdown cannot observe a stale completed
+  attempt.
 - Pull-request and GitHub Actions evidence are intentionally not claimed before
   review and publication.
 
@@ -42,10 +43,10 @@
 | Local Markdown link check | Passed: 55 files, 36 local targets, 0 broken | Repository Markdown excluding dependencies; external URLs were not checked |
 | Final multi-agent review | Passed | Architecture, acceptance evidence, and operations documentation; no open P0/P1 findings |
 
-The final serialized SLO gate recorded confirmed cancellation at 7.513 ms,
-unconfirmed cancellation at 4509.198 ms, routing p95 at 1.138 ms, healthy IPC
-p95 at 0.550 ms, control acknowledgement p95 at 0.582 ms, and encrypted replay
-of 10,000 events at 860.918 ms.
+The final serialized SLO gate recorded confirmed cancellation at 7.139 ms,
+unconfirmed cancellation at 4508.715 ms, routing p95 at 0.875 ms, healthy IPC
+p95 at 0.469 ms, control acknowledgement p95 at 0.489 ms, and encrypted replay
+of 10,000 events at 807.823 ms.
 
 ## Acceptance Method
 

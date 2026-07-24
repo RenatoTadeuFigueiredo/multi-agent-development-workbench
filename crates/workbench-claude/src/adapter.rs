@@ -462,7 +462,7 @@ async fn run_attempt(
     mut commands: mpsc::Receiver<ProcessCommand>,
     output: mpsc::Sender<QueuedOutput>,
     output_budget: Arc<Semaphore>,
-    _guard: ActiveAttemptGuard,
+    guard: ActiveAttemptGuard,
 ) {
     let mut normalization = NormalizationState::default();
     if queue_output(
@@ -475,6 +475,7 @@ async fn run_attempt(
     .is_err()
     {
         let _report = process.shutdown().await;
+        drop(guard);
         return;
     }
     loop {
@@ -498,6 +499,7 @@ async fn run_attempt(
                         let status = if report.reaped { status } else {
                             CancellationStatus::Unconfirmed
                         };
+                        drop(guard);
                         let _ignored = respond.send(status);
                         return;
                     }
@@ -506,11 +508,13 @@ async fn run_attempt(
                     }
                     Some(ProcessCommand::Shutdown { respond }) => {
                         let report = process.shutdown().await;
+                        drop(guard);
                         let _ignored = respond.send(report);
                         return;
                     }
                     None => {
                         let _report = process.shutdown().await;
+                        drop(guard);
                         return;
                     }
                 }
@@ -532,11 +536,13 @@ async fn run_attempt(
                         } else {
                             Err(uncertain_failure())
                         };
+                        drop(guard);
                         let _ignored = queue_output(&output, &output_budget, item);
                         return;
                     }
                     if queue_output(&output, &output_budget, item).is_err() {
                         let _report = process.shutdown().await;
+                        drop(guard);
                         return;
                     }
                 }
