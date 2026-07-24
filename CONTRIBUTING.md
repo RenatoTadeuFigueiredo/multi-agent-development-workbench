@@ -6,10 +6,11 @@ Participation is governed by `CODE_OF_CONDUCT.md`.
 
 ## Before Starting
 
-1. Read `AGENTS.md` and the English `README.md`.
-2. Search existing issues before proposing a change.
-3. Open or reference an issue that explains the problem and expected outcome.
-4. Create a focused branch from `main`.
+1. Run `make context` to reconstruct the durable project state.
+2. Read `AGENTS.md`, `docs/project/STATUS.md`, and the English `README.md`.
+3. Search existing issues before proposing a change.
+4. Open or reference an issue that explains the problem and expected outcome.
+5. Create a focused branch from `main`.
 
 Product features and behavior changes must follow the active Speckit feature
 and its current phase. Do not implement product code before the workflow
@@ -40,8 +41,8 @@ Routing, configuration, and provider work must follow
   the TUI.
 - Make surgical changes and avoid unrelated refactors.
 - Run `make check` before requesting review. It verifies Rust formatting,
-  Clippy, contract drift, workspace tests, all 23 acceptance scenarios, SLOs,
-  and the Speckit gates.
+  Clippy, contract drift, workspace tests, all committed feature acceptance
+  harnesses, SLOs, and the Speckit gates.
 - Use `make test-platform` only with an expendable, unlocked OS credential
   store; the default suite uses the in-memory key store.
 - Add tests for behavior changes, failures, and meaningful edge cases.
@@ -64,6 +65,8 @@ Use a concise Conventional Commit subject. Pull requests should:
 - List validation performed.
 - Describe security, compatibility, migration, and rollback considerations.
 - Include screenshots or recordings for visible interface changes.
+- Update `docs/project/STATUS.md` when delivered capabilities, known gaps,
+  dependencies, or roadmap priority change.
 - Remain narrowly scoped and ready for review.
 
 Grok Build upstream-sync pull requests must additionally:

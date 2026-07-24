@@ -26,8 +26,9 @@
   terminal publication after attempt cleanup were hardened during the final
   architecture review so workspace shutdown cannot observe a stale completed
   attempt.
-- Pull-request and GitHub Actions evidence are intentionally not claimed before
-  review and publication.
+- PR #10 merged the reviewed implementation as
+  `9383140c3e45851634a7b77064ce345430037e34`. All required pull-request and
+  post-merge GitHub Actions jobs completed successfully.
 
 ## Recorded Evidence
 
@@ -42,6 +43,8 @@
 | `scripts/check-contract-drift.sh` | Passed | Generated architecture contract fixtures |
 | Local Markdown link check | Passed: 55 files, 36 local targets, 0 broken | Repository Markdown excluding dependencies; external URLs were not checked |
 | Final multi-agent review | Passed | Architecture, acceptance evidence, and operations documentation; no open P0/P1 findings |
+| PR #10 CI | Passed: 4/4 jobs | macOS, Linux with Secret Service, supply chain, and VS Code |
+| Post-merge `main` CI | Passed: 4/4 jobs | GitHub Actions run 30114671439 at merge commit `9383140` |
 
 The final serialized SLO gate recorded confirmed cancellation at 7.139 ms,
 unconfirmed cancellation at 4508.715 ms, routing p95 at 0.875 ms, healthy IPC
@@ -88,3 +91,8 @@ regeneration, executable digest, snapshot provenance, or billing eligibility.
   findings.
 - [x] Record the optional live smoke as explicitly skipped with the reason and
   unproven boundaries.
+- [x] Merge
+  [PR #10](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/pull/10)
+  after all four required pull-request jobs passed.
+- [x] Confirm all four jobs passed on the resulting `main` commit in
+  [GitHub Actions run 30114671439](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30114671439).

@@ -8,12 +8,16 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Start Here
 
 - [Repository guide](AGENTS.md): project structure, commands, gates, and contribution rules
+- [Project status](docs/project/STATUS.md): delivered baseline, known gaps, and ordered roadmap
 - [Human overview](README.md): product experience and architecture
 - [Constitution](doc/arch/memory/constitution.md): non-negotiable design and governance principles
 - [Product overview](doc/arch/functional/product-overview.md): actors and end-to-end flow
 
-## Active Feature
+## Current State
 
+- Run `make context` before relying on this snapshot.
+- Features 001–005 are delivered; no Speckit feature is active on `main`.
+- The next ready product increment is [issue #12](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/12), the supervised Codex subscription adapter.
 - [Specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements, security, acceptance, and scope
 - [Technical plan](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/plan.md): stream JSON, supervision, configuration, and tests
 - [Decision](doc/arch/adr/0006-add-a-supervised-claude-code-subscription-adapter-that-pins.md): supervised official Claude Code rationale

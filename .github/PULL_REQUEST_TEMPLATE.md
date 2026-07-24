@@ -19,6 +19,8 @@ Use `Not applicable` only for changes that do not require a Speckit feature.
 - [ ] Relevant tests pass.
 - [ ] `speckit validate` passes when Speckit applies.
 - [ ] Documentation is updated.
+- [ ] `docs/project/STATUS.md` reflects delivery and roadmap changes, or is not
+      affected.
 - [ ] English and PT-BR content remain aligned where applicable.
 - [ ] No credentials, provider sessions, or private data are included.
 

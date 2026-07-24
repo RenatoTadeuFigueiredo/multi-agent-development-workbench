@@ -564,6 +564,11 @@ Branches paralelas de funcionalidades, workers remotos, editor visual de workflo
   registra os quatro jobs obrigatórios verdes no
   [run 30106637866 do GitHub Actions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30106637866):
   macOS, Linux com Secret Service, supply chain e VS Code.
+- A Feature 005 foi integrada pelo
+  [PR #10](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/pull/10);
+  os quatro jobs obrigatórios passaram novamente no commit resultante da
+  `main`, no
+  [run 30114671439 do GitHub Actions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30114671439).
 - O adaptador de produção inicia diretamente o executável configurado como
   `grok agent --no-leader stdio`, desativa seu atualizador automático, fixa seu
   digest, negocia ACP v1 e mantém a autenticação do Grok fora do Workbench.
@@ -610,7 +615,7 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 | Ponte fina de sessões do VS Code | Implementado | Feature 002 |
 | Descoberta e isolamento de sessões por workspace | Implementado | Feature 003 |
 | Provider supervisionado do Grok Build por ACP | Implementado e validado | Feature 004 |
-| Provider Claude Code supervisionado e somente leitura | Implementado e validado localmente | Feature 005 |
+| Provider Claude Code supervisionado e somente leitura | Implementado e validado | Feature 005 |
 | Workspace Cargo e harnesses de aceitação determinísticos | Implementado | Nove crates Rust |
 | Extensão do VS Code | Fundação implementada | Extensão TypeScript |
 | Spike do backend ACP externo e rebase entre dois snapshots do fork | Pendente | Feature futura do Speckit |
@@ -624,8 +629,8 @@ Service é executada pelo gate explícito `make test-platform` no macOS e Linux.
 
 Este README define a visão do produto; `doc/arch/` define os requisitos de
 implementação. As features 001–005 concluíram o workflow do Speckit até
-`implement`. A Feature 005 possui evidência local completa; a evidência do pull
-request será registrada somente após a revisão:
+`implement`. A Feature 005 registra evidências completas de validação local,
+pull request, merge e CI posterior ao merge:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
@@ -638,10 +643,16 @@ ativa antes do código de produto.
 
 ## Próximos passos
 
-1. Especificar e implementar separadamente os adaptadores Codex, OpenRouter e
-   MCP compartilhado contra o contrato de provider já provado.
-2. Implementar o servidor ACP do Workbench, o backend do fork do terminal e a
-   interface mais rica de workflows antes do piloto multi-provider completo.
+Em uma sessão nova, execute `make context` e use
+[`docs/project/STATUS.md`](docs/project/STATUS.md) como handoff durável. O
+roadmap ordenado é:
+
+1. [Adaptador da assinatura do Codex](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/12).
+2. [Ciclo de vida central de MCPs e permissões de ferramentas](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
+3. [Executor configurável de workflows multiagente](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14).
+4. [Controles de workflow em tempo real no VS Code](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
+5. [Provider OpenRouter com controles de custo](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
+6. [Servidor ACP do Workbench e cliente de terminal](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17).
 
 ## Referências
 

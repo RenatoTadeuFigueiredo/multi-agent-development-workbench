@@ -2,52 +2,57 @@
 
 ## Project
 
-This repository is a Rust 1.95 Cargo workspace managed with Speckit.
-`doc/arch/` is the product source of truth.
+This Rust 1.95 workspace uses Speckit. `doc/arch/` is the product source of
+truth.
 
 ## Architecture
 
-Domain rules and ports live in `crates/workbench-core`; layered configuration
-in `workbench-config`; encrypted SQLite persistence in `workbench-storage`;
-protocol DTOs and local NDJSON framing in `workbench-protocol`; bounded ACP
-transport and Grok supervision in `workbench-acp`; daemon composition and Unix
-IPC in `workbench-daemon`; strict Claude stream JSON and per-attempt process
-supervision in `workbench-claude`; the headless client in `workbench-cli`; and
-deterministic fakes and acceptance tests in `workbench-testkit`. Product
-specifications are under `doc/arch/`, supporting design notes under `docs/`,
-and generated contract checks under `scripts/`. The Grok-derived terminal
-remains in its separate fork.
+Crates are bounded: `workbench-core` owns domain ports;
+`workbench-config` configuration; `workbench-storage` encrypted SQLite;
+`workbench-protocol` local NDJSON; `workbench-acp` Grok supervision;
+`workbench-claude` Claude supervision; `workbench-daemon` composition and IPC;
+`workbench-cli` the headless client; and `workbench-testkit` acceptance support.
+Specifications live in `doc/arch/`, decisions in `docs/`, and contract tooling
+in `scripts/`. The terminal stays in its fork.
 
 ## Build, Test, and Development Commands
 
+- `make context` — reconstruct Git, Speckit, GitHub, and roadmap state for a
+  session.
 - `make build` — compile the complete workspace.
-- `make check` — run formatting, Clippy, contracts, tests, acceptance, SLO, and
-  Speckit gates.
-- `make test-acceptance` — run the Rust acceptance harnesses for Features
-  001–005.
+- `make check` — run all deterministic offline gates.
+- `make test-acceptance` — run Features 001–005 acceptance harnesses.
 - `make test-platform` — exercise the real Keychain or Secret Service adapter;
-  this intentionally requires an unlocked OS credential store.
+  requires an unlocked credential store.
 - `cargo run -p workbench-cli -- config validate` — validate resolved local
-  configuration without starting the daemon.
+  configuration.
 
 Run `workbench config lock` before `workbench daemon`. The generated base lock
 is workstation-local and ignored by Git.
 
+## Session Continuity
+
+Conversational memory is never authoritative. In a fresh session, run
+`make context`, read `docs/project/STATUS.md`, and then follow the
+in-progress non-`main` branch or next-ready issue it identifies. Live Git and
+Speckit state take precedence over status prose. After every merge, update the
+delivered baseline, evidence, known gaps, and next-ready issue in the same
+change.
+
 ## Conventions and Constraints
 
-Use `rustfmt`; Clippy warnings are denied. Keep unsafe code forbidden. Name Rust
-modules and functions `snake_case`, types and traits `PascalCase`, and constants
-`SCREAMING_SNAKE_CASE`. Keep provider-specific behavior at adapter boundaries,
-protocol DTOs out of the domain, and presentation clients free of orchestration
-logic. Comments, code, documentation, commits, and pull requests use English.
+Use `rustfmt`; deny Clippy warnings and unsafe code. Use `snake_case` for modules
+and functions, `PascalCase` for types and traits, and `SCREAMING_SNAKE_CASE` for
+constants. Keep provider behavior in adapters, DTOs outside the domain, and
+orchestration outside presentation clients. Artifacts and Git history use
+English.
 
 ## Testing Guidelines
 
-Place unit tests beside their module and cross-crate contracts in `tests/`.
-Name tests after observable behavior, such as
-`replayed_request_does_not_append_an_event`. Default tests must be deterministic,
-offline, and use fake providers; never consume paid quota. Add failure-path and
-recovery coverage for persistence, protocol, or lifecycle changes.
+Place unit tests beside modules and cross-crate contracts in `tests/`. Name
+tests after observable behavior, such as
+`replayed_request_does_not_append_an_event`. Defaults must be offline,
+deterministic, and quota-free. Cover failure and recovery paths.
 
 ## Spec-first Protocol
 
@@ -61,5 +66,6 @@ bypassed. A red `speckit validate` blocks commits.
 Use focused Conventional Commits with `refs #<issue>`. Pull requests must link
 the issue and specification, explain risk and rollback, list verification, and
 include UI evidence when applicable. Obtain human approval before opening a
-pull request. Never commit credentials, provider sessions, local databases, or
-generated workstation locks.
+pull request. Update `docs/project/STATUS.md` whenever delivery state or roadmap
+priority changes. Never commit credentials, provider sessions, local databases,
+or generated workstation locks.
