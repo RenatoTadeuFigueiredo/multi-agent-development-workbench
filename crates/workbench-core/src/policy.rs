@@ -45,6 +45,8 @@ pub enum PolicySource {
     User,
     Repository,
     Session,
+    Role,
+    Workflow,
     EffectClass,
 }
 

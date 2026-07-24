@@ -11,9 +11,11 @@ age.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
 futures-util.workspace = true
+hex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 serde_yaml_ng.workspace = true
+sha2.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 time.workspace = true
@@ -27,8 +29,13 @@ workbench-core = { path = "../workbench-core" }
 workbench-claude = { path = "../workbench-claude" }
 workbench-codex = { path = "../workbench-codex" }
 workbench-daemon = { path = "../workbench-daemon" }
+workbench-mcp = { path = "../workbench-mcp" }
 workbench-protocol = { path = "../workbench-protocol" }
 workbench-storage = { path = "../workbench-storage" }
+
+[[bin]]
+name = "fake_mcp"
+path = "src/bin/fake_mcp.rs"
 
 [lints]
 workspace = true

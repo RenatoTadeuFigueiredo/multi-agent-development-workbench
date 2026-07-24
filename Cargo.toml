@@ -7,6 +7,7 @@ members = [
     "crates/workbench-config",
     "crates/workbench-core",
     "crates/workbench-daemon",
+    "crates/workbench-mcp",
     "crates/workbench-protocol",
     "crates/workbench-storage",
     "crates/workbench-testkit",

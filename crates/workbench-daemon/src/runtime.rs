@@ -5,6 +5,7 @@ use tokio::{sync::watch, task::JoinSet};
 use tracing::{info, warn};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberInitExt as _};
 use workbench_config::ConfigError;
+use workbench_mcp::McpGateway;
 use workbench_storage::{PlatformKeyStore, SqliteStorage, StorageError};
 
 use crate::{
@@ -84,6 +85,8 @@ impl DaemonRuntime {
             .map_err(|_| RuntimeError::StartupTask)??;
         let providers =
             ProviderRuntime::bootstrap(&startup, repository_root, &paths.state_directory).await?;
+        let mcp_config = startup.resolved.clone();
+        let mcp_lock = startup.base_lock.clone();
         let application = Application::new_with_providers_and_telemetry(
             storage,
             startup,
@@ -92,6 +95,26 @@ impl DaemonRuntime {
             providers.registry(),
             providers.catalog(),
         );
+        // Central MCP gateway: pin verification only at attach; children spawn
+        // on demand. Offline HTTP client until non-loopback TLS is composed.
+        let workspace_key = paths
+            .state_directory
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("workspace")
+            .to_owned();
+        match McpGateway::bootstrap(
+            mcp_config,
+            &mcp_lock,
+            paths.state_directory.join("mcp-runtime"),
+            workspace_key,
+            true,
+        ) {
+            Ok(gateway) => application.attach_mcp_gateway(std::sync::Arc::new(gateway)),
+            Err(error) => {
+                warn!(category = ?error.kind(), "MCP gateway unavailable at startup");
+            }
+        }
         if let Err(error) = application.recover() {
             providers.shutdown().await?;
             return Err(error.into());

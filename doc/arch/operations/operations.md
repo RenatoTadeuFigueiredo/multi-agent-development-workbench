@@ -54,6 +54,28 @@ started attempt without a definite terminal fact as `outcome_unknown`,
 reconciles journal-proven interrupted session creations, and finishes durable
 encrypted-export journals before deletion intents can destroy their session
 keys or clients can observe affected sessions.
+
+## MCP gateway
+
+The daemon owns a central MCP and tool gateway composed after lock validation.
+Configured `mcp_servers` entries are pin-checked against the lock `mcps` map
+(version + sha256). Empty MCP maps remain valid. Stdio servers launch with a
+direct argv (no shell), private runtime working directory, piped stdio, and
+workspace isolation. HTTP servers use the pinned endpoint identity; non-loopback
+endpoints require TLS, unpinned redirects are rejected, and encoded responses
+default to an 8 MiB ceiling.
+
+Tool dispatch intersects built-in, user, repository, session, role, workflow,
+and effect-class policy. Unlisted tools are denied. Repository grants cannot
+widen user-global denies. Protected effect classes and `approval: always`
+operations emit `approval_requested` and wait for `session.approval.resolve`
+before any external MCP call. Public tool events carry only bounded tool name,
+lifecycle category, redacted outcome, and correlation identifiers.
+
+On shutdown the gateway rejects new tool work, terminates supervised stdio
+children, drains pipes, and reaps processes. Default automated suites use only
+committed offline fakes (`fake_mcp`) with no network, credential-store, or
+quota access.
 The platform key store may contain envelopes belonging to another state
 directory. Startup never deletes an envelope merely because it is absent from
 the selected SQLite catalog; changing `XDG_STATE_HOME` therefore cannot erase

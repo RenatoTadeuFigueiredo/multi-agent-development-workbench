@@ -32,10 +32,10 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`b602fcef576de20ba4b3d2472ef9f456832d573b` (Features 001–005 plus durable
-context handoff). Feature 006 ships via issue #12 / PR #19 on branch
-`006-add-a-supervised-codex-subscription-adapter-that-pins-an` (merge SHA
-pending after land).
+`df633fcc9ab1723e8c460ebfda5d83359186846d` (Features 001–006, including the
+supervised Codex subscription adapter via issue #12 / PR #19). Feature 007
+(central MCP gateway) is shipping on branch
+`007-central-mcp-lifecycle-and-tool-permissions` (issue #13).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -45,20 +45,29 @@ pending after land).
 | 004 | Supervised Grok Build ACP v1 provider boundary | Issue #7 / PR #8 |
 | 005 | Supervised, read-only Claude Code subscription adapter | Issue #9 / PR #10 |
 | 006 | Supervised, read-only Codex subscription adapter | Issue #12 / PR #19 |
+| 007 | Central MCP lifecycle, pins, allowlists, approvals (shipping) | Issue #13 |
 
-Features 001–006 completed the Speckit lifecycle through implementation.
-Feature 006 verification on this branch was green (`speckit validate`,
-`make check`, `feature_006`, `workbench-codex` tests). Merge SHA is recorded
-after the pull request lands on `main`.
+Features 001–006 completed the Speckit lifecycle through implementation and
+are on `main` at the checkpoint above. Feature 007 implements the daemon-owned
+`workbench-mcp` gateway and offline acceptance harness.
+
+## Active Work
+
+- **Branch:** `007-central-mcp-lifecycle-and-tool-permissions`
+- **Issue:** [#13 — Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13)
+- **Speckit feature:** `007-central-mcp-lifecycle-and-tool-permissions`
+- **Phase at last handoff:** implement in progress (T001–T014); next ready
+  product issue after merge is #14.
 
 ## Ordered Roadmap
 
-- **Next ready:** [#13 — Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
+- **In progress:** [#13 — Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
+- **Next ready after #13 merge:** [#14 — Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14).
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
 | 1 | [#13](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13) | Central MCP lifecycle and tool permissions | Provider capabilities and policy ports |
-| 2 | [#14](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14) | Configurable multi-agent workflow executor | Codex adapter and governed write tools |
+| 2 | [#14](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14) | Configurable multi-agent workflow executor | MCP gateway and governed write tools |
 | 3 | [#15](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15) | Real-time VS Code workflow controls | Stable workflow control protocol |
 | 4 | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
 | 5 | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows and terminal fork spike |
@@ -68,13 +77,16 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
 
 ## Known Gaps
 
-- OpenRouter and shared MCP production adapters are not implemented.
+- OpenRouter is not implemented.
+- Feature 007 ships the offline MCP gateway (stdio supervision, loopback/fake
+  HTTP, pins, allowlists, approvals). Non-loopback HTTPS MCP still fails
+  closed until a TLS client is composed; live package registries are opt-in.
 - Multi-stage workflow execution and correction loops are not implemented.
 - The VS Code extension is a session bridge foundation, not the final workflow
   control room.
 - The Workbench ACP server and Grok-derived terminal backend remain pending.
-- Claude and Codex write tools remain blocked on the central permission and MCP
-  gateway.
+- Claude and Codex provider-native write tools remain disabled; shared tools go
+  through the central MCP gateway allowlist.
 - The Feature 005 live smoke was skipped because the recorded host did not
   have an authenticated eligible Claude Code installation.
 - The Feature 006 live smoke is opt-in and ignored by default
@@ -82,6 +94,8 @@ active Speckit feature, and completion of the phase returned by `speckit next`.
 - Speckit corpus health is 87/100. Validation is green; the score remains
   reduced because its executable registry does not load the external Rust
   acceptance runners.
+- An archived accidental draft feature `099-central-mcp-lifecycle-and-tool-permissions`
+  exists from a partial specify collision; implement only against Feature 007.
 
 ## Maintenance Contract
 

@@ -3103,8 +3103,26 @@ dependencies = [
  "workbench-codex",
  "workbench-config",
  "workbench-core",
+ "workbench-mcp",
  "workbench-protocol",
  "workbench-storage",
+]
+
+[[package]]
+name = "workbench-mcp"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "rustix",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "workbench-config",
+ "workbench-core",
 ]
 
 [[package]]
@@ -3156,9 +3174,11 @@ dependencies = [
  "async-trait",
  "bytes",
  "futures-util",
+ "hex",
  "serde",
  "serde_json",
  "serde_yaml_ng",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.17",
  "time",
@@ -3172,6 +3192,7 @@ dependencies = [
  "workbench-config",
  "workbench-core",
  "workbench-daemon",
+ "workbench-mcp",
  "workbench-protocol",
  "workbench-storage",
 ]
