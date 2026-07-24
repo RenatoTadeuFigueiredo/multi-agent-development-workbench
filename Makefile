@@ -75,7 +75,18 @@ verify: ## Verify the executable specs against the implementation
 analyze: ## Analyze the spec corpus for gaps and drift
 	speckit analyze
 
-spec-gate: analyze verify validate ## Run all non-mutating Speckit release gates
+spec-gate: ## Run Speckit gates, or the committed corpus fallback when unavailable
+	@set -eu; \
+	if command -v speckit >/dev/null 2>&1; then \
+		speckit analyze; \
+		speckit verify; \
+		speckit validate; \
+	else \
+		echo "Speckit binary unavailable; running committed corpus fallback"; \
+		./scripts/check-contract-drift.sh; \
+		$(CARGO_OFFLINE) test -p workbench-testkit --test contract_fixtures --locked; \
+		$(CARGO_OFFLINE) test -p workbench-testkit --test feature_001 --locked; \
+	fi
 
 spec-status: ## Show the active feature and current workflow phase
 	speckit status

@@ -25,13 +25,22 @@ jobs:
           - macos-15
     runs-on: ${{ matrix.os }}
     steps:
-      # Pinned to a 40-char commit SHA so `speckit validate` stays green out of
-      # the box (ADR-0031, pin.ci.unpinned-action); the comment records the tag.
+      # Speckit is maintained in a private upstream repository. CI uses it when
+      # SPECKIT_TOKEN is configured; otherwise make check runs the committed
+      # corpus fallback and still executes all Rust contract/acceptance gates.
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Install Rust toolchain
         run: rustup toolchain install 1.95.0 --profile minimal --component clippy,rustfmt
       - name: Install Speckit
-        run: cargo +1.95.0 install --locked --git https://github.com/farchanjo/speckit.git --rev "$SPECKIT_REV"
+        env:
+          SPECKIT_TOKEN: ${{ secrets.SPECKIT_TOKEN }}
+        run: |
+          if [ -z "${SPECKIT_TOKEN:-}" ]; then
+            echo "::warning::SPECKIT_TOKEN is not configured; using the committed corpus fallback"
+            exit 0
+          fi
+          git config --global url."https://x-access-token:${SPECKIT_TOKEN}@github.com/".insteadOf https://github.com/
+          cargo +1.95.0 install --locked --git https://github.com/farchanjo/speckit.git --rev "$SPECKIT_REV"
       - name: Fetch locked Rust dependencies
         run: cargo +1.95.0 fetch --locked
       - name: Run complete offline gate
