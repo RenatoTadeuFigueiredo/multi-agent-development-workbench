@@ -30,7 +30,8 @@
 > Features 001–006 provide the Rust orchestration kernel, encrypted
 > workspace-scoped sessions, headless CLI, thin VS Code bridge, session
 > discovery, supervised Grok/Claude/Codex adapters, and Feature 007 ships the
-> central MCP lifecycle gateway. OpenRouter, the workflow executor, the
+> central MCP lifecycle gateway and configurable multi-agent workflow executor.
+> OpenRouter, the
 > Workbench ACP server, and the Grok-derived TUI remain future increments.
 
 ## Table of Contents

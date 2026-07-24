@@ -703,6 +703,7 @@ async fn live_multi_client_fixture() -> MultiClientFixture {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -932,6 +933,7 @@ async fn live_protocol_fixture() -> (LocalDaemonHarness, ProtocolTestClient, Uui
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -1050,6 +1052,7 @@ async fn verify_replay_deduplication() {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -1419,6 +1422,7 @@ async fn verify_request_replay() {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -1529,6 +1533,7 @@ async fn live_cancellation_fixture(
             response_delay: std::time::Duration::from_mins(1),
             confirms_cancellation: confirms,
             cancellation_deadline: std::time::Duration::from_millis(10),
+            report_findings: false,
         },
     )
     .expect("in-memory daemon");
@@ -1543,6 +1548,7 @@ async fn live_cancellation_fixture(
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await

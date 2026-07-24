@@ -87,7 +87,9 @@
         "session_cancelled",
         "session_abandoned",
         "session_exported",
-        "session_deletion_requested"
+        "session_deletion_requested",
+        "session_deleted",
+        "workflow_transition"
       ]
     },
     "encryptedPayload": {

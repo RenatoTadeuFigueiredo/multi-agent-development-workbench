@@ -633,6 +633,7 @@ async fn provider_runtime_executes_the_offline_acp_flow_end_to_end() {
             ProtocolCommand::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+                workflow: None,
             }),
         ))
         .await
@@ -1683,6 +1684,7 @@ async fn execute_sut_session(
             ProtocolCommand::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+                workflow: None,
             }),
         ),
     )

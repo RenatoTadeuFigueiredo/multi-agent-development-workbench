@@ -261,6 +261,25 @@ impl StartupConfiguration {
         })
     }
 
+    /// Builds startup state from an already validated configuration (tests and
+    /// offline harnesses).
+    ///
+    /// # Errors
+    ///
+    /// Returns when the snapshot or repository lock cannot be produced.
+    pub fn from_configuration(configuration: WorkbenchConfiguration) -> Result<Self, ConfigError> {
+        let sources = vec!["test".to_owned()];
+        let snapshot = ConfigurationSnapshot::create(&configuration, sources.clone())?;
+        let base_lock = WorkbenchLock::repository(&configuration, &snapshot, &BTreeMap::new())?;
+        Ok(Self {
+            resolved: configuration,
+            snapshot,
+            base_lock,
+            sources,
+            lock_verified: false,
+        })
+    }
+
     /// Applies validated session overrides and creates the linked lock.
     ///
     /// # Errors

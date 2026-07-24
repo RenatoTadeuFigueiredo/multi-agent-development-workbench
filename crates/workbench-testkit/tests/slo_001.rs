@@ -163,6 +163,7 @@ async fn measure_daemon_routes() -> Vec<Duration> {
                     Command::SessionCreate(CreateSessionParams {
                         persistent: true,
                         configuration_overrides: None,
+                        workflow: None,
                     }),
                 ))
                 .await
@@ -212,6 +213,7 @@ async fn measure_controls_and_fan_out() -> (Vec<Duration>, Vec<Duration>) {
                 Command::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await
@@ -278,6 +280,7 @@ async fn measure_cancellation(confirms: bool, deadline: Duration) -> Duration {
             response_delay: Duration::from_hours(1),
             confirms_cancellation: confirms,
             cancellation_deadline: deadline,
+            report_findings: false,
         },
     )
     .expect("in-memory daemon");
@@ -292,6 +295,7 @@ async fn measure_cancellation(confirms: bool, deadline: Duration) -> Duration {
                 Command::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await

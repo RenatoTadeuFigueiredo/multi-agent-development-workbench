@@ -291,6 +291,7 @@ async fn provider_runtime_and_daemon_execute_the_offline_flow() {
                 ProtocolCommand::SessionCreate(CreateSessionParams {
                     persistent: true,
                     configuration_overrides: None,
+                    workflow: None,
                 }),
             ))
             .await

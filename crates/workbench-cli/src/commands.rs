@@ -86,6 +86,7 @@ fn session_command(
             ProtocolCommand::SessionCreate(CreateSessionParams {
                 persistent: true,
                 configuration_overrides: None,
+                workflow: None,
             }),
         ),
         SessionCommand::List(args) => (
