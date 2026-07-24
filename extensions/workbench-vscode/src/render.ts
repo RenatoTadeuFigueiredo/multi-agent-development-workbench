@@ -1,8 +1,7 @@
-export function renderMarkdown(text: string): string {
-  return text.replace(/```mermaid\s*\n([\s\S]*?)```/g, (_match, diagram: string) =>
-    `<div class="workbench-mermaid" data-diagram="${escapeAttribute(diagram)}"></div>`);
-}
+import { SessionEvent } from "./protocol";
 
-function escapeAttribute(value: string): string {
-  return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
+export function renderEvent(event: SessionEvent): string {
+  const data = event.data.content ?? event.data.message ?? event.data.text;
+  const body = typeof data === "string" ? data : `\`\`\`json\n${JSON.stringify(event.data, null, 2)}\n\`\`\``;
+  return `## ${event.kind}\n\n${body}\n`;
 }

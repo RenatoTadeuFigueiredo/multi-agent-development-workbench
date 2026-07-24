@@ -24,8 +24,9 @@ Created: 2026-07-24
 
 1. The extension shall connect to an already-running local daemon through the
    versioned protocol and negotiate compatibility before sending commands.
-2. The extension shall list, attach to, and display a session's replayed and
-   live events, deduplicating stable event identifiers.
+2. The extension shall attach to a user-selected session and display its
+   replayed and live events, deduplicating stable event identifiers. The local
+   protocol intentionally exposes no session-enumeration method.
 3. The extension shall send prompts and lifecycle controls through the daemon;
    it shall not implement routing, policy, provider calls, or persistence.
 4. The extension shall reconnect after transport loss using the last observed

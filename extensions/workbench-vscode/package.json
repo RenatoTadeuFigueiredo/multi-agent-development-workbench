@@ -10,13 +10,17 @@
     "configuration": { "title": "Workbench", "properties": {
       "workbench.endpoint": {
         "type": "string",
-        "default": "workbench/workbench.sock",
-        "description": "Local Workbench daemon socket endpoint."
+        "default": "",
+        "description": "Optional absolute local Workbench daemon socket endpoint."
       }
     }},
     "commands": [
       { "command": "workbench.attach", "title": "Workbench: Attach Session" },
-      { "command": "workbench.prompt", "title": "Workbench: Send Prompt" }
+      { "command": "workbench.prompt", "title": "Workbench: Send Prompt" },
+      { "command": "workbench.pause", "title": "Workbench: Pause Session" },
+      { "command": "workbench.resume", "title": "Workbench: Resume Session" },
+      { "command": "workbench.cancel", "title": "Workbench: Cancel Session" },
+      { "command": "workbench.redirect", "title": "Workbench: Redirect Session" }
     ]
   },
   "scripts": { "compile": "tsc -p .", "test": "node --test dist/test/*.test.js" },

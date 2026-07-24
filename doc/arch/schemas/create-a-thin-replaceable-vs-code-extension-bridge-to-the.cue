@@ -2,8 +2,16 @@
 
 package schemas
 
-// #CreateAThinReplaceableVsCodeExtensionBridgeToThe models the Create A Thin Replaceable Vs Code Extension Bridge To The feature. Fill in the real shape.
+// #CreateAThinReplaceableVsCodeExtensionBridgeToThe models the protocol-facing
+// state owned in memory by the VS Code presentation bridge.
 // DDD role: ValueObject
 #CreateAThinReplaceableVsCodeExtensionBridgeToThe: {
-    name: string & !=""
+    session_id: string & !=""
+    last_sequence: int & >=0
+    rendered_events: #RenderedEvents
+    endpoint: string & !=""
+}
+
+#RenderedEvents: {
+    ids: [...string]
 }
