@@ -80,9 +80,9 @@ the daemon's existing security boundary.
 
 ## Observability
 
-The daemon remains the source of operational telemetry. The extension records
-bounded local diagnostics for connection state, reconnect attempts, command
-latency, and protocol errors, without session content. Request identifiers are
-carried through the protocol and remain correlatable with daemon traces.
+The daemon remains the source of operational telemetry and command latency.
+The extension presents bounded, content-free connection and reconnection
+notices in the in-memory session document. Request identifiers remain carried
+through the protocol and correlatable with daemon traces.
 
 ## Clarifications

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { SessionController } from "../protocol";
+import { SessionController, SessionEvent, Transport, WorkbenchProtocolError } from "../protocol";
 
 test("negotiates, attaches, receives events, and sends prompt with the committed wire contract", async () => {
   const directory = await mkdtemp(join(tmpdir(), "workbench-vscode-"));
@@ -58,3 +58,51 @@ test("negotiates, attaches, receives events, and sends prompt with the committed
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("reconnects from the durable cursor and deduplicates replayed events", async () => {
+  const first = new FakeTransport();
+  const second = new FakeTransport();
+  const transports = [first, second];
+  const notices: string[] = [];
+  const events: SessionEvent[] = [];
+  const controller = new SessionController("unused", async () => {
+    const transport = transports.shift();
+    if (!transport) throw new WorkbenchProtocolError("unavailable", "unavailable");
+    return transport;
+  }, (notice) => notices.push(notice));
+  await controller.attach("018f47ef-9052-7b86-b31d-3f8962457777", (event) => events.push(event));
+  first.emit(event(1, "018f47ef-9052-7b86-b31d-3f8962457776"));
+  first.disconnect();
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.deepEqual(second.attachCursors, [1]);
+  second.emit(event(1, "018f47ef-9052-7b86-b31d-3f8962457776"));
+  second.emit(event(2, "018f47ef-9052-7b86-b31d-3f8962457778"));
+  assert.deepEqual(events.map((item) => item.sequence), [1, 2]);
+  assert.ok(notices.some((notice) => notice.includes("restored")));
+  controller.close();
+});
+
+class FakeTransport implements Transport {
+  private eventListener?: (event: SessionEvent) => void;
+  private closedListener?: () => void;
+  readonly attachCursors: number[] = [];
+
+  async request(method: string, params: Record<string, unknown>): Promise<unknown> {
+    if (method === "initialize") return { selected_protocol: "workbench/1", max_frame_bytes: 8388608 };
+    if (method === "session.attach") { this.attachCursors.push(params.after_sequence as number); return {}; }
+    return {};
+  }
+  close(): void { /* controller close is intentionally terminal */ }
+  onEvent(listener: (event: SessionEvent) => void): void { this.eventListener = listener; }
+  onClosed(listener: () => void): void { this.closedListener = listener; }
+  emit(value: SessionEvent): void { this.eventListener?.(value); }
+  disconnect(): void { this.closedListener?.(); }
+}
+
+function event(sequence: number, eventId: string): SessionEvent {
+  return {
+    protocol: "workbench/1", event_id: eventId,
+    session_id: "018f47ef-9052-7b86-b31d-3f8962457777", sequence,
+    kind: "provider_event", occurred_at: "2026-01-01T00:00:00Z", data: { content: "event" },
+  };
+}
