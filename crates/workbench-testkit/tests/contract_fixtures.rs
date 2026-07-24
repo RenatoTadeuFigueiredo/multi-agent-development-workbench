@@ -8,6 +8,7 @@ const SOURCES: &[&str] = &[
     "doc/arch/datamodels/session-key-envelope.schema.json",
     "doc/arch/datamodels/workbench-configuration.schema.json",
     "doc/arch/datamodels/workbench-lock.schema.json",
+    "doc/arch/schemas/add-a-supervised-acp-adapter-for-an-externally-installed.cue",
     "doc/arch/schemas/build-the-workbench-orchestration-kernel-foundation-as-a.cue",
     "doc/arch/statecharts/session-lifecycle.md",
 ];

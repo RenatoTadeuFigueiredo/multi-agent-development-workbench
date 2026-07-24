@@ -9,19 +9,21 @@ This repository is a Rust 1.95 Cargo workspace managed with Speckit.
 
 Domain rules and ports live in `crates/workbench-core`; layered configuration
 in `workbench-config`; encrypted SQLite persistence in `workbench-storage`;
-protocol DTOs and NDJSON framing in
-`workbench-protocol`; daemon composition and Unix IPC in `workbench-daemon`;
-the headless client in `workbench-cli`; and deterministic fakes and acceptance
-tests in `workbench-testkit`. Product specifications are under `doc/arch/`,
-supporting design notes under `docs/`, and generated contract checks under
-`scripts/`. The Grok-derived terminal remains in its separate fork.
+protocol DTOs and local NDJSON framing in `workbench-protocol`; bounded ACP
+transport and Grok supervision in `workbench-acp`; daemon composition and Unix
+IPC in `workbench-daemon`; the headless client in `workbench-cli`; and
+deterministic fakes and acceptance tests in `workbench-testkit`. Product
+specifications are under `doc/arch/`, supporting design notes under `docs/`,
+and generated contract checks under `scripts/`. The Grok-derived terminal
+remains in its separate fork.
 
 ## Build, Test, and Development Commands
 
 - `make build` — compile the complete workspace.
 - `make check` — run formatting, Clippy, contracts, tests, acceptance, SLO, and
   Speckit gates.
-- `make test-acceptance` — bind and execute all 23 feature 001 scenarios.
+- `make test-acceptance` — run the Rust acceptance harnesses for Features
+  001–004.
 - `make test-platform` — exercise the real Keychain or Secret Service adapter;
   this intentionally requires an unlocked OS credential store.
 - `cargo run -p workbench-cli -- config validate` — validate resolved local

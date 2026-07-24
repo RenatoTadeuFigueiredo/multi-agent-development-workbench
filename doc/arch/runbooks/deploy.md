@@ -1,14 +1,15 @@
-# Publication Runbook — Kernel Foundation
+# Publication Runbook — Workbench
 
-Feature 001 produces a local `workbench` binary containing the daemon,
-headless CLI, fake-provider vertical slice, encrypted storage, and versioned
-Unix protocol. It does not include the VS Code extension, Grok-derived TUI,
-live provider adapters, ACP bridge, or MCP runtime.
+The current workspace produces a local `workbench` binary containing the
+daemon, headless CLI, encrypted storage, versioned Unix protocol, and the
+supervised Grok Build ACP provider adapter. The thin VS Code bridge ships from
+`extensions/workbench-vscode`. The Grok-derived TUI fork, Workbench ACP server,
+Claude/Codex/OpenRouter adapters, and shared MCP runtime remain separate work.
 
 ## Purpose
 
-Publish a reviewed, reproducible kernel-foundation source or local binary build
-without implying that deferred editor or live-provider integrations exist.
+Publish a reviewed, reproducible source or local binary build without implying
+that deferred provider, terminal, or MCP integrations exist.
 
 ## Trigger
 
@@ -39,29 +40,41 @@ cargo build --workspace --release --locked
 ```
 
 `make check` must pass formatting, Clippy, contract drift, the offline workspace
-suite, all 23 Gherkin bindings, SLOs, analysis, verification, and validation.
+suite, the Feature 001–004 acceptance profiles, SLOs, analysis, verification,
+and validation.
 `make test-platform` must run in an expendable unlocked credential-store
 context; success is required before claiming support for that operating system.
 
-The release binary is `target/release/workbench`. Verify it without external
-provider traffic:
+The release binary is `target/release/workbench`. Verify it with the reviewed
+offline configuration:
 
 ```bash
-target/release/workbench config validate
 target/release/workbench config lock
+target/release/workbench config validate
+```
+
+Start the daemon in one terminal:
+
+```bash
+target/release/workbench daemon
+```
+
+Then inspect it from another terminal:
+
+```bash
 target/release/workbench --json status
 ```
 
-The last command expects a daemon already running from the same repository and
-configuration lock. Record only sanitized command results; never attach local
-configuration, databases, key-store records, or prompt bodies to a release.
+Record only sanitized command results; never attach local configuration,
+databases, key-store records, or prompt bodies to a release.
 
 ## Verification
 
 - `make check` and the target platform credential-store contract pass.
 - The release build uses `--locked` and the pinned Rust toolchain.
 - The built commit and recorded checksum match the reviewed source.
-- Release notes state the feature 001 boundary and contain no sensitive data.
+- Release notes state the implemented/deferred boundary and contain no
+  sensitive data.
 
 ## Publication
 
@@ -70,8 +83,9 @@ configuration, databases, key-store records, or prompt bodies to a release.
    checksum in the release review.
 3. Merge through the approved pull request.
 4. Create a source or binary tag only when explicitly authorized.
-5. Describe the feature 001 boundary accurately; do not advertise live model,
-   editor, terminal, ACP, or MCP support.
+5. Describe the current boundary accurately; distinguish the implemented Grok
+   ACP adapter and VS Code bridge from deferred terminal, provider, ACP-server,
+   and MCP work.
 
 ## Rollback
 

@@ -2980,6 +2980,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ebf944e87a7c253233ad6766e082e3cd714b5d03812acc24c318f549614536e"
 
 [[package]]
+name = "workbench-acp"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "workbench-core",
+]
+
+[[package]]
 name = "workbench-cli"
 version = "0.1.0"
 dependencies = [
@@ -3051,6 +3066,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "workbench-acp",
  "workbench-config",
  "workbench-core",
  "workbench-protocol",
@@ -3108,11 +3124,14 @@ dependencies = [
  "futures-util",
  "serde",
  "serde_json",
+ "serde_yaml_ng",
  "tempfile",
  "thiserror 2.0.17",
  "time",
  "tokio",
  "tokio-util",
+ "tracing",
+ "tracing-subscriber",
  "uuid",
  "workbench-config",
  "workbench-core",

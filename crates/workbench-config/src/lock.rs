@@ -1,9 +1,16 @@
 use std::{
     collections::BTreeMap,
     fs,
+    io::Read,
+    os::unix::fs::{MetadataExt, PermissionsExt},
+    path::Component,
     path::{Path, PathBuf},
 };
 
+use rustix::{
+    fs::{Mode, OFlags},
+    process::getuid,
+};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -13,11 +20,30 @@ use crate::{
     validate::{ConfigError, validate_digest},
 };
 
+pub const ACP_PROTOCOL: &str = "acp/1";
+
 #[derive(Clone, Debug)]
 pub struct AdapterInput {
     pub protocol: String,
     pub version: String,
     pub executable: PathBuf,
+    pub executable_sha256: String,
+}
+
+impl AdapterInput {
+    /// Creates an ACP version 1 input after resolving a safe executable.
+    pub fn acp(
+        executable: impl AsRef<Path>,
+        version: impl Into<String>,
+    ) -> Result<Self, ConfigError> {
+        let executable = canonicalize_adapter_executable(executable.as_ref())?;
+        Ok(Self {
+            protocol: ACP_PROTOCOL.to_owned(),
+            version: version.into(),
+            executable_sha256: sha256_file(&executable)?,
+            executable,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -87,17 +113,47 @@ impl WorkbenchLock {
         let adapters = adapter_inputs
             .iter()
             .map(|(name, input)| {
+                let provider = config.providers.get(name).ok_or_else(|| {
+                    ConfigError::Lock(format!(
+                        "adapter input {name} has no matching configured provider"
+                    ))
+                })?;
+                let configured = provider.executable.as_deref().ok_or_else(|| {
+                    ConfigError::Lock(format!("adapter input {name} has no configured executable"))
+                })?;
+                let configured = canonicalize_adapter_executable(Path::new(configured))?;
+                let executable = canonicalize_adapter_executable(&input.executable)?;
+                if configured != executable {
+                    return Err(ConfigError::Lock(format!(
+                        "adapter input {name} differs from its configured executable"
+                    )));
+                }
+                validate_adapter_identity(name, provider.kind, input)?;
+                validate_digest(
+                    &input.executable_sha256,
+                    &format!("adapter_inputs.{name}.executable_sha256"),
+                )?;
+                if sha256_file(&executable)? != input.executable_sha256 {
+                    return Err(ConfigError::Lock(format!(
+                        "adapter input {name} changed after identity capture"
+                    )));
+                }
                 Ok((
                     name.clone(),
                     LockedAdapter {
                         protocol: input.protocol.clone(),
                         version: input.version.clone(),
-                        executable_sha256: sha256_file(&input.executable)?,
+                        executable_sha256: input.executable_sha256.clone(),
                     },
                 ))
             })
             .collect::<Result<BTreeMap<_, _>, ConfigError>>()?;
         for (name, provider) in &config.providers {
+            if provider.kind == ProviderType::Acp && provider.executable.is_none() {
+                return Err(ConfigError::Lock(format!(
+                    "ACP provider {name} has no configured executable"
+                )));
+            }
             if provider.kind != ProviderType::Fake
                 && provider.executable.is_some()
                 && !adapters.contains_key(name)
@@ -177,6 +233,15 @@ impl WorkbenchLock {
             "lock.configuration.resolved_hash",
         )?;
         for (name, adapter) in &self.adapters {
+            if adapter.protocol.is_empty()
+                || adapter.version.is_empty()
+                || adapter.version.len() > 255
+                || adapter.version.chars().any(char::is_control)
+            {
+                return Err(ConfigError::Lock(format!(
+                    "locked adapter {name} has an invalid identity"
+                )));
+            }
             validate_digest(
                 &adapter.executable_sha256,
                 &format!("lock.adapters.{name}.executable_sha256"),
@@ -215,10 +280,39 @@ impl WorkbenchLock {
             })?;
             if adapter.protocol != input.protocol
                 || adapter.version != input.version
-                || adapter.executable_sha256 != sha256_file(&input.executable)?
+                || adapter.executable_sha256 != input.executable_sha256
+                || input.executable_sha256
+                    != sha256_file(&canonicalize_adapter_executable(&input.executable)?)?
             {
                 return Err(ConfigError::Lock(format!(
                     "adapter {name} differs from its lock pin"
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    pub fn verify_configured_executables(
+        &self,
+        config: &WorkbenchConfiguration,
+    ) -> Result<(), ConfigError> {
+        self.verify()?;
+        for (name, provider) in &config.providers {
+            if provider.kind != ProviderType::Acp {
+                continue;
+            }
+            let executable = provider.executable.as_deref().ok_or_else(|| {
+                ConfigError::Lock(format!("ACP provider {name} has no executable"))
+            })?;
+            let adapter = self.adapters.get(name).ok_or_else(|| {
+                ConfigError::Lock(format!("ACP provider {name} has no pinned adapter"))
+            })?;
+            let executable = canonicalize_adapter_executable(Path::new(executable))?;
+            if adapter.protocol != ACP_PROTOCOL
+                || adapter.executable_sha256 != sha256_file(&executable)?
+            {
+                return Err(ConfigError::Lock(format!(
+                    "ACP provider {name} differs from its lock pin"
                 )));
             }
         }
@@ -278,7 +372,111 @@ fn lock_mcps(config: &WorkbenchConfiguration) -> BTreeMap<String, LockedMcp> {
         .collect()
 }
 
+fn validate_adapter_identity(
+    name: &str,
+    provider_type: ProviderType,
+    input: &AdapterInput,
+) -> Result<(), ConfigError> {
+    if input.protocol.is_empty()
+        || input.version.is_empty()
+        || input.version.len() > 255
+        || input.version.chars().any(char::is_control)
+    {
+        return Err(ConfigError::Lock(format!(
+            "adapter {name} reported an invalid version"
+        )));
+    }
+    if provider_type == ProviderType::Acp && input.protocol != ACP_PROTOCOL {
+        return Err(ConfigError::Lock(format!(
+            "ACP adapter {name} must use protocol {ACP_PROTOCOL}"
+        )));
+    }
+    Ok(())
+}
+
+pub fn canonicalize_adapter_executable(path: &Path) -> Result<PathBuf, ConfigError> {
+    if !path.is_absolute()
+        || path
+            .components()
+            .any(|component| component == Component::ParentDir)
+    {
+        return Err(ConfigError::UnsafeSource(
+            "adapter executable must be an absolute path without parent traversal".to_owned(),
+        ));
+    }
+    let mut current = PathBuf::new();
+    for component in path.components() {
+        current.push(component);
+        let metadata = fs::symlink_metadata(&current)
+            .map_err(|error| ConfigError::UnsafeSource(error.to_string()))?;
+        if metadata.file_type().is_symlink() {
+            return Err(ConfigError::UnsafeSource(format!(
+                "adapter executable {} must not contain symbolic links",
+                path.display()
+            )));
+        }
+        if metadata.is_dir() && metadata.permissions().mode() & 0o022 != 0 {
+            return Err(ConfigError::UnsafeSource(format!(
+                "adapter executable {} must not traverse writable directories",
+                path.display()
+            )));
+        }
+    }
+    let canonical =
+        fs::canonicalize(path).map_err(|error| ConfigError::UnsafeSource(error.to_string()))?;
+    let descriptor = rustix::fs::open(
+        &canonical,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|error| ConfigError::UnsafeSource(error.to_string()))?;
+    let file = fs::File::from(descriptor);
+    let metadata = file
+        .metadata()
+        .map_err(|error| ConfigError::UnsafeSource(error.to_string()))?;
+    if !metadata.is_file()
+        || metadata.uid() != getuid().as_raw()
+        || metadata.permissions().mode() & 0o022 != 0
+        || metadata.permissions().mode() & 0o111 == 0
+    {
+        return Err(ConfigError::UnsafeSource(format!(
+            "adapter executable {} must be an executable regular file without group or world write access",
+            path.display()
+        )));
+    }
+    Ok(canonical)
+}
+
 fn sha256_file(path: &Path) -> Result<String, ConfigError> {
-    let bytes = fs::read(path).map_err(|error| ConfigError::Lock(error.to_string()))?;
-    Ok(hex::encode(Sha256::digest(bytes)))
+    let descriptor = rustix::fs::open(
+        path,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|error| ConfigError::Lock(error.to_string()))?;
+    let mut file = fs::File::from(descriptor);
+    let metadata = file
+        .metadata()
+        .map_err(|error| ConfigError::Lock(error.to_string()))?;
+    if !metadata.is_file()
+        || metadata.permissions().mode() & 0o022 != 0
+        || metadata.permissions().mode() & 0o111 == 0
+    {
+        return Err(ConfigError::UnsafeSource(format!(
+            "adapter executable {} became unsafe",
+            path.display()
+        )));
+    }
+    let mut digest = Sha256::new();
+    let mut buffer = [0_u8; 16 * 1024];
+    loop {
+        let read = file
+            .read(&mut buffer)
+            .map_err(|error| ConfigError::Lock(error.to_string()))?;
+        if read == 0 {
+            break;
+        }
+        digest.update(&buffer[..read]);
+    }
+    Ok(hex::encode(digest.finalize()))
 }

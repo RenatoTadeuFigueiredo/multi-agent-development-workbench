@@ -1,8 +1,13 @@
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    fs,
+    os::unix::fs::{PermissionsExt, symlink},
+};
 
+use tempfile::TempDir;
 use workbench_config::{
-    ConfigLayer, ConfigurationSnapshot, WorkbenchConfiguration,
-    lock::WorkbenchLock,
+    AdapterInput, ConfigError, ConfigLayer, ConfigurationSnapshot, WorkbenchConfiguration,
+    lock::{ACP_PROTOCOL, WorkbenchLock},
     merge::resolve_with_builtins,
     model::{Capability, Model, Provider, ProviderType, Role},
     preflight::{Authentication, ProviderCapabilities, resolve_role},
@@ -166,6 +171,98 @@ fn lock_and_hash_are_byte_deterministic() {
     session
         .verify_linked_to(&first)
         .expect("session links to base");
+}
+
+#[test]
+fn acp_providers_require_an_explicit_executable() {
+    let mut configuration = WorkbenchConfiguration::safe_builtins();
+    configuration.providers.insert(
+        "grok".to_owned(),
+        Provider {
+            kind: ProviderType::Acp,
+            executable: None,
+            credential_ref: None,
+            privacy: None,
+        },
+    );
+
+    let error = validate(&configuration).expect_err("ACP executable is required");
+
+    assert!(matches!(
+        error,
+        ConfigError::Invalid { path, .. } if path == "providers.grok.executable"
+    ));
+}
+
+#[test]
+fn acp_adapter_input_pins_protocol_version_and_executable_digest() {
+    let directory =
+        TempDir::new_in(std::env::current_dir().expect("current directory")).expect("temporary");
+    let executable = directory.path().join("fake-acp");
+    fs::write(&executable, b"fake-acp-v1").expect("fake executable");
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))
+        .expect("executable permissions");
+    let executable = executable.canonicalize().expect("canonical executable");
+    let mut configuration = WorkbenchConfiguration::safe_builtins();
+    configuration.providers.insert(
+        "grok".to_owned(),
+        Provider {
+            kind: ProviderType::Acp,
+            executable: Some(executable.to_string_lossy().into_owned()),
+            credential_ref: None,
+            privacy: None,
+        },
+    );
+    validate(&configuration).expect("ACP configuration");
+    let snapshot =
+        ConfigurationSnapshot::create(&configuration, vec!["test".to_owned()]).expect("snapshot");
+    let inputs = BTreeMap::from([(
+        "grok".to_owned(),
+        AdapterInput::acp(&executable, "0.2.7").expect("adapter input"),
+    )]);
+
+    let lock =
+        WorkbenchLock::repository(&configuration, &snapshot, &inputs).expect("repository lock");
+
+    assert_eq!(lock.adapters["grok"].protocol, ACP_PROTOCOL);
+    assert_eq!(lock.adapters["grok"].version, "0.2.7");
+    assert_eq!(lock.adapters["grok"].executable_sha256.len(), 64);
+    lock.verify_executables(&inputs)
+        .expect("executable matches lock");
+
+    fs::write(&executable, b"fake-acp-v2").expect("updated executable");
+    assert!(matches!(
+        WorkbenchLock::repository(&configuration, &snapshot, &inputs),
+        Err(ConfigError::Lock(message)) if message.contains("changed after identity capture")
+    ));
+}
+
+#[test]
+fn acp_adapter_input_rejects_symlinks_and_unsafe_permissions() {
+    let directory =
+        TempDir::new_in(std::env::current_dir().expect("current directory")).expect("temporary");
+    let target = directory.path().join("fake-acp");
+    fs::write(&target, b"fake-acp-v1").expect("fake executable");
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o700))
+        .expect("executable permissions");
+    let linked = directory.path().join("linked-acp");
+    symlink(&target, &linked).expect("symbolic executable");
+
+    assert!(matches!(
+        AdapterInput::acp("relative/fake-acp", "0.2.7"),
+        Err(ConfigError::UnsafeSource(_))
+    ));
+    assert!(matches!(
+        AdapterInput::acp(&linked, "0.2.7"),
+        Err(ConfigError::UnsafeSource(_))
+    ));
+
+    fs::set_permissions(&target, fs::Permissions::from_mode(0o722))
+        .expect("unsafe executable permissions");
+    assert!(matches!(
+        AdapterInput::acp(&target, "0.2.7"),
+        Err(ConfigError::UnsafeSource(_))
+    ));
 }
 
 #[test]

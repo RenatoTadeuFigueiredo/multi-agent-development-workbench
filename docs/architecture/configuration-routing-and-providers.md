@@ -2,8 +2,10 @@
 
 ## Status
 
-Accepted architecture for specification. Implementation remains gated by the
-project's Speckit workflow.
+Accepted architecture. Features 001–004 implement the configuration
+foundation, workspace-scoped sessions, thin VS Code bridge, and supervised
+Grok ACP provider. Additional providers, shared MCP, and the complete
+role-routing workflow remain gated by the project's Speckit process.
 
 ## Decision
 
@@ -61,7 +63,8 @@ providers:
   codex:
     type: subscription-cli
   grok:
-    type: subscription-cli
+    type: acp
+    executable: /absolute/canonical/path/to/grok
   openrouter:
     type: api
     credential_ref: platform:openrouter

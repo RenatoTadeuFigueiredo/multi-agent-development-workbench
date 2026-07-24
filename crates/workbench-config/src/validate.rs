@@ -58,6 +58,14 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                 "API providers require credential_ref and privacy",
             );
         }
+        if provider.kind == ProviderType::Acp
+            && provider.executable.as_deref().is_none_or(str::is_empty)
+        {
+            return invalid(
+                &format!("providers.{name}.executable"),
+                "ACP providers require an explicit executable",
+            );
+        }
         if let Some(reference) = &provider.credential_ref {
             validate_credential_reference(reference, name)?;
         }

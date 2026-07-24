@@ -8,6 +8,7 @@ use std::{
     time::Duration,
 };
 
+use futures_util::StreamExt;
 use serde::Serialize;
 use serde_json::{Value, json};
 use time::{OffsetDateTime, format_description::well_known::Rfc3339};
@@ -25,14 +26,18 @@ use workbench_config::{
     },
 };
 use workbench_core::{
+    AttemptId, SessionId,
     attempt::EffectClass,
     policy::{PermissionMode, PolicyLayer, PolicySource, protect_effect, resolve_tool_policy},
-    ports::Telemetry,
+    ports::{
+        CancellationStatus, ProviderAdapter, ProviderFailure, ProviderOutput, ProviderPrompt,
+        ProviderRegistry, ProviderSessionHandle, Telemetry,
+    },
     routing::{
         OrderedRouter, PermissionScope, Risk, RouteCandidate, RouteContext, RouteDestination,
         RoutingInputs, RoutingOutcome, RoutingPlan, SelectedRule,
     },
-    value::{DataSourceId, ModelAlias, ProviderId, RoleId, ToolId},
+    value::{DataSourceId, ModelAlias, NonEmptyText, ProviderId, RoleId, ToolId},
 };
 use workbench_protocol::{
     ClientCommand, Command, ErrorCode, EventKind, ProtocolError, ServerReply, SessionEvent,
@@ -109,10 +114,57 @@ struct CommandSuccess {
     subscription: Option<SessionSubscription>,
 }
 
-#[derive(Clone, Copy)]
 struct ActiveExecution {
     attempt_id: Uuid,
     request_id: Uuid,
+    backend: ActiveBackend,
+    cancel_started: AtomicBool,
+}
+
+enum ActiveBackend {
+    Fake,
+    Provider {
+        adapter: Arc<dyn ProviderAdapter>,
+        handle: ProviderSessionHandle,
+    },
+}
+
+impl ActiveExecution {
+    fn fake(attempt_id: Uuid, request_id: Uuid) -> Self {
+        Self {
+            attempt_id,
+            request_id,
+            backend: ActiveBackend::Fake,
+            cancel_started: AtomicBool::new(false),
+        }
+    }
+
+    fn provider(
+        attempt_id: Uuid,
+        request_id: Uuid,
+        adapter: Arc<dyn ProviderAdapter>,
+        handle: ProviderSessionHandle,
+    ) -> Self {
+        Self {
+            attempt_id,
+            request_id,
+            backend: ActiveBackend::Provider { adapter, handle },
+            cancel_started: AtomicBool::new(false),
+        }
+    }
+
+    const fn is_fake(&self) -> bool {
+        matches!(self.backend, ActiveBackend::Fake)
+    }
+}
+
+#[derive(Default)]
+struct EmptyProviderRegistry;
+
+impl ProviderRegistry for EmptyProviderRegistry {
+    fn adapter(&self, _provider: &ProviderId) -> Option<Arc<dyn ProviderAdapter>> {
+        None
+    }
 }
 
 enum RouteDecision {
@@ -127,6 +179,25 @@ enum RouteDecision {
     CapabilityUnavailable {
         selected_rule: &'static str,
     },
+}
+
+struct ProviderExecutionContext {
+    provider: ProviderId,
+    runtime_model: String,
+    prompt: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProviderOutputState {
+    Streaming,
+    CancellationPending,
+    Terminal,
+}
+
+impl ProviderOutputState {
+    const fn is_terminal(self) -> bool {
+        matches!(self, Self::Terminal)
+    }
 }
 
 #[derive(Debug)]
@@ -149,9 +220,11 @@ pub struct Application {
     session_configs: Mutex<HashMap<Uuid, WorkbenchConfiguration>>,
     pinned_locks: Mutex<HashMap<Uuid, WorkbenchLock>>,
     known_sessions: Mutex<HashSet<Uuid>>,
-    active: AsyncMutex<HashMap<Uuid, ActiveExecution>>,
+    active: AsyncMutex<HashMap<Uuid, Arc<ActiveExecution>>>,
     subscriptions: Arc<SubscriptionHub>,
     telemetry: Arc<dyn Telemetry>,
+    providers: Arc<dyn ProviderRegistry>,
+    provider_catalog: BTreeMap<String, ConfigProviderCapabilities>,
     fake: FakeBehavior,
     #[cfg(test)]
     fail_next_command_commit: AtomicBool,
@@ -175,11 +248,68 @@ impl Application {
         )
     }
 
+    /// Creates an application with externally composed provider adapters and
+    /// their already validated preflight capabilities.
+    pub fn new_with_providers<K: KeyStore + 'static>(
+        storage: SqliteStorage<K>,
+        startup: StartupConfiguration,
+        fake: FakeBehavior,
+        providers: Arc<dyn ProviderRegistry>,
+        provider_catalog: BTreeMap<String, ConfigProviderCapabilities>,
+    ) -> Arc<Self> {
+        Self::new_with_providers_and_telemetry(
+            storage,
+            startup,
+            fake,
+            Arc::new(BoundedTelemetry::default()),
+            providers,
+            provider_catalog,
+        )
+    }
+
     pub(crate) fn new_with_telemetry<K: KeyStore + 'static>(
         storage: SqliteStorage<K>,
         startup: StartupConfiguration,
         fake: FakeBehavior,
         telemetry: Arc<dyn Telemetry>,
+    ) -> Arc<Self> {
+        Self::compose(
+            storage,
+            startup,
+            fake,
+            telemetry,
+            Arc::new(EmptyProviderRegistry),
+            BTreeMap::new(),
+        )
+    }
+
+    /// Creates an application with externally composed providers and an
+    /// injectable bounded telemetry sink.
+    pub fn new_with_providers_and_telemetry<K: KeyStore + 'static>(
+        storage: SqliteStorage<K>,
+        startup: StartupConfiguration,
+        fake: FakeBehavior,
+        telemetry: Arc<dyn Telemetry>,
+        providers: Arc<dyn ProviderRegistry>,
+        provider_catalog: BTreeMap<String, ConfigProviderCapabilities>,
+    ) -> Arc<Self> {
+        Self::compose(
+            storage,
+            startup,
+            fake,
+            telemetry,
+            providers,
+            provider_catalog,
+        )
+    }
+
+    fn compose<K: KeyStore + 'static>(
+        storage: SqliteStorage<K>,
+        startup: StartupConfiguration,
+        fake: FakeBehavior,
+        telemetry: Arc<dyn Telemetry>,
+        providers: Arc<dyn ProviderRegistry>,
+        provider_catalog: BTreeMap<String, ConfigProviderCapabilities>,
     ) -> Arc<Self> {
         Arc::new(Self {
             storage: Arc::new(LockedStorage::new(storage)),
@@ -194,6 +324,8 @@ impl Application {
             active: AsyncMutex::new(HashMap::new()),
             subscriptions: Arc::new(SubscriptionHub::default()),
             telemetry,
+            providers,
+            provider_catalog,
             fake,
             #[cfg(test)]
             fail_next_command_commit: AtomicBool::new(false),
@@ -419,7 +551,7 @@ impl Application {
                     let attempt_id = latest_started_attempt(&history);
                     let now = OffsetDateTime::now_utc();
                     let mut events = Vec::new();
-                    if attempt_id.is_none() || self.fake.confirms_cancellation {
+                    if attempt_id.is_none() {
                         events.push(EventInput {
                             event_id: Uuid::now_v7(),
                             session_id: session.session_id,
@@ -518,7 +650,7 @@ impl Application {
         } else {
             match command.command {
                 Command::Initialize(params) => Self::handle_initialize(&params),
-                Command::StatusGet(_) => self.handle_status(),
+                Command::StatusGet(_) => self.handle_status().await,
                 Command::SessionCreate(params) => {
                     let _guard = self.creation_lock.lock().await;
                     self.handle_create(request_id, &params)
@@ -567,7 +699,10 @@ impl Application {
                 self.handle_prompt(session_id, command.request_id, params)
                     .await
             }
-            Command::SessionPause(_) => self.handle_pause(session_id, command.request_id, context),
+            Command::SessionPause(_) => {
+                self.handle_pause(session_id, command.request_id, context)
+                    .await
+            }
             Command::SessionResume(_) => {
                 self.handle_resume(session_id, command.request_id, context)
                     .await
@@ -618,12 +753,56 @@ impl Application {
         })
     }
 
-    fn handle_status(&self) -> Result<CommandSuccess, DaemonError> {
+    async fn handle_status(&self) -> Result<CommandSuccess, DaemonError> {
         let active_sessions = self
             .known_sessions
             .lock()
             .map_err(|_| DaemonError::Internal)?
             .len();
+        let mut adapters = Vec::with_capacity(self.provider_catalog.len() + 1);
+        for (id, capabilities) in &self.provider_catalog {
+            let live_available = if capabilities.authentication == Authentication::Available {
+                let adapter = ProviderId::parse(id.clone())
+                    .ok()
+                    .and_then(|provider| self.providers.adapter(&provider));
+                if let Some(adapter) = adapter {
+                    matches!(
+                        tokio::time::timeout(
+                            Duration::from_secs(1),
+                            adapter.authentication_status(),
+                        )
+                        .await,
+                        Ok(Ok(workbench_core::ports::AuthenticationStatus::Available))
+                    )
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+            adapters.push(AdapterHealth {
+                id: id.clone(),
+                status: if live_available {
+                    AdapterStatus::Available
+                } else {
+                    AdapterStatus::Unavailable
+                },
+            });
+        }
+        if self
+            .startup
+            .resolved
+            .providers
+            .iter()
+            .any(|(name, provider)| name == "fake" && provider.kind == ProviderType::Fake)
+            && !adapters.iter().any(|adapter| adapter.id == "fake")
+        {
+            adapters.push(AdapterHealth {
+                id: "fake".to_owned(),
+                status: AdapterStatus::Available,
+            });
+        }
+        adapters.sort_by(|left, right| left.id.cmp(&right.id));
         success(StatusResult {
             daemon_version: DAEMON_VERSION.to_owned(),
             protocol: ProtocolVersion::V1,
@@ -631,10 +810,7 @@ impl Application {
             key_store: KeyStoreStatus::Available,
             migration: MigrationStatus::Ready,
             active_sessions: u64::try_from(active_sessions).map_err(|_| DaemonError::Internal)?,
-            adapters: vec![AdapterHealth {
-                id: "fake".to_owned(),
-                status: AdapterStatus::Available,
-            }],
+            adapters,
         })
     }
 
@@ -766,6 +942,7 @@ impl Application {
         request_id: Uuid,
         params: PromptParams,
     ) -> Result<CommandSuccess, DaemonError> {
+        let prompt_content = params.text.clone();
         let parameters = serde_json::to_value(&params)?;
         if let Some(outcome) =
             self.cached_outcome(session_id, request_id, "session.prompt", &parameters)?
@@ -903,15 +1080,22 @@ impl Application {
                 )?;
                 self.telemetry.record_route(selected_rule, "success");
                 if !replayed {
-                    self.activate_fake_attempt(session_id, request_id, attempt_id)
-                        .await;
+                    self.activate_attempt(
+                        session_id,
+                        request_id,
+                        attempt_id,
+                        plan.destination.provider,
+                        plan.destination.runtime_model,
+                        prompt_content,
+                    )
+                    .await?;
                 }
                 replay_command_outcome(outcome)
             }
         }
     }
 
-    fn handle_pause(
+    async fn handle_pause(
         &self,
         session_id: Uuid,
         request_id: Uuid,
@@ -940,6 +1124,15 @@ impl Application {
         }
         if state != SessionState::Running {
             return Err(DaemonError::InvalidTransition);
+        }
+        if self
+            .active
+            .lock()
+            .await
+            .get(&session_id)
+            .is_some_and(|execution| !execution.is_fake())
+        {
+            return Err(DaemonError::CapabilityUnavailable);
         }
         let control_id = Uuid::now_v7();
         let outcome = serde_json::to_value(ControlResult {
@@ -1029,7 +1222,13 @@ impl Application {
         if replayed {
             return value_success(outcome);
         }
-        if self.active.lock().await.contains_key(&session_id) {
+        if self
+            .active
+            .lock()
+            .await
+            .get(&session_id)
+            .is_some_and(|execution| execution.is_fake())
+        {
             self.schedule_fake_completion(session_id);
         }
         value_success(outcome)
@@ -1210,8 +1409,16 @@ impl Application {
                         .find(|event| event.kind == "dispatch_started")
                         .and_then(|event| event.causation_request_id)
                         .unwrap_or(request_id);
-                    self.activate_fake_attempt(session_id, causation, attempt_id)
-                        .await;
+                    let context = provider_execution_context(&history, causation)?;
+                    self.activate_attempt(
+                        session_id,
+                        causation,
+                        attempt_id,
+                        context.provider,
+                        context.runtime_model,
+                        context.prompt,
+                    )
+                    .await?;
                 }
             }
             return replay_command_outcome(outcome);
@@ -1281,8 +1488,17 @@ impl Application {
                     &events,
                 )?;
                 if !replayed {
-                    self.activate_fake_attempt(session_id, causation, attempt_id)
-                        .await;
+                    let history = self.history(session_id)?;
+                    let context = provider_execution_context(&history, causation)?;
+                    self.activate_attempt(
+                        session_id,
+                        causation,
+                        attempt_id,
+                        context.provider,
+                        context.runtime_model,
+                        context.prompt,
+                    )
+                    .await?;
                 }
                 replay_command_outcome(outcome)
             }
@@ -1375,8 +1591,17 @@ impl Application {
                     &events,
                 )?;
                 if !replayed {
-                    self.activate_fake_attempt(session_id, request_id, replacement_attempt_id)
-                        .await;
+                    let history = self.history(session_id)?;
+                    let context = provider_execution_context(&history, request_id)?;
+                    self.activate_attempt(
+                        session_id,
+                        request_id,
+                        replacement_attempt_id,
+                        context.provider,
+                        context.runtime_model,
+                        context.prompt,
+                    )
+                    .await?;
                 }
                 replay_command_outcome(outcome)
             }
@@ -1542,7 +1767,8 @@ impl Application {
         explicit_target: Option<&str>,
     ) -> Result<RouteDecision, DaemonError> {
         let config = self.session_configuration(session_id)?;
-        let available = fake_provider_capabilities(&config);
+        let mut available = self.provider_catalog.clone();
+        available.extend(fake_provider_capabilities(&config));
         let selected_rule = if explicit_target.is_some() {
             "explicit"
         } else {
@@ -1594,6 +1820,84 @@ impl Application {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
+    async fn activate_attempt(
+        self: &Arc<Self>,
+        session_id: Uuid,
+        request_id: Uuid,
+        attempt_id: Uuid,
+        provider: ProviderId,
+        runtime_model: String,
+        prompt: String,
+    ) -> Result<(), DaemonError> {
+        let configuration = self.session_configuration(session_id)?;
+        let kind = configuration
+            .providers
+            .get(provider.as_str())
+            .map(|provider| provider.kind)
+            .ok_or(DaemonError::CapabilityUnavailable)?;
+        if kind == ProviderType::Fake {
+            self.activate_fake_attempt(session_id, request_id, attempt_id)
+                .await;
+            return Ok(());
+        }
+
+        let Some(adapter) = self.providers.adapter(&provider) else {
+            self.record_provider_failure(
+                session_id,
+                request_id,
+                attempt_id,
+                &ProviderFailure {
+                    category: workbench_core::FailureCategory::CapabilityUnavailable,
+                    user_safe_message: "configured provider adapter is unavailable".to_owned(),
+                    definite: true,
+                },
+            )?;
+            return Ok(());
+        };
+        let handle = match adapter.start_session().await {
+            Ok(handle) => handle,
+            Err(failure) => {
+                self.record_provider_failure(session_id, request_id, attempt_id, &failure)?;
+                return Ok(());
+            }
+        };
+        let prompt = ProviderPrompt {
+            session_id: SessionId::from_uuid(session_id),
+            attempt_id: AttemptId::from_uuid(attempt_id),
+            runtime_model,
+            content: NonEmptyText::parse(prompt)
+                .map_err(|_| DaemonError::InvalidRequest("prompt text must not be empty"))?,
+        };
+        let stream = match adapter.prompt_stream(&handle, prompt).await {
+            Ok(stream) => stream,
+            Err(failure) => {
+                self.record_provider_failure(session_id, request_id, attempt_id, &failure)?;
+                return Ok(());
+            }
+        };
+        self.active.lock().await.insert(
+            session_id,
+            Arc::new(ActiveExecution::provider(
+                attempt_id, request_id, adapter, handle,
+            )),
+        );
+        let application = Arc::clone(self);
+        drop(tokio::spawn(async move {
+            if let Err(error) = application
+                .consume_provider_stream(session_id, attempt_id, stream)
+                .await
+            {
+                application.telemetry.record_attempt("failed");
+                warn!(
+                    category = error.code_name(),
+                    "provider stream processing failed"
+                );
+            }
+        }));
+        Ok(())
+    }
+
     async fn activate_fake_attempt(
         self: &Arc<Self>,
         session_id: Uuid,
@@ -1602,12 +1906,214 @@ impl Application {
     ) {
         self.active.lock().await.insert(
             session_id,
-            ActiveExecution {
-                attempt_id,
-                request_id,
-            },
+            Arc::new(ActiveExecution::fake(attempt_id, request_id)),
         );
         self.schedule_fake_completion(session_id);
+    }
+
+    async fn consume_provider_stream(
+        self: &Arc<Self>,
+        session_id: Uuid,
+        attempt_id: Uuid,
+        mut stream: workbench_core::ports::ProviderStream,
+    ) -> Result<(), DaemonError> {
+        while let Some(item) = stream.next().await {
+            let _lifecycle_guard = self.lifecycle_gate.read().await;
+            if self.shutting_down.load(Ordering::Acquire) {
+                return Ok(());
+            }
+            let lock = self.session_lock(session_id).await;
+            let _guard = lock.lock().await;
+            let Some(active) = self.active_for_attempt(session_id, attempt_id).await else {
+                return Ok(());
+            };
+            match item {
+                Ok(output) => {
+                    if self
+                        .record_provider_output(session_id, &active, output)?
+                        .is_terminal()
+                    {
+                        self.remove_active_attempt(session_id, attempt_id).await;
+                        return Ok(());
+                    }
+                }
+                Err(failure) => {
+                    if self.current_session_state(session_id)? == SessionState::CancelRequested {
+                        return Ok(());
+                    }
+                    self.record_provider_failure(
+                        session_id,
+                        active.request_id,
+                        attempt_id,
+                        &failure,
+                    )?;
+                    self.remove_active_attempt(session_id, attempt_id).await;
+                    return Ok(());
+                }
+            }
+        }
+
+        let _lifecycle_guard = self.lifecycle_gate.read().await;
+        if self.shutting_down.load(Ordering::Acquire) {
+            return Ok(());
+        }
+        let lock = self.session_lock(session_id).await;
+        let _guard = lock.lock().await;
+        let Some(active) = self.active_for_attempt(session_id, attempt_id).await else {
+            return Ok(());
+        };
+        let state = self.current_session_state(session_id)?;
+        if state == SessionState::Running {
+            self.record_provider_failure(
+                session_id,
+                active.request_id,
+                attempt_id,
+                &ProviderFailure {
+                    category: workbench_core::FailureCategory::OutcomeUnknown,
+                    user_safe_message: "provider stream ended without a definite terminal result"
+                        .to_owned(),
+                    definite: false,
+                },
+            )?;
+            self.remove_active_attempt(session_id, attempt_id).await;
+        }
+        Ok(())
+    }
+
+    fn record_provider_output(
+        &self,
+        session_id: Uuid,
+        active: &ActiveExecution,
+        output: ProviderOutput,
+    ) -> Result<ProviderOutputState, DaemonError> {
+        match output {
+            ProviderOutput::Acknowledged {
+                provider_request_id,
+            } => {
+                self.append(
+                    session_id,
+                    Some(active.request_id),
+                    EventKind::DispatchAcknowledged,
+                    json!({
+                        "attempt_id": active.attempt_id,
+                        "provider_request_id": provider_request_id
+                    }),
+                    Some(active.attempt_id),
+                    Some("paid-inference"),
+                )?;
+                Ok(ProviderOutputState::Streaming)
+            }
+            ProviderOutput::Content {
+                event_type,
+                content,
+            } => {
+                self.append(
+                    session_id,
+                    Some(active.request_id),
+                    EventKind::ProviderEvent,
+                    json!({
+                        "attempt_id": active.attempt_id,
+                        "event_type": event_type,
+                        "content": content.as_str()
+                    }),
+                    Some(active.attempt_id),
+                    Some("paid-inference"),
+                )?;
+                Ok(ProviderOutputState::Streaming)
+            }
+            ProviderOutput::Tool {
+                event_type,
+                content,
+            } => {
+                self.append(
+                    session_id,
+                    Some(active.request_id),
+                    EventKind::ToolEvent,
+                    json!({
+                        "attempt_id": active.attempt_id,
+                        "event_type": event_type,
+                        "content": content.as_str()
+                    }),
+                    Some(active.attempt_id),
+                    Some("paid-inference"),
+                )?;
+                Ok(ProviderOutputState::Streaming)
+            }
+            ProviderOutput::Completed { summary } => {
+                if self.current_session_state(session_id)? == SessionState::CancelRequested {
+                    return Ok(ProviderOutputState::CancellationPending);
+                }
+                self.append(
+                    session_id,
+                    Some(active.request_id),
+                    EventKind::SessionCompleted,
+                    terminal_payload(&summary),
+                    Some(active.attempt_id),
+                    Some("paid-inference"),
+                )?;
+                self.telemetry.record_attempt("success");
+                Ok(ProviderOutputState::Terminal)
+            }
+        }
+    }
+
+    fn record_provider_failure(
+        &self,
+        session_id: Uuid,
+        request_id: Uuid,
+        attempt_id: Uuid,
+        failure: &ProviderFailure,
+    ) -> Result<(), DaemonError> {
+        let cancelling = self.current_session_state(session_id)? == SessionState::CancelRequested;
+        if failure.definite && !cancelling {
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::SessionFailed,
+                terminal_payload(&failure.user_safe_message),
+                Some(attempt_id),
+                Some("paid-inference"),
+            )?;
+            self.telemetry.record_attempt("failed");
+        } else {
+            self.append(
+                session_id,
+                Some(request_id),
+                EventKind::OutcomeUnknown,
+                json!({
+                    "attempt_id": attempt_id,
+                    "reason": failure.user_safe_message,
+                    "reconciliation_options": ["retry", "accept_result", "abandon"]
+                }),
+                Some(attempt_id),
+                Some("paid-inference"),
+            )?;
+            self.telemetry.record_attempt("outcome_unknown");
+        }
+        Ok(())
+    }
+
+    async fn active_for_attempt(
+        &self,
+        session_id: Uuid,
+        attempt_id: Uuid,
+    ) -> Option<Arc<ActiveExecution>> {
+        self.active
+            .lock()
+            .await
+            .get(&session_id)
+            .filter(|execution| execution.attempt_id == attempt_id)
+            .cloned()
+    }
+
+    async fn remove_active_attempt(&self, session_id: Uuid, attempt_id: Uuid) {
+        let mut active = self.active.lock().await;
+        if active
+            .get(&session_id)
+            .is_some_and(|execution| execution.attempt_id == attempt_id)
+        {
+            active.remove(&session_id);
+        }
     }
 
     fn schedule_fake_completion(self: &Arc<Self>, session_id: Uuid) {
@@ -1629,9 +2135,12 @@ impl Application {
         }
         let lock = self.session_lock(session_id).await;
         let _guard = lock.lock().await;
-        let Some(active) = self.active.lock().await.get(&session_id).copied() else {
+        let Some(active) = self.active.lock().await.get(&session_id).cloned() else {
             return Ok(());
         };
+        if !active.is_fake() {
+            return Ok(());
+        }
         let folded = fold_session(&self.history(session_id)?)?;
         if folded.state != SessionState::Running {
             return Ok(());
@@ -1668,11 +2177,39 @@ impl Application {
         attempt_id: Option<Uuid>,
     ) {
         let application = Arc::clone(self);
-        let behavior = self.fake;
         drop(tokio::spawn(async move {
-            if !behavior.confirms_cancellation {
-                tokio::time::sleep(behavior.cancellation_deadline).await;
-            }
+            let active = application.active.lock().await.get(&session_id).cloned();
+            let (confirmed, summary) = match active {
+                Some(active)
+                    if attempt_id.is_some_and(|attempt_id| attempt_id == active.attempt_id) =>
+                {
+                    if active.cancel_started.swap(true, Ordering::AcqRel) {
+                        return;
+                    }
+                    match &active.backend {
+                        ActiveBackend::Fake => {
+                            let behavior = application.fake;
+                            if !behavior.confirms_cancellation {
+                                tokio::time::sleep(behavior.cancellation_deadline).await;
+                            }
+                            (
+                                behavior.confirms_cancellation,
+                                "fake provider confirmed cancellation",
+                            )
+                        }
+                        ActiveBackend::Provider { adapter, handle } => {
+                            let confirmed = matches!(
+                                adapter
+                                    .cancel(handle, AttemptId::from_uuid(active.attempt_id),)
+                                    .await,
+                                Ok(CancellationStatus::Confirmed)
+                            );
+                            (confirmed, "provider confirmed cancellation")
+                        }
+                    }
+                }
+                _ => (false, "provider cancellation could not be confirmed"),
+            };
             let _lifecycle_guard = application.lifecycle_gate.read().await;
             if application.shutting_down.load(Ordering::Acquire) {
                 return;
@@ -1681,11 +2218,7 @@ impl Application {
             let _guard = lock.lock().await;
             let result = application
                 .resolve_cancel(
-                    session_id,
-                    request_id,
-                    control_id,
-                    attempt_id,
-                    behavior.confirms_cancellation,
+                    session_id, request_id, control_id, attempt_id, confirmed, summary,
                 )
                 .await;
             if let Err(error) = result {
@@ -1705,6 +2238,7 @@ impl Application {
         control_id: Uuid,
         attempt_id: Option<Uuid>,
         confirmed: bool,
+        confirmed_summary: &str,
     ) -> Result<(), DaemonError> {
         let folded = fold_session(&self.history(session_id)?)?;
         if folded.state != SessionState::CancelRequested {
@@ -1727,7 +2261,7 @@ impl Application {
                     request_id,
                     occurred_at,
                     EventKind::SessionCancelled,
-                    terminal_payload("fake provider confirmed cancellation"),
+                    terminal_payload(confirmed_summary),
                     attempt_id,
                     None,
                 ),
@@ -2075,6 +2609,44 @@ fn latest_started_attempt(history: &[workbench_storage::PersistedEvent]) -> Opti
             )
     });
     (!finished).then_some(attempt_id)
+}
+
+fn provider_execution_context(
+    history: &[workbench_storage::PersistedEvent],
+    preferred_request_id: Uuid,
+) -> Result<ProviderExecutionContext, DaemonError> {
+    let select = |kind: &str| {
+        history
+            .iter()
+            .rev()
+            .find(|event| {
+                event.kind == kind && event.causation_request_id == Some(preferred_request_id)
+            })
+            .or_else(|| history.iter().rev().find(|event| event.kind == kind))
+    };
+    let routing = select("routing_planned").ok_or(DaemonError::StorageUnavailable)?;
+    let input = select("input_recorded").ok_or(DaemonError::StorageUnavailable)?;
+    let provider = routing
+        .payload
+        .get("provider")
+        .and_then(Value::as_str)
+        .ok_or(DaemonError::StorageUnavailable)?;
+    let runtime_model = routing
+        .payload
+        .get("runtime_model")
+        .and_then(Value::as_str)
+        .ok_or(DaemonError::StorageUnavailable)?;
+    let prompt = input
+        .payload
+        .get("content")
+        .and_then(Value::as_str)
+        .ok_or(DaemonError::StorageUnavailable)?;
+    Ok(ProviderExecutionContext {
+        provider: ProviderId::parse(provider.to_owned())
+            .map_err(|_| DaemonError::StorageUnavailable)?,
+        runtime_model: runtime_model.to_owned(),
+        prompt: prompt.to_owned(),
+    })
 }
 
 fn fake_provider_capabilities(
@@ -2610,6 +3182,12 @@ impl From<workbench_protocol::SubscriptionError> for DaemonError {
 
 #[cfg(test)]
 mod tests {
+    use std::{future::Future, os::unix::fs::PermissionsExt, pin::Pin, sync::atomic::AtomicUsize};
+
+    use futures_util::stream;
+    use tokio::sync::oneshot;
+    use workbench_config::{ACP_PROTOCOL, AdapterInput};
+    use workbench_core::ports::{AuthenticationStatus, ProviderCapabilities, ProviderStream};
     use workbench_protocol::{
         PROTOCOL_V1,
         command::{CreateSessionParams, EmptyParams, InitializeParams, ListSessionsParams},
@@ -2617,6 +3195,212 @@ mod tests {
 
     use super::*;
     use crate::telemetry::{RouteRule, TelemetryOutcome};
+
+    type AdapterFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
+
+    #[derive(Clone, Copy)]
+    enum AdapterBehavior {
+        Complete,
+        SetupFailure { definite: bool },
+        StreamFailure { definite: bool },
+        PendingCancel(CancellationStatus),
+        PendingCancelStreamFailure(CancellationStatus),
+    }
+
+    struct TestProvider {
+        behavior: AdapterBehavior,
+        cancel_calls: AtomicUsize,
+        pending: Mutex<Option<oneshot::Sender<()>>>,
+        seen_prompt: Mutex<Option<ProviderPrompt>>,
+    }
+
+    impl TestProvider {
+        fn new(behavior: AdapterBehavior) -> Self {
+            Self {
+                behavior,
+                cancel_calls: AtomicUsize::new(0),
+                pending: Mutex::new(None),
+                seen_prompt: Mutex::new(None),
+            }
+        }
+
+        fn failure(definite: bool) -> ProviderFailure {
+            ProviderFailure {
+                category: workbench_core::FailureCategory::ProviderUnavailable,
+                user_safe_message: "synthetic provider failure".to_owned(),
+                definite,
+            }
+        }
+    }
+
+    impl ProviderAdapter for TestProvider {
+        fn capabilities<'life0, 'async_trait>(
+            &'life0 self,
+        ) -> AdapterFuture<'async_trait, Result<ProviderCapabilities, workbench_core::CoreError>>
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async {
+                Ok(ProviderCapabilities {
+                    adapter_id: ProviderId::parse("fake").expect("provider ID"),
+                    adapter_version: "1.0.0-test".to_owned(),
+                    protocol: ACP_PROTOCOL.to_owned(),
+                    authentication: AuthenticationStatus::Available,
+                    capabilities: vec![
+                        workbench_core::ports::ProviderCapability::Streaming,
+                        workbench_core::ports::ProviderCapability::SessionResume,
+                        workbench_core::ports::ProviderCapability::Cancellation,
+                        workbench_core::ports::ProviderCapability::Acp,
+                    ],
+                    context_window_tokens: None,
+                })
+            })
+        }
+
+        fn authentication_status<'life0, 'async_trait>(
+            &'life0 self,
+        ) -> AdapterFuture<'async_trait, Result<AuthenticationStatus, workbench_core::CoreError>>
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async { Ok(AuthenticationStatus::Available) })
+        }
+
+        fn start_session<'life0, 'async_trait>(
+            &'life0 self,
+        ) -> AdapterFuture<'async_trait, Result<ProviderSessionHandle, ProviderFailure>>
+        where
+            'life0: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move {
+                if let AdapterBehavior::SetupFailure { definite } = self.behavior {
+                    Err(Self::failure(definite))
+                } else {
+                    ProviderSessionHandle::new("opaque-test-session")
+                        .map_err(|_| Self::failure(true))
+                }
+            })
+        }
+
+        fn resume_session<'life0, 'life1, 'async_trait>(
+            &'life0 self,
+            opaque_handle: &'life1 str,
+        ) -> AdapterFuture<'async_trait, Result<ProviderSessionHandle, ProviderFailure>>
+        where
+            'life0: 'async_trait,
+            'life1: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move {
+                ProviderSessionHandle::new(opaque_handle).map_err(|_| Self::failure(true))
+            })
+        }
+
+        fn prompt_stream<'life0, 'life1, 'async_trait>(
+            &'life0 self,
+            _handle: &'life1 ProviderSessionHandle,
+            prompt: ProviderPrompt,
+        ) -> AdapterFuture<'async_trait, Result<ProviderStream, ProviderFailure>>
+        where
+            'life0: 'async_trait,
+            'life1: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move {
+                *self.seen_prompt.lock().expect("seen prompt") = Some(prompt);
+                match self.behavior {
+                    AdapterBehavior::Complete => Ok(Box::pin(stream::iter(vec![
+                        Ok(ProviderOutput::Acknowledged {
+                            provider_request_id: Some("provider-request".to_owned()),
+                        }),
+                        Ok(ProviderOutput::Content {
+                            event_type: "agent_message_chunk".to_owned(),
+                            content: NonEmptyText::parse("provider content").expect("content"),
+                        }),
+                        Ok(ProviderOutput::Tool {
+                            event_type: "tool_call".to_owned(),
+                            content: NonEmptyText::parse("{\"name\":\"test\"}")
+                                .expect("tool content"),
+                        }),
+                        Ok(ProviderOutput::Completed {
+                            summary: "provider completed".to_owned(),
+                        }),
+                    ])) as ProviderStream),
+                    AdapterBehavior::StreamFailure { definite } => Ok(Box::pin(stream::iter(vec![
+                        Ok(ProviderOutput::Acknowledged {
+                            provider_request_id: None,
+                        }),
+                        Err(Self::failure(definite)),
+                    ]))
+                        as ProviderStream),
+                    AdapterBehavior::PendingCancel(_) => {
+                        let (sender, receiver) = oneshot::channel();
+                        *self.pending.lock().expect("pending prompt") = Some(sender);
+                        Ok(Box::pin(stream::unfold(Some(receiver), |receiver| async {
+                            if let Some(receiver) = receiver {
+                                let _ignored = receiver.await;
+                            }
+                            None::<(
+                                Result<ProviderOutput, ProviderFailure>,
+                                Option<oneshot::Receiver<()>>,
+                            )>
+                        })) as ProviderStream)
+                    }
+                    AdapterBehavior::PendingCancelStreamFailure(_) => {
+                        let (sender, receiver) = oneshot::channel();
+                        *self.pending.lock().expect("pending prompt") = Some(sender);
+                        Ok(Box::pin(stream::once(async move {
+                            let _ignored = receiver.await;
+                            Err(Self::failure(false))
+                        })) as ProviderStream)
+                    }
+                    AdapterBehavior::SetupFailure { .. } => {
+                        unreachable!("setup failure returns before prompt")
+                    }
+                }
+            })
+        }
+
+        fn cancel<'life0, 'life1, 'async_trait>(
+            &'life0 self,
+            _handle: &'life1 ProviderSessionHandle,
+            _attempt_id: AttemptId,
+        ) -> AdapterFuture<'async_trait, Result<CancellationStatus, workbench_core::CoreError>>
+        where
+            'life0: 'async_trait,
+            'life1: 'async_trait,
+            Self: 'async_trait,
+        {
+            Box::pin(async move {
+                self.cancel_calls.fetch_add(1, Ordering::Relaxed);
+                if let Some(sender) = self.pending.lock().expect("pending prompt").take() {
+                    let _ignored = sender.send(());
+                }
+                match self.behavior {
+                    AdapterBehavior::PendingCancel(status) => Ok(status),
+                    AdapterBehavior::PendingCancelStreamFailure(status) => {
+                        tokio::time::sleep(Duration::from_millis(25)).await;
+                        Ok(status)
+                    }
+                    _ => Ok(CancellationStatus::Unconfirmed),
+                }
+            })
+        }
+    }
+
+    struct TestProviderRegistry {
+        adapter: Arc<TestProvider>,
+    }
+
+    impl ProviderRegistry for TestProviderRegistry {
+        fn adapter(&self, provider: &ProviderId) -> Option<Arc<dyn ProviderAdapter>> {
+            (provider.as_str() == "fake")
+                .then(|| Arc::clone(&self.adapter) as Arc<dyn ProviderAdapter>)
+        }
+    }
 
     fn client() -> ClientContext {
         ClientContext {
@@ -2730,7 +3514,113 @@ mod tests {
             snapshot,
             base_lock,
             sources,
+            lock_verified: false,
         }
+    }
+
+    fn external_application(
+        behavior: AdapterBehavior,
+    ) -> (Arc<Application>, Arc<TestProvider>, tempfile::TempDir) {
+        external_application_with_authentication(behavior, Authentication::Available)
+    }
+
+    fn external_application_with_authentication(
+        behavior: AdapterBehavior,
+        authentication: Authentication,
+    ) -> (Arc<Application>, Arc<TestProvider>, tempfile::TempDir) {
+        let test_directory = std::env::current_dir().expect("test working directory");
+        let directory = tempfile::Builder::new()
+            .prefix("workbench-daemon-provider-")
+            .tempdir_in(test_directory)
+            .expect("adapter directory");
+        let executable = directory.path().join("fake-acp");
+        std::fs::write(&executable, b"offline fake adapter").expect("adapter executable");
+        let mut permissions = std::fs::metadata(&executable)
+            .expect("adapter metadata")
+            .permissions();
+        permissions.set_mode(0o700);
+        std::fs::set_permissions(&executable, permissions).expect("adapter permissions");
+
+        let mut configuration = WorkbenchConfiguration::safe_builtins();
+        let provider = configuration
+            .providers
+            .get_mut("fake")
+            .expect("built-in provider");
+        provider.kind = ProviderType::Acp;
+        provider.executable = Some(executable.to_string_lossy().into_owned());
+        let sources = vec!["test".to_owned()];
+        let snapshot =
+            ConfigurationSnapshot::create(&configuration, sources.clone()).expect("snapshot");
+        let adapter_inputs = BTreeMap::from([(
+            "fake".to_owned(),
+            AdapterInput::acp(&executable, "1.0.0-test").expect("adapter input"),
+        )]);
+        let base_lock = WorkbenchLock::repository(&configuration, &snapshot, &adapter_inputs)
+            .expect("repository lock");
+        let startup = StartupConfiguration {
+            resolved: configuration,
+            snapshot,
+            base_lock,
+            sources,
+            lock_verified: false,
+        };
+        let adapter = Arc::new(TestProvider::new(behavior));
+        let registry: Arc<dyn ProviderRegistry> = Arc::new(TestProviderRegistry {
+            adapter: Arc::clone(&adapter),
+        });
+        let catalog = BTreeMap::from([(
+            "fake".to_owned(),
+            ConfigProviderCapabilities {
+                adapter_id: "fake".to_owned(),
+                adapter_version: "1.0.0-test".to_owned(),
+                protocol: ACP_PROTOCOL.to_owned(),
+                authentication,
+                capabilities: vec![
+                    Capability::Streaming,
+                    Capability::SessionResume,
+                    Capability::Cancellation,
+                    Capability::Acp,
+                ],
+                context_window_tokens: None,
+                operations: vec![ProviderOperation {
+                    name: "provider.prompt".to_owned(),
+                    effect_class: ConfigEffectClass::PaidInference,
+                    idempotent: false,
+                    material_cost: true,
+                    approval: ApprovalMode::Policy,
+                }],
+            },
+        )]);
+        let storage =
+            SqliteStorage::open_in_memory(MemoryKeyStore::new()).expect("in-memory storage");
+        (
+            Application::new_with_providers(
+                storage,
+                startup,
+                FakeBehavior::default(),
+                registry,
+                catalog,
+            ),
+            adapter,
+            directory,
+        )
+    }
+
+    async fn wait_for_state(application: &Application, session_id: Uuid, expected: SessionState) {
+        tokio::time::timeout(Duration::from_secs(1), async {
+            loop {
+                if application
+                    .current_session_state(session_id)
+                    .expect("session state")
+                    == expected
+                {
+                    return;
+                }
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .expect("terminal state before deadline");
     }
 
     fn persist_session<K: KeyStore>(
@@ -2825,6 +3715,264 @@ mod tests {
             client_name: "local-user:0".to_owned(),
         };
         assert_eq!(spoofed.actor(), "local-user:1000");
+    }
+
+    #[tokio::test]
+    async fn status_marks_non_available_catalog_authentication_unavailable() {
+        let (application, _adapter, _directory) = external_application_with_authentication(
+            AdapterBehavior::Complete,
+            Authentication::InteractiveRequired,
+        );
+        let status = application
+            .dispatch(command(Command::StatusGet(EmptyParams {}), None), &client())
+            .await;
+        let ServerReply::Success { result, .. } = status.reply else {
+            panic!("status failed");
+        };
+        let status: StatusResult = serde_json::from_value(result).expect("status result");
+        assert_eq!(
+            status.adapters,
+            [AdapterHealth {
+                id: "fake".to_owned(),
+                status: AdapterStatus::Unavailable,
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_registry_streams_every_normalized_output_into_one_attempt() {
+        let (application, adapter, _directory) = external_application(AdapterBehavior::Complete);
+        let session_id = create(&application).await;
+        let prompted = application
+            .dispatch(
+                command(
+                    Command::SessionPrompt(PromptParams {
+                        text: "execute through the provider registry".to_owned(),
+                        explicit_target: None,
+                    }),
+                    Some(session_id),
+                ),
+                &client(),
+            )
+            .await;
+        assert!(matches!(prompted.reply, ServerReply::Success { .. }));
+        grant_pending(&application, session_id).await;
+        wait_for_state(&application, session_id, SessionState::Completed).await;
+
+        let history = application.history(session_id).expect("provider history");
+        let attempt_ids = history
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event.kind.as_str(),
+                    "dispatch_started"
+                        | "dispatch_acknowledged"
+                        | "provider_event"
+                        | "tool_event"
+                        | "session_completed"
+                )
+            })
+            .map(|event| event.attempt_id.expect("provider attempt ID"))
+            .collect::<BTreeSet<_>>();
+        assert_eq!(attempt_ids.len(), 1);
+        let normalized = history
+            .iter()
+            .filter(|event| {
+                matches!(
+                    event.kind.as_str(),
+                    "dispatch_acknowledged" | "provider_event" | "tool_event" | "session_completed"
+                )
+            })
+            .map(|event| event.kind.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            normalized,
+            [
+                "dispatch_acknowledged",
+                "provider_event",
+                "tool_event",
+                "session_completed"
+            ]
+        );
+        let prompt = adapter
+            .seen_prompt
+            .lock()
+            .expect("seen prompt")
+            .clone()
+            .expect("provider prompt");
+        assert_eq!(prompt.session_id.as_uuid(), session_id);
+        assert_eq!(prompt.runtime_model, "deterministic-v1");
+        assert_eq!(
+            prompt.content.as_str(),
+            "execute through the provider registry"
+        );
+        assert_eq!(
+            prompt.attempt_id.as_uuid(),
+            *attempt_ids.iter().next().expect("attempt")
+        );
+    }
+
+    #[tokio::test]
+    async fn provider_failures_preserve_definite_and_uncertain_attempt_semantics() {
+        for (behavior, expected_state, expected_terminal) in [
+            (
+                AdapterBehavior::SetupFailure { definite: true },
+                SessionState::Failed,
+                "session_failed",
+            ),
+            (
+                AdapterBehavior::StreamFailure { definite: false },
+                SessionState::OutcomeUnknown,
+                "outcome_unknown",
+            ),
+        ] {
+            let (application, _adapter, _directory) = external_application(behavior);
+            let session_id = create(&application).await;
+            let prompted = application
+                .dispatch(
+                    command(
+                        Command::SessionPrompt(PromptParams {
+                            text: "exercise provider failure semantics".to_owned(),
+                            explicit_target: None,
+                        }),
+                        Some(session_id),
+                    ),
+                    &client(),
+                )
+                .await;
+            assert!(matches!(prompted.reply, ServerReply::Success { .. }));
+            grant_pending(&application, session_id).await;
+            wait_for_state(&application, session_id, expected_state).await;
+            let history = application.history(session_id).expect("failure history");
+            assert_eq!(
+                history.last().map(|event| event.kind.as_str()),
+                Some(expected_terminal)
+            );
+            assert_eq!(
+                history
+                    .iter()
+                    .filter(|event| event.kind == "dispatch_started")
+                    .count(),
+                1
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn external_pause_is_unavailable_and_cancel_is_sent_once_per_attempt() {
+        for (status, expected_state) in [
+            (CancellationStatus::Confirmed, SessionState::Cancelled),
+            (
+                CancellationStatus::Unconfirmed,
+                SessionState::OutcomeUnknown,
+            ),
+        ] {
+            let (application, adapter, _directory) =
+                external_application(AdapterBehavior::PendingCancel(status));
+            let session_id = create(&application).await;
+            let prompted = application
+                .dispatch(
+                    command(
+                        Command::SessionPrompt(PromptParams {
+                            text: "keep the provider prompt active".to_owned(),
+                            explicit_target: None,
+                        }),
+                        Some(session_id),
+                    ),
+                    &client(),
+                )
+                .await;
+            assert!(matches!(prompted.reply, ServerReply::Success { .. }));
+            grant_pending(&application, session_id).await;
+            wait_for_state(&application, session_id, SessionState::Running).await;
+
+            let paused = application
+                .dispatch(
+                    command(Command::SessionPause(EmptyParams {}), Some(session_id)),
+                    &client(),
+                )
+                .await;
+            assert!(matches!(
+                paused.reply,
+                ServerReply::Failure {
+                    error: ProtocolError {
+                        code: ErrorCode::CapabilityUnavailable,
+                        ..
+                    },
+                    ..
+                }
+            ));
+
+            let cancellation_request = Uuid::now_v7();
+            let cancel = command_with_request_id(
+                Command::SessionCancel(EmptyParams {}),
+                Some(session_id),
+                cancellation_request,
+            );
+            let cancelled = application.dispatch(cancel.clone(), &client()).await;
+            assert!(matches!(cancelled.reply, ServerReply::Success { .. }));
+            wait_for_state(&application, session_id, expected_state).await;
+            let replayed = application.dispatch(cancel, &client()).await;
+            assert!(matches!(replayed.reply, ServerReply::Success { .. }));
+            assert_eq!(adapter.cancel_calls.load(Ordering::Relaxed), 1);
+
+            let history = application.history(session_id).expect("cancel history");
+            if status == CancellationStatus::Confirmed {
+                let terminal = history
+                    .iter()
+                    .rev()
+                    .take(2)
+                    .map(|event| event.kind.as_str())
+                    .collect::<Vec<_>>();
+                assert_eq!(terminal, ["session_cancelled", "cancel_confirmed"]);
+            } else {
+                assert_eq!(
+                    history.last().map(|event| event.kind.as_str()),
+                    Some("outcome_unknown")
+                );
+                assert!(!history.iter().any(|event| event.kind == "cancel_confirmed"));
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn provider_stream_failure_during_cancel_cannot_override_confirmed_cancellation() {
+        let (application, adapter, _directory) = external_application(
+            AdapterBehavior::PendingCancelStreamFailure(CancellationStatus::Confirmed),
+        );
+        let session_id = create(&application).await;
+        let prompted = application
+            .dispatch(
+                command(
+                    Command::SessionPrompt(PromptParams {
+                        text: "cancel while the provider stream fails".to_owned(),
+                        explicit_target: None,
+                    }),
+                    Some(session_id),
+                ),
+                &client(),
+            )
+            .await;
+        assert!(matches!(prompted.reply, ServerReply::Success { .. }));
+        grant_pending(&application, session_id).await;
+        wait_for_state(&application, session_id, SessionState::Running).await;
+
+        let cancelled = application
+            .dispatch(
+                command(Command::SessionCancel(EmptyParams {}), Some(session_id)),
+                &client(),
+            )
+            .await;
+        assert!(matches!(cancelled.reply, ServerReply::Success { .. }));
+        wait_for_state(&application, session_id, SessionState::Cancelled).await;
+
+        let history = application.history(session_id).expect("cancel history");
+        assert!(!history.iter().any(|event| event.kind == "outcome_unknown"));
+        assert!(history.windows(2).any(|events| {
+            events[0].kind == "cancel_confirmed" && events[1].kind == "session_cancelled"
+        }));
+        assert_eq!(adapter.cancel_calls.load(Ordering::Relaxed), 1);
+        assert!(!application.active.lock().await.contains_key(&session_id));
     }
 
     #[tokio::test]
@@ -3788,6 +4936,38 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn missing_active_execution_never_confirms_an_attempt_cancellation() {
+        let application = Application::in_memory(
+            StartupConfiguration::safe_builtins().expect("startup"),
+            FakeBehavior {
+                response_delay: Duration::from_mins(1),
+                confirms_cancellation: true,
+                ..FakeBehavior::default()
+            },
+        )
+        .expect("application");
+        let session_id = create(&application).await;
+        start_running(&application, session_id).await;
+        application.active.lock().await.remove(&session_id);
+
+        let cancelled = application
+            .dispatch(
+                command(Command::SessionCancel(EmptyParams {}), Some(session_id)),
+                &client(),
+            )
+            .await;
+        assert!(matches!(cancelled.reply, ServerReply::Success { .. }));
+        wait_for_state(&application, session_id, SessionState::OutcomeUnknown).await;
+
+        let history = application.history(session_id).expect("cancel history");
+        assert!(!history.iter().any(|event| event.kind == "cancel_confirmed"));
+        assert_eq!(
+            history.last().map(|event| event.kind.as_str()),
+            Some("outcome_unknown")
+        );
+    }
+
+    #[tokio::test]
     async fn failed_cancel_commit_preserves_active_execution_until_a_durable_outcome() {
         let application = Application::in_memory(
             StartupConfiguration::safe_builtins().expect("startup"),
@@ -4024,7 +5204,7 @@ mod tests {
     }
 
     #[test]
-    fn restart_recovers_unconfirmed_active_cancellation_to_unknown() {
+    fn restart_never_confirms_an_active_cancellation_from_fake_behavior() {
         let startup = StartupConfiguration::safe_builtins().expect("startup");
         let mut storage = SqliteStorage::open_in_memory(MemoryKeyStore::new()).expect("storage");
         let session_id = Uuid::now_v7();
@@ -4071,14 +5251,7 @@ mod tests {
                 ),
             )
             .expect("durable cancel");
-        let application = Application::new(
-            storage,
-            startup,
-            FakeBehavior {
-                confirms_cancellation: false,
-                ..FakeBehavior::default()
-            },
-        );
+        let application = Application::new(storage, startup, FakeBehavior::default());
 
         application.recover().expect("cancel recovery");
 
@@ -4086,6 +5259,7 @@ mod tests {
         let folded = fold_session(&history).expect("recovered fold");
         assert_eq!(folded.state, SessionState::OutcomeUnknown);
         assert_eq!(folded.uncertain_attempt_id, Some(attempt_id));
+        assert!(!history.iter().any(|event| event.kind == "cancel_confirmed"));
     }
 
     #[allow(clippy::too_many_lines)]
