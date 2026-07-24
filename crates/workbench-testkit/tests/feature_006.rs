@@ -17,7 +17,7 @@ use workbench_config::{
 };
 use workbench_core::{
     AttemptId, FailureCategory, SessionId,
-    ports::{CancellationStatus, ProviderAdapter, ProviderOutput, ProviderPrompt},
+    ports::{CancellationStatus, ProviderAdapter, ProviderPrompt},
     value::{NonEmptyText, ProviderId},
 };
 use workbench_daemon::{
@@ -66,117 +66,117 @@ struct ScenarioBinding {
 const SCENARIO_BINDINGS: [ScenarioBinding; 23] = [
     binding(
         "Execute through the offline fake",
-        0,
+        0x4997_d3a8_d306_f347,
         "provider_runtime_and_daemon_execute_the_offline_flow",
     ),
     binding(
         "Enforce the pinned launch profile",
-        0,
+        0xc85e_ab0f_c529_1e58,
         "provider_runtime_and_daemon_execute_the_offline_flow",
     ),
     binding(
         "Reject an ineligible authentication mode [auth_state=not logged in]",
-        0,
+        0xee4a_e3db_0740_a7dc,
         "authentication_and_initialization_fail_closed",
     ),
     binding(
         "Reject an ineligible authentication mode [auth_state=API key]",
-        0,
+        0xafe8_57da_46ff_7285,
         "authentication_and_initialization_fail_closed",
     ),
     binding(
         "Reject an ineligible authentication mode [auth_state=unknown auth mode]",
-        0,
+        0xed2e_a758_9a60_3e0d,
         "authentication_and_initialization_fail_closed",
     ),
     binding(
         "Reject executable replacement",
-        0,
+        0x6438_f2a4_3dae_07cd,
         "lock_and_codec_boundaries_are_enforced",
     ),
     binding(
         "Enforce frame boundaries [size=exactly 8 MiB, outcome=accepted]",
-        0,
+        0x288c_4d8e_8479_3529,
         "lock_and_codec_boundaries_are_enforced",
     ),
     binding(
         "Enforce frame boundaries [size=one byte over 8 MiB, outcome=rejected]",
-        0,
+        0xff07_5c2b_4a62_9b76,
         "lock_and_codec_boundaries_are_enforced",
     ),
     binding(
         "Reject malformed stream input [malformed_input=duplicate keys]",
-        0,
+        0xe5e1_f92a_1ac1_c632,
         "native_tool_malformed_stream_and_crash_fail_closed",
     ),
     binding(
         "Reject malformed stream input [malformed_input=invalid UTF-8]",
-        0,
+        0x2ec7_3f40_b419_48bc,
         "native_tool_malformed_stream_and_crash_fail_closed",
     ),
     binding(
         "Reject malformed stream input [malformed_input=truncated JSON]",
-        0,
+        0xc6c8_c6c6_c459_b603,
         "native_tool_malformed_stream_and_crash_fail_closed",
     ),
     binding(
         "Reject malformed stream input [malformed_input=an empty frame]",
-        0,
+        0xd6a8_3685_96f4_715a,
         "native_tool_malformed_stream_and_crash_fail_closed",
     ),
     binding(
         "Reject malformed stream input [malformed_input=an invalid event]",
-        0,
+        0x8f35_9192_7313_b3e3,
         "native_tool_malformed_stream_and_crash_fail_closed",
     ),
     binding(
         "Contain sandbox and elevated tools",
-        0,
+        0x9725_6864_fdea_4a4c,
         "provider_runtime_and_daemon_execute_the_offline_flow",
     ),
     binding(
         "Normalize partial and final output",
-        0,
+        0xb892_6f91_2fd0_39bc,
         "provider_runtime_and_daemon_execute_the_offline_flow",
     ),
     binding(
         "Fail before external dispatch",
-        0,
+        0xf592_d34a_15c2_9e56,
         "authentication_and_initialization_fail_closed",
     ),
     binding(
         "Preserve uncertainty after an active crash",
-        0,
+        0x086b_7aff_4686_2213,
         "native_tool_malformed_stream_and_crash_fail_closed",
     ),
     binding(
         "Confirm cancellation from a terminal abort event",
-        0,
+        0x7800_0472_4d2e_976b,
         "cancellation_requires_abort_terminal_event",
     ),
     binding(
         "Leave cancellation unconfirmed without a terminal abort",
-        0,
+        0xa972_876e_17ca_a368,
         "cancellation_requires_abort_terminal_event",
     ),
     binding(
         "Keep secrets out of durable surfaces",
-        0,
+        0x61d0_2671_0dc5_531f,
         "provider_runtime_and_daemon_execute_the_offline_flow",
     ),
     binding(
         "Isolate workspace shutdown",
-        0,
+        0x23d0_dc32_c4b4_08ba,
         "workspace_adapters_are_independently_reaped",
     ),
     binding(
         "Default suite consumes zero quota",
-        0,
+        0x7c3e_ded8_4f4d_e9f7,
         "default_suite_uses_only_the_committed_fake",
     ),
     binding(
         "Never open operator credential files",
-        0,
+        0xf955_a78a_0f98_ff57,
         "credential_files_are_never_opened",
     ),
 ];
@@ -212,14 +212,7 @@ fn repository_owned_gherkin_has_twenty_three_fingerprinted_cases() {
         );
         let fp = fingerprint(&case.steps);
         let binding = bindings[case.name.as_str()];
-        if binding.fingerprint != 0 {
-            assert_eq!(
-                fp, binding.fingerprint,
-                "scenario drifted: {}",
-                case.name
-            );
-        }
-        // Stable non-zero fingerprint for every concrete case.
+        assert_eq!(fp, binding.fingerprint, "scenario drifted: {}", case.name);
         assert_ne!(fp, 0, "fingerprint collapsed for {}", case.name);
     }
 }
@@ -541,10 +534,7 @@ async fn cancellation_requires_abort_terminal_event() {
         .prompt_stream(&handle, prompt)
         .await
         .expect("stream");
-    let status = adapter
-        .cancel(&handle, attempt_id)
-        .await
-        .expect("cancel");
+    let status = adapter.cancel(&handle, attempt_id).await.expect("cancel");
     assert_eq!(status, CancellationStatus::Confirmed);
     while stream.next().await.is_some() {}
 
@@ -558,10 +548,7 @@ async fn cancellation_requires_abort_terminal_event() {
         .prompt_stream(&handle, prompt)
         .await
         .expect("stream");
-    let status = adapter
-        .cancel(&handle, attempt_id)
-        .await
-        .expect("cancel");
+    let status = adapter.cancel(&handle, attempt_id).await.expect("cancel");
     assert_eq!(status, CancellationStatus::Unconfirmed);
     while stream.next().await.is_some() {}
     assert!(adapter.shutdown().await.reaped);
@@ -588,10 +575,7 @@ async fn workspace_adapters_are_independently_reaped() {
     assert!(left.shutdown().await.reaped);
     while left_stream.next().await.is_some() {}
     assert!(
-        right
-            .authentication_status()
-            .await
-            .expect("auth")
+        right.authentication_status().await.expect("auth")
             == workbench_core::ports::AuthenticationStatus::Available
     );
     assert!(right.shutdown().await.reaped);

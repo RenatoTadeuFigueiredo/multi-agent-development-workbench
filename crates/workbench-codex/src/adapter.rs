@@ -315,12 +315,11 @@ impl ProviderAdapter for CodexProviderAdapter {
         if take_pending_cancellation(&session, prompt.attempt_id)? {
             return Err(uncertain_failure());
         }
-        let mut process = CodexProcess::spawn_prompt(
+        let process = CodexProcess::spawn_prompt(
             &self.profile,
             &prompt.runtime_model,
             prompt.content.as_str(),
         )
-        .await
         .map_err(|error| setup_failure(&error))?;
         if let Err(failure) = self.require_dispatchable() {
             let report = process.shutdown().await;

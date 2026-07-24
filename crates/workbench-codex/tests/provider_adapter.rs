@@ -1,10 +1,5 @@
 use std::{
-    env,
-    fs::OpenOptions,
-    io::Write,
-    path::Path,
-    process::Command as StdCommand,
-    sync::Arc,
+    env, fs::OpenOptions, io::Write, path::Path, process::Command as StdCommand, sync::Arc,
     time::Duration,
 };
 
@@ -267,8 +262,7 @@ fn prompt(text: &str) -> ProviderPrompt {
 }
 
 fn write_mode(workspace: &TempDir, mode: &str) {
-    std::fs::write(workspace.path().join(".workbench-fake-codex-mode"), mode)
-        .expect("mode file");
+    std::fs::write(workspace.path().join(".workbench-fake-codex-mode"), mode).expect("mode file");
 }
 
 fn observation(workspace: &TempDir) -> String {
@@ -280,8 +274,7 @@ fn fake_stream(args: &[String]) {
     observe_launch(args);
     let mode = std::fs::read_to_string(".workbench-fake-codex-mode")
         .ok()
-        .map(|value| value.trim().to_owned())
-        .unwrap_or_else(|| "happy".to_owned());
+        .map_or_else(|| "happy".to_owned(), |value| value.trim().to_owned());
     let stdout = std::io::stdout();
     let mut stdout = stdout.lock();
     match mode.as_str() {
@@ -336,12 +329,7 @@ fn observe_launch(args: &[String]) {
         }
     }
     for name in ["OPENAI_API_KEY", "CODEX_API_KEY"] {
-        writeln!(
-            file,
-            "{name}_present={}",
-            env::var_os(name).is_some()
-        )
-        .expect("observe");
+        writeln!(file, "{name}_present={}", env::var_os(name).is_some()).expect("observe");
     }
 }
 

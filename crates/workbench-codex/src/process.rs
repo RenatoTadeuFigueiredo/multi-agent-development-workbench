@@ -70,7 +70,7 @@ pub(crate) struct CodexProcess {
 }
 
 impl CodexProcess {
-    pub(crate) async fn spawn_prompt(
+    pub(crate) fn spawn_prompt(
         profile: &CodexLaunchProfile,
         model: &str,
         prompt: &str,
@@ -191,7 +191,7 @@ fn child_process_group(child: &Child) -> Option<Pid> {
         .and_then(|raw_pid| Pid::from_raw(raw_pid.cast_signed()))
 }
 
-/// Prompt-free ChatGPT subscription authentication and version identity check.
+/// Prompt-free `ChatGPT` subscription authentication and version identity check.
 pub(crate) async fn preflight_subscription(
     profile: &CodexLaunchProfile,
     expected_version: &str,
@@ -240,10 +240,7 @@ async fn probe_subscription_auth(profile: &CodexLaunchProfile) -> Result<(), Cod
     validate_subscription_auth(&bytes)
 }
 
-async fn run_bounded_probe(
-    mut command: Command,
-    timeout: Duration,
-) -> Result<Vec<u8>, CodexError> {
+async fn run_bounded_probe(mut command: Command, timeout: Duration) -> Result<Vec<u8>, CodexError> {
     let mut child = command.spawn().map_err(|_| spawn_failed())?;
     let process_group = child_process_group(&child);
     let Some(stdout) = child.stdout.take() else {
@@ -484,10 +481,7 @@ mod tests {
             normalize_version(b"codex-cli 0.145.0\n").expect("version"),
             "0.145.0"
         );
-        assert_eq!(
-            normalize_version(b"0.145.1\n").expect("version"),
-            "0.145.1"
-        );
+        assert_eq!(normalize_version(b"0.145.1\n").expect("version"), "0.145.1");
         assert!(normalize_version(b"codex-cli 0.144.9\n").is_err());
     }
 

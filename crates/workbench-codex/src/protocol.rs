@@ -22,19 +22,11 @@ const FORBIDDEN_ITEM_TYPES: [&str; 5] = [
 pub(crate) enum Inbound {
     ThreadStarted,
     TurnStarted,
-    Text {
-        text: String,
-    },
-    ToolStarted {
-        name: String,
-    },
+    Text { text: String },
+    ToolStarted { name: String },
     TurnCompleted,
-    TurnFailed {
-        cancelled: bool,
-    },
-    Error {
-        cancelled: bool,
-    },
+    TurnFailed { cancelled: bool },
+    Error { cancelled: bool },
     Ignored,
 }
 
@@ -67,10 +59,7 @@ pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, CodexError> {
     }
 }
 
-fn parse_item(
-    kind: &str,
-    object: &serde_json::Map<String, Value>,
-) -> Result<Inbound, CodexError> {
+fn parse_item(kind: &str, object: &serde_json::Map<String, Value>) -> Result<Inbound, CodexError> {
     let item = object
         .get("item")
         .and_then(Value::as_object)
@@ -134,12 +123,10 @@ fn cancelled_marker(value: Option<&Value>) -> bool {
 }
 
 fn cancelled_string(value: Option<&Value>) -> bool {
-    value
-        .and_then(Value::as_str)
-        .is_some_and(|text| {
-            let lowered = text.to_ascii_lowercase();
-            lowered.contains("cancel") || lowered.contains("abort")
-        })
+    value.and_then(Value::as_str).is_some_and(|text| {
+        let lowered = text.to_ascii_lowercase();
+        lowered.contains("cancel") || lowered.contains("abort")
+    })
 }
 
 fn optional_identifier(value: Option<&Value>) -> Result<(), CodexError> {
@@ -227,9 +214,7 @@ mod tests {
             }
         });
         assert_eq!(
-            parse_inbound(&file_change)
-                .expect_err("file change")
-                .kind(),
+            parse_inbound(&file_change).expect_err("file change").kind(),
             CodexErrorKind::CapabilityUnavailable
         );
     }

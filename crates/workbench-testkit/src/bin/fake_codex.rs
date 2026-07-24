@@ -1,11 +1,4 @@
-use std::{
-    env,
-    fs::OpenOptions,
-    io::Write,
-    path::PathBuf,
-    thread,
-    time::Duration,
-};
+use std::{env, fs::OpenOptions, io::Write, path::PathBuf, thread, time::Duration};
 
 use serde_json::{Value, json};
 
@@ -54,7 +47,10 @@ fn run_exec(args: &[String], mode: &str) {
     let mut stdout = stdout.lock();
     match mode {
         "crash" => std::process::exit(75),
-        "malformed-duplicate" => emit_raw(&mut stdout, r#"{"type":"turn.completed","type":"turn.completed"}"#),
+        "malformed-duplicate" => emit_raw(
+            &mut stdout,
+            r#"{"type":"turn.completed","type":"turn.completed"}"#,
+        ),
         "malformed-utf8" => {
             stdout.write_all(&[0xff, b'\n']).expect("invalid UTF-8");
             stdout.flush().expect("flush invalid UTF-8");
@@ -66,7 +62,10 @@ fn run_exec(args: &[String], mode: &str) {
             stdout.flush().expect("flush truncated frame");
         }
         "malformed-empty" => emit_raw(&mut stdout, ""),
-        "malformed-envelope" => emit(&mut stdout, &json!({"type": "future_authority", "grant": true})),
+        "malformed-envelope" => emit(
+            &mut stdout,
+            &json!({"type": "future_authority", "grant": true}),
+        ),
         "denied-tool" => {
             emit(
                 &mut stdout,

@@ -3011,22 +3011,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "workbench-codex"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures-util",
- "rustix",
- "serde",
- "serde_json",
- "tempfile",
- "thiserror 2.0.17",
- "tokio",
- "uuid",
- "workbench-core",
-]
-
-[[package]]
 name = "workbench-cli"
 version = "0.1.0"
 dependencies = [
@@ -3044,6 +3028,22 @@ dependencies = [
  "workbench-core",
  "workbench-daemon",
  "workbench-protocol",
+]
+
+[[package]]
+name = "workbench-codex"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures-util",
+ "rustix",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "workbench-core",
 ]
 
 [[package]]

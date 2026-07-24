@@ -20,8 +20,8 @@ use workbench_acp::{GrokLaunchProfile, GrokProviderAdapter};
 use workbench_claude::{ClaudeLaunchProfile, ClaudeProviderAdapter};
 use workbench_codex::{CodexLaunchProfile, CodexProviderAdapter};
 use workbench_config::{
-    ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, CODEX_EXEC_JSONL_PROTOCOL, ConfigError,
-    canonicalize_adapter_executable,
+    ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, CODEX_EXEC_JSONL_PROTOCOL,
+    ConfigError, canonicalize_adapter_executable,
     model::{ApprovalMode, Capability, EffectClass, ProviderDriver, ProviderType},
     preflight::{
         Authentication, ProviderCapabilities as ConfigProviderCapabilities, ProviderOperation,
