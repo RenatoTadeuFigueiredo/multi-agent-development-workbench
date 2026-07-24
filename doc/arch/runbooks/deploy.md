@@ -1,10 +1,11 @@
 # Publication Runbook — Workbench
 
 The current workspace produces a local `workbench` binary containing the
-daemon, headless CLI, encrypted storage, versioned Unix protocol, and the
-supervised Grok Build ACP provider adapter. The thin VS Code bridge ships from
-`extensions/workbench-vscode`. The Grok-derived TUI fork, Workbench ACP server,
-Claude/Codex/OpenRouter adapters, and shared MCP runtime remain separate work.
+daemon, headless CLI, encrypted storage, versioned Unix protocol, supervised
+Grok Build ACP provider, and supervised read-only Claude Code provider. The
+thin VS Code bridge ships from `extensions/workbench-vscode`. The Grok-derived
+TUI fork, Workbench ACP server, Codex/OpenRouter adapters, and shared MCP
+runtime remain separate work.
 
 ## Purpose
 
@@ -40,7 +41,7 @@ cargo build --workspace --release --locked
 ```
 
 `make check` must pass formatting, Clippy, contract drift, the offline workspace
-suite, the Feature 001–004 acceptance profiles, SLOs, analysis, verification,
+suite, the Feature 001–005 acceptance profiles, SLOs, analysis, verification,
 and validation.
 `make test-platform` must run in an expendable unlocked credential-store
 context; success is required before claiming support for that operating system.
@@ -84,8 +85,8 @@ databases, key-store records, or prompt bodies to a release.
 3. Merge through the approved pull request.
 4. Create a source or binary tag only when explicitly authorized.
 5. Describe the current boundary accurately; distinguish the implemented Grok
-   ACP adapter and VS Code bridge from deferred terminal, provider, ACP-server,
-   and MCP work.
+   ACP and read-only Claude adapters plus VS Code bridge from deferred terminal,
+   provider, ACP-server, writable-tool, and MCP work.
 
 ## Rollback
 

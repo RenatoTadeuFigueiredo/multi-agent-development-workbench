@@ -121,6 +121,11 @@
             "fake"
           ]
         },
+        "driver": {
+          "enum": [
+            "claude-code"
+          ]
+        },
         "executable": {
           "type": "string",
           "minLength": 1
@@ -149,6 +154,24 @@
             "required": [
               "credential_ref",
               "privacy"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "subscription-cli"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "driver",
+              "executable"
             ]
           }
         }

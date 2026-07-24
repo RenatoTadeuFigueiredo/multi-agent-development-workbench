@@ -24,6 +24,7 @@ tracing-subscriber.workspace = true
 uuid.workspace = true
 workbench-config = { path = "../workbench-config" }
 workbench-core = { path = "../workbench-core" }
+workbench-claude = { path = "../workbench-claude" }
 workbench-daemon = { path = "../workbench-daemon" }
 workbench-protocol = { path = "../workbench-protocol" }
 workbench-storage = { path = "../workbench-storage" }

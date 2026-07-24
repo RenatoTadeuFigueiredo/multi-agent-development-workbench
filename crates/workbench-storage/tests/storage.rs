@@ -68,6 +68,7 @@ fn export_metadata_fixture() -> (serde_json::Value, serde_json::Value, String, S
         "api-fixture".to_owned(),
         Provider {
             kind: ProviderType::Api,
+            driver: None,
             executable: None,
             credential_ref: Some("platform:export-test-credential".to_owned()),
             privacy: Some(Privacy {

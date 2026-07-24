@@ -7,9 +7,9 @@ use std::{
 use tempfile::TempDir;
 use workbench_config::{
     AdapterInput, ConfigError, ConfigLayer, ConfigurationSnapshot, WorkbenchConfiguration,
-    lock::{ACP_PROTOCOL, WorkbenchLock},
+    lock::{ACP_PROTOCOL, CLAUDE_CODE_STREAM_PROTOCOL, WorkbenchLock},
     merge::resolve_with_builtins,
-    model::{Capability, Model, Provider, ProviderType, Role},
+    model::{Capability, Model, Provider, ProviderDriver, ProviderType, Role},
     preflight::{Authentication, ProviderCapabilities, resolve_role},
     validate::validate,
 };
@@ -129,6 +129,7 @@ fn snapshot_redacts_references_and_is_deterministic() {
         "service".to_owned(),
         Provider {
             kind: ProviderType::Api,
+            driver: None,
             executable: Some("/private/provider".to_owned()),
             credential_ref: Some("platform:service".to_owned()),
             privacy: Some(workbench_config::model::Privacy {
@@ -180,6 +181,7 @@ fn acp_providers_require_an_explicit_executable() {
         "grok".to_owned(),
         Provider {
             kind: ProviderType::Acp,
+            driver: None,
             executable: None,
             credential_ref: None,
             privacy: None,
@@ -208,6 +210,7 @@ fn acp_adapter_input_pins_protocol_version_and_executable_digest() {
         "grok".to_owned(),
         Provider {
             kind: ProviderType::Acp,
+            driver: None,
             executable: Some(executable.to_string_lossy().into_owned()),
             credential_ref: None,
             privacy: None,
@@ -234,6 +237,67 @@ fn acp_adapter_input_pins_protocol_version_and_executable_digest() {
     assert!(matches!(
         WorkbenchLock::repository(&configuration, &snapshot, &inputs),
         Err(ConfigError::Lock(message)) if message.contains("changed after identity capture")
+    ));
+}
+
+#[test]
+fn claude_subscription_provider_requires_driver_and_pins_stream_protocol() {
+    let directory =
+        TempDir::new_in(std::env::current_dir().expect("current directory")).expect("temporary");
+    let executable = directory.path().join("fake-claude");
+    fs::write(&executable, b"fake-claude-v1").expect("fake executable");
+    fs::set_permissions(&executable, fs::Permissions::from_mode(0o700))
+        .expect("executable permissions");
+    let executable = executable.canonicalize().expect("canonical executable");
+    let mut configuration = WorkbenchConfiguration::safe_builtins();
+    configuration.providers.insert(
+        "claude".to_owned(),
+        Provider {
+            kind: ProviderType::SubscriptionCli,
+            driver: Some(ProviderDriver::ClaudeCode),
+            executable: Some(executable.to_string_lossy().into_owned()),
+            credential_ref: None,
+            privacy: None,
+        },
+    );
+    validate(&configuration).expect("Claude subscription configuration");
+    let snapshot =
+        ConfigurationSnapshot::create(&configuration, vec!["test".to_owned()]).expect("snapshot");
+    let inputs = BTreeMap::from([(
+        "claude".to_owned(),
+        AdapterInput::claude_code(&executable, "2.1.218").expect("adapter input"),
+    )]);
+
+    let lock =
+        WorkbenchLock::repository(&configuration, &snapshot, &inputs).expect("repository lock");
+
+    assert_eq!(
+        lock.adapters["claude"].protocol,
+        CLAUDE_CODE_STREAM_PROTOCOL
+    );
+    assert_eq!(lock.adapters["claude"].version, "2.1.218");
+    lock.verify_configured_executables(&configuration)
+        .expect("configured executable matches lock");
+}
+
+#[test]
+fn subscription_provider_without_driver_or_executable_is_rejected() {
+    let mut configuration = WorkbenchConfiguration::safe_builtins();
+    configuration.providers.insert(
+        "claude".to_owned(),
+        Provider {
+            kind: ProviderType::SubscriptionCli,
+            driver: None,
+            executable: None,
+            credential_ref: None,
+            privacy: None,
+        },
+    );
+
+    let error = validate(&configuration).expect_err("driver is required");
+    assert!(matches!(
+        error,
+        ConfigError::Invalid { path, .. } if path == "providers.claude.driver"
     ));
 }
 
@@ -272,6 +336,7 @@ fn preflight_chooses_the_first_compatible_fallback() {
         "fallback".to_owned(),
         Provider {
             kind: ProviderType::Fake,
+            driver: None,
             executable: None,
             credential_ref: None,
             privacy: None,

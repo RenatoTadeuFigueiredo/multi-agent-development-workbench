@@ -11,7 +11,10 @@ pub mod snapshot;
 pub mod source;
 pub mod validate;
 
-pub use lock::{ACP_PROTOCOL, AdapterInput, WorkbenchLock, canonicalize_adapter_executable};
+pub use lock::{
+    ACP_PROTOCOL, AdapterInput, CLAUDE_CODE_STREAM_PROTOCOL, WorkbenchLock,
+    canonicalize_adapter_executable,
+};
 pub use merge::{ConfigLayer, ResolvedConfiguration};
 pub use model::WorkbenchConfiguration;
 pub use preflight::{ProviderCapabilities, ResolvedModel};

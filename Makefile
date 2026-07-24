@@ -9,7 +9,7 @@
 .PHONY: supply-chain-policy secret-scan advisory-check-ci \
 	license-source-check-ci sbom supply-chain-ci
 .PHONY: help build fmt lint test contract-test test-platform test-acceptance \
-	test-acp test-slo check spec-gate validate verify analyze spec-status
+	test-acp test-claude test-slo check spec-gate validate verify analyze spec-status
 
 CARGO_OFFLINE := CARGO_NET_OFFLINE=true cargo
 
@@ -41,11 +41,15 @@ test-platform: ## Exercise the real OS key store (requires an unlocked credentia
 test-acp: ## Run the deterministic offline ACP subprocess profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_004 --locked
 
+test-claude: ## Run the deterministic offline Claude subprocess profile
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_005 --locked
+
 test-acceptance: ## Run all committed feature acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_001 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_002 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_003 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_004 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_005 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements
 	$(CARGO_OFFLINE) test -p workbench-testkit --test slo_001 --locked -- \
@@ -95,6 +99,7 @@ spec-gate: ## Run Speckit gates, or the committed corpus fallback when unavailab
 		$(CARGO_OFFLINE) test -p workbench-testkit --test feature_002 --locked; \
 		$(CARGO_OFFLINE) test -p workbench-testkit --test feature_003 --locked; \
 		$(CARGO_OFFLINE) test -p workbench-testkit --test feature_004 --locked; \
+		$(CARGO_OFFLINE) test -p workbench-testkit --test feature_005 --locked; \
 	fi
 
 spec-status: ## Show the active feature and current workflow phase

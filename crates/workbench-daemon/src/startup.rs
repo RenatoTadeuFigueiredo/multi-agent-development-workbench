@@ -12,9 +12,11 @@ use workbench_config::{
     AdapterInput, ConfigError, ConfigLayer, ConfigurationSnapshot, ResolvedConfiguration,
     WorkbenchConfiguration, WorkbenchLock, canonicalize_adapter_executable,
     merge::{resolve, resolve_with_builtins},
-    model::ProviderType,
+    model::{ProviderDriver, ProviderType},
     source::SourcePaths,
 };
+
+use crate::providers::AdapterProbe;
 
 #[derive(Clone, Debug)]
 pub struct StartupConfiguration {
@@ -41,22 +43,49 @@ impl StartupConfiguration {
         repository_root: &Path,
         explicit_configuration: Option<&Path>,
     ) -> Result<BTreeMap<String, PathBuf>, ConfigError> {
+        Self::adapter_probes(repository_root, explicit_configuration).map(|probes| {
+            probes
+                .into_iter()
+                .map(|(name, probe)| (name, probe.executable))
+                .collect()
+        })
+    }
+
+    /// Resolves canonical executable probes with their explicit adapter
+    /// drivers.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error for unsafe sources, missing executable
+    /// identities, or unsupported subscription CLI drivers.
+    pub fn adapter_probes(
+        repository_root: &Path,
+        explicit_configuration: Option<&Path>,
+    ) -> Result<BTreeMap<String, AdapterProbe>, ConfigError> {
         let resolved = resolve_startup_configuration(repository_root, explicit_configuration)?;
-        resolved
-            .configuration
-            .providers
-            .iter()
-            .filter(|(_, provider)| provider.kind == ProviderType::Acp)
-            .map(|(name, provider)| {
-                let executable = provider.executable.as_deref().ok_or_else(|| {
-                    ConfigError::Lock(format!("ACP provider {name} has no executable"))
-                })?;
-                Ok((
-                    name.clone(),
-                    canonicalize_adapter_executable(Path::new(executable))?,
-                ))
-            })
-            .collect()
+        let mut probes = BTreeMap::new();
+        for (name, provider) in &resolved.configuration.providers {
+            let kind = match (provider.kind, provider.driver) {
+                (ProviderType::Acp, None) => crate::providers::AdapterProbeKind::Acp,
+                (ProviderType::SubscriptionCli, Some(ProviderDriver::ClaudeCode)) => {
+                    crate::providers::AdapterProbeKind::ClaudeCode
+                }
+                _ => continue,
+            };
+            let executable = provider
+                .executable
+                .as_deref()
+                .ok_or_else(|| ConfigError::Lock(format!("provider {name} has no executable")))?;
+            let executable = canonicalize_adapter_executable(Path::new(executable))?;
+            let probe = match kind {
+                crate::providers::AdapterProbeKind::Acp => AdapterProbe::acp(executable),
+                crate::providers::AdapterProbeKind::ClaudeCode => {
+                    AdapterProbe::claude_code(executable)
+                }
+            };
+            probes.insert(name.clone(), probe);
+        }
+        Ok(probes)
     }
 
     /// Resolves repository configuration and verifies its committed base lock.
@@ -351,48 +380,59 @@ fn reject_adapter_executable_overrides(
     session: &WorkbenchConfiguration,
 ) -> Result<(), ConfigError> {
     for (name, provider) in &session.providers {
-        if provider.kind == ProviderType::Acp
+        if is_executable_adapter(provider)
             && base
                 .providers
                 .get(name)
-                .is_none_or(|provider| provider.kind != ProviderType::Acp)
+                .is_none_or(|provider| !is_executable_adapter(provider))
         {
             return Err(ConfigError::Lock(format!(
-                "session override introduced ACP provider {name}"
+                "session override introduced executable provider {name}"
             )));
         }
     }
     for (name, provider) in &base.providers {
-        if provider.kind != ProviderType::Acp {
+        if !is_executable_adapter(provider) {
             continue;
         }
         let candidate = session.providers.get(name).ok_or_else(|| {
             ConfigError::Lock(format!(
-                "session override removed pinned ACP provider {name}"
+                "session override removed pinned executable provider {name}"
             ))
         })?;
-        if candidate.kind != ProviderType::Acp {
+        if candidate.kind != provider.kind || candidate.driver != provider.driver {
             return Err(ConfigError::Lock(format!(
-                "session override changed pinned ACP provider {name}"
+                "session override changed pinned executable provider {name}"
             )));
         }
         let base_executable = provider
             .executable
             .as_deref()
-            .ok_or_else(|| ConfigError::Lock(format!("ACP provider {name} has no executable")))?;
+            .ok_or_else(|| ConfigError::Lock(format!("provider {name} has no executable")))?;
         let candidate_executable = candidate
             .executable
             .as_deref()
-            .ok_or_else(|| ConfigError::Lock(format!("ACP provider {name} has no executable")))?;
+            .ok_or_else(|| ConfigError::Lock(format!("provider {name} has no executable")))?;
         if canonicalize_adapter_executable(Path::new(base_executable))?
             != canonicalize_adapter_executable(Path::new(candidate_executable))?
         {
             return Err(ConfigError::Lock(format!(
-                "session override replaced pinned ACP executable for provider {name}"
+                "session override replaced pinned executable for provider {name}"
             )));
         }
     }
     Ok(())
+}
+
+fn is_executable_adapter(provider: &workbench_config::model::Provider) -> bool {
+    matches!(
+        (provider.kind, provider.driver),
+        (ProviderType::Acp, None)
+            | (
+                ProviderType::SubscriptionCli,
+                Some(ProviderDriver::ClaudeCode)
+            )
+    )
 }
 
 fn require_absolute_repository(repository_root: &Path) -> Result<(), ConfigError> {
@@ -535,6 +575,7 @@ mod tests {
             "grok".to_owned(),
             Provider {
                 kind: ProviderType::Acp,
+                driver: None,
                 executable: Some(executable.to_string_lossy().into_owned()),
                 credential_ref: None,
                 privacy: None,

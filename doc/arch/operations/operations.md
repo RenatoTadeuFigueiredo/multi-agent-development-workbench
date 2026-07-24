@@ -105,6 +105,41 @@ handshake-only and remains separate from `make check`. Detailed configuration,
 update, recovery, shutdown, redaction, and smoke instructions are in the
 [Grok ACP provider runbook](../../../docs/operations/grok-acp-provider.md).
 
+## Claude Code Provider
+
+The Claude adapter supervises an explicitly configured official Claude Code
+executable through `claude-code-stream-json/1`. Configuration must set
+`type: subscription-cli`, `driver: claude-code`, and the real absolute
+versioned executable. Symlinks and unsafe writable path components are
+rejected.
+
+`config lock` creates a private executable snapshot, runs bounded `--version`
+and `auth status --json` probes, and pins version and SHA-256. The auth probe
+accepts only an existing Claude subscription login. Workbench never offers
+login, reads provider credentials, or invokes installation or update commands.
+The operator authenticates and updates through the official CLI outside
+Workbench, then explicitly re-locks.
+
+Every prompt receives a fresh child in the canonical workspace. The fixed
+profile enables bidirectional stream JSON and partial messages while disabling
+the updater, provider transcript persistence, Chrome, slash commands, native
+customizations, and inherited MCP configuration. Only `Read`, `Glob`, and
+`Grep` are available. Native writes, shell, web, skills, plugins, subagents,
+and interactive permission prompts are unavailable in this feature.
+
+Raw stdout, stderr, thinking, usage, auth fields, tool arguments/results, and
+provider identifiers never enter logs or durable events. Cancellation requires
+both a correlated successful interrupt response and an aborted terminal
+reason. Crash, malformed output, EOF, or incomplete cancellation after
+dispatch becomes `outcome_unknown` and is never retried automatically.
+
+Default validation uses the committed fake only. The ignored live smoke runs
+auth, initialization, and interrupt-receipt checks without a user message;
+inference requires separate operator authorization. Current `claude -p`,
+Agent SDK, and third-party application use draws from subscription limits
+under provider-controlled rules. See the
+[Claude Code provider runbook](../../../docs/operations/claude-code-provider.md).
+
 ## Legacy Global-State Migration
 
 Releases before workspace-scoped state stored one database directly at
@@ -154,8 +189,10 @@ absolute path owned by the current user. Missing Linux config and state
 variables use the paths in the runtime table; missing or unsafe runtime/temp
 directories are fatal. Workbench accepts no credential, prompt, model, or
 policy value from environment variables. The adapter-owned
-`GROK_DISABLE_AUTOUPDATER=1` child setting is fixed by Workbench and is not a
-user configuration or secret channel.
+`GROK_DISABLE_AUTOUPDATER=1` and `DISABLE_AUTOUPDATER=1` child settings are
+fixed by Workbench and are not user configuration or secret channels. Claude
+API-key, alternate-endpoint, and cloud-provider selector variables are removed
+from the Claude child rather than accepted as configuration.
 
 An explicit configuration supplied with `--configuration` must be an absolute,
 owner-controlled, non-symlink file. It is supported by `config validate`,
