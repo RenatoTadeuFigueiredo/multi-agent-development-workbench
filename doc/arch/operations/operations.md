@@ -140,6 +140,38 @@ Agent SDK, and third-party application use draws from subscription limits
 under provider-controlled rules. See the
 [Claude Code provider runbook](../../../docs/operations/claude-code-provider.md).
 
+## Codex Provider
+
+The Codex adapter supervises an explicitly configured official Codex CLI
+executable through `codex-exec-jsonl/1`. Configuration must set
+`type: subscription-cli`, `driver: codex`, and the real absolute versioned
+executable. Symlinks and unsafe writable path components are rejected.
+
+`config lock` creates a private executable snapshot, runs bounded `--version`
+and `login status` probes, and pins version and SHA-256. The auth probe
+accepts only an existing ChatGPT subscription login. Workbench never offers
+login, reads `CODEX_HOME` credential files, or invokes installation or update
+commands. The operator authenticates and updates through the official CLI
+outside Workbench, then explicitly re-locks.
+
+Every prompt receives a fresh child in the canonical workspace. The fixed
+profile is `codex exec --json --ephemeral --sandbox read-only -C <workspace>
+-m <model>`. Inherited API-key and OSS/local provider selectors are removed.
+Native workspace-write, danger-full-access, approval bypass, MCP registration,
+plugins, and session resume are unavailable in this feature.
+
+Raw stdout, stderr, reasoning, usage, auth fields, command payloads, and
+provider identifiers never enter logs or durable events. Cancellation is
+confirmed only by a documented abort or cancelled terminal event before
+reaping; otherwise the child is reaped unconfirmed. Crash, malformed output,
+EOF, or incomplete cancellation after dispatch becomes `outcome_unknown` and
+is never retried automatically.
+
+Default validation uses the committed fake only. The ignored live smoke runs
+login-status and version checks without a user message; inference requires
+separate operator authorization. Programmatic `codex exec` eligibility and
+charging remain provider-controlled.
+
 ## Legacy Global-State Migration
 
 Releases before workspace-scoped state stored one database directly at

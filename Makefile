@@ -9,7 +9,7 @@
 .PHONY: supply-chain-policy secret-scan advisory-check-ci \
 	license-source-check-ci sbom supply-chain-ci
 .PHONY: help context test-context build fmt lint test contract-test test-platform \
-	test-acceptance test-acp test-claude test-slo check spec-gate validate \
+	test-acceptance test-acp test-claude test-codex test-slo check spec-gate validate \
 	verify analyze spec-status
 
 CARGO_OFFLINE := CARGO_NET_OFFLINE=true cargo
@@ -52,12 +52,16 @@ test-acp: ## Run the deterministic offline ACP subprocess profile
 test-claude: ## Run the deterministic offline Claude subprocess profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_005 --locked
 
+test-codex: ## Run the deterministic offline Codex subprocess profile
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_006 --locked
+
 test-acceptance: ## Run all committed feature acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_001 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_002 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_003 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_004 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_005 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_006 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements
 	$(CARGO_OFFLINE) test -p workbench-testkit --test slo_001 --locked -- \

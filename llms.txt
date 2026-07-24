@@ -16,12 +16,14 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Current State
 
 - Run `make context` before relying on this snapshot.
-- Features 001–005 are delivered; no Speckit feature is active on `main`.
-- The next ready product increment is [issue #12](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/12), the supervised Codex subscription adapter.
-- [Specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements, security, acceptance, and scope
-- [Technical plan](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/plan.md): stream JSON, supervision, configuration, and tests
-- [Decision](doc/arch/adr/0006-add-a-supervised-claude-code-subscription-adapter-that-pins.md): supervised official Claude Code rationale
-- [Feature quickstart](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/quickstart.md): configure, lock, validate, and run
+- Features 001–006 are delivered on the Feature 006 branch (issue #12); after
+  merge to `main`, no Speckit feature remains active until the next increment.
+- The next ready product increment is [issue #13](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13), Central MCP lifecycle and tool permissions.
+- [Specification](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/spec.md): Codex adapter requirements, security, acceptance, and scope
+- [Technical plan](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/plan.md): exec JSONL, supervision, configuration, and tests
+- [Decision](doc/arch/adr/0007-add-a-supervised-codex-subscription-adapter-that-pins-an.md): supervised official Codex subscription rationale
+- [Feature quickstart](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/quickstart.md): configure, lock, validate, and run
+- [Claude specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements, security, acceptance, and scope
 - [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export
 - [Executable scenarios](doc/arch/specs/features/build-the-workbench-orchestration-kernel-foundation-as-a.feature): Gherkin acceptance contract
 - [Local protocol](doc/arch/contracts/workbench-local-protocol.yaml): versioned command, reply, event, and error envelopes
@@ -31,6 +33,7 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Architecture
 
 - [Configuration and routing](docs/architecture/configuration-routing-and-providers.md): roles, aliases, providers, and routing order
+- [Codex operations](docs/operations/codex-provider.md): auth, billing, updates, failures, and quota-free validation
 - [Claude operations](docs/operations/claude-code-provider.md): auth, billing, updates, failures, and quota-free validation
 - [Terminal integration](docs/architecture/grok-build-terminal-integration.md): Grok Build fork and ACP boundary
 - [Headless CLI](doc/arch/domain/cli-surface.md): commands, JSON output, and stable exit codes

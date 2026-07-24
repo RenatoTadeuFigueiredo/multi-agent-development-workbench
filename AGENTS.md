@@ -10,8 +10,9 @@ truth.
 Crates are bounded: `workbench-core` owns domain ports;
 `workbench-config` configuration; `workbench-storage` encrypted SQLite;
 `workbench-protocol` local NDJSON; `workbench-acp` Grok supervision;
-`workbench-claude` Claude supervision; `workbench-daemon` composition and IPC;
-`workbench-cli` the headless client; and `workbench-testkit` acceptance support.
+`workbench-claude` Claude supervision; `workbench-codex` Codex supervision;
+`workbench-daemon` composition and IPC; `workbench-cli` the headless client;
+and `workbench-testkit` acceptance support.
 Specifications live in `doc/arch/`, decisions in `docs/`, and contract tooling
 in `scripts/`. The terminal stays in its fork.
 
@@ -21,7 +22,7 @@ in `scripts/`. The terminal stays in its fork.
   session.
 - `make build` — compile the complete workspace.
 - `make check` — run all deterministic offline gates.
-- `make test-acceptance` — run Features 001–005 acceptance harnesses.
+- `make test-acceptance` — run Features 001–006 acceptance harnesses.
 - `make test-platform` — exercise the real Keychain or Secret Service adapter;
   requires an unlocked credential store.
 - `cargo run -p workbench-cli -- config validate` — validate resolved local
