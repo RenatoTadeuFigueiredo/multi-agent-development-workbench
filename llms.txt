@@ -16,16 +16,20 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 ## Current State
 
 - Run `make context` before relying on this snapshot.
-- Features 001–006 are delivered on the Feature 006 branch (issue #12); after
-  merge to `main`, no Speckit feature remains active until the next increment.
-- The next ready product increment is [issue #13](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13), Central MCP lifecycle and tool permissions.
-- [Specification](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/spec.md): Codex adapter requirements, security, acceptance, and scope
-- [Technical plan](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/plan.md): exec JSONL, supervision, configuration, and tests
-- [Decision](doc/arch/adr/0007-add-a-supervised-codex-subscription-adapter-that-pins-an.md): supervised official Codex subscription rationale
-- [Feature quickstart](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/quickstart.md): configure, lock, validate, and run
-- [Claude specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements, security, acceptance, and scope
+- Features 001–006 are on `main` at `df633fcc` (Codex adapter, issue #12 / PR #19).
+- Feature 007 (central MCP lifecycle and tool permissions, issue #13) is
+  shipping: daemon-owned `workbench-mcp` gateway with pins, allowlists,
+  approvals, offline fakes, and Feature 007 acceptance.
+- Next ready product increment after #13 merge:
+  [issue #14](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14),
+  configurable multi-agent workflow executor.
+- [Specification](doc/arch/sdd/007-central-mcp-lifecycle-and-tool-permissions/spec.md): MCP gateway requirements, security, acceptance, and scope
+- [Technical plan](doc/arch/sdd/007-central-mcp-lifecycle-and-tool-permissions/plan.md): registry, stdio/HTTP, policy, tests
+- [Decision](doc/arch/adr/0008-central-mcp-lifecycle-and-tool-permissions.md): daemon-owned central MCP gateway rationale
+- [Executable scenarios](doc/arch/specs/features/central-mcp-lifecycle-and-tool-permissions.feature): Gherkin acceptance contract
+- [Codex specification](doc/arch/sdd/006-add-a-supervised-codex-subscription-adapter-that-pins-an/spec.md): Codex adapter requirements
+- [Claude specification](doc/arch/sdd/005-add-a-supervised-claude-code-subscription-adapter-that-pins/spec.md): Claude adapter requirements
 - [Encrypted storage decision](doc/arch/adr/0002-encrypted-local-session-storage.md): key lifecycle, deletion, and export
-- [Executable scenarios](doc/arch/specs/features/build-the-workbench-orchestration-kernel-foundation-as-a.feature): Gherkin acceptance contract
 - [Local protocol](doc/arch/contracts/workbench-local-protocol.yaml): versioned command, reply, event, and error envelopes
 - [Protocol semantics](doc/arch/domain/local-protocol-semantics.md): preconditions, idempotency, retries, and replay
 - [Session lifecycle](doc/arch/statecharts/session-lifecycle.md): legal controls, uncertainty, and deletion transitions

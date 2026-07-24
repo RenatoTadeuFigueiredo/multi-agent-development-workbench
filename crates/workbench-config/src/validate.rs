@@ -2,7 +2,9 @@ use std::collections::BTreeSet;
 
 use thiserror::Error;
 
-use crate::model::{EffectClass, ProviderDriver, ProviderType, ToolKind, WorkbenchConfiguration};
+use crate::model::{
+    EffectClass, McpTransport, ProviderDriver, ProviderType, ToolKind, WorkbenchConfiguration,
+};
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum ConfigError {
@@ -114,6 +116,63 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
         validate_digest(&server.sha256, &format!("mcp_servers.{name}.sha256"))?;
         if server.version.is_empty() {
             return invalid(&format!("mcp_servers.{name}.version"), "must not be empty");
+        }
+        match server.transport {
+            McpTransport::Stdio => {
+                if server.executable.as_deref().is_none_or(str::is_empty) {
+                    return invalid(
+                        &format!("mcp_servers.{name}.executable"),
+                        "stdio MCP servers require an absolute executable path",
+                    );
+                }
+                if server.url.is_some() {
+                    return invalid(
+                        &format!("mcp_servers.{name}.url"),
+                        "stdio MCP servers cannot declare a URL",
+                    );
+                }
+                if !server.headers.is_empty() {
+                    return invalid(
+                        &format!("mcp_servers.{name}.headers"),
+                        "stdio MCP servers cannot declare HTTP headers",
+                    );
+                }
+                for (key, handle) in &server.env {
+                    validate_secret_handle(
+                        handle,
+                        &format!("mcp_servers.{name}.env.{key}"),
+                    )?;
+                }
+            }
+            McpTransport::Http => {
+                if server.url.as_deref().is_none_or(str::is_empty) {
+                    return invalid(
+                        &format!("mcp_servers.{name}.url"),
+                        "HTTP MCP servers require an absolute URL",
+                    );
+                }
+                if server.executable.is_some() || !server.args.is_empty() || !server.env.is_empty()
+                {
+                    return invalid(
+                        &format!("mcp_servers.{name}"),
+                        "HTTP MCP servers cannot declare stdio launch fields",
+                    );
+                }
+                if let Some(limit) = server.max_response_bytes
+                    && !(1..=8_388_608).contains(&limit)
+                {
+                    return invalid(
+                        &format!("mcp_servers.{name}.max_response_bytes"),
+                        "must be between 1 and 8388608",
+                    );
+                }
+                for (key, handle) in &server.headers {
+                    validate_secret_handle(
+                        handle,
+                        &format!("mcp_servers.{name}.headers.{key}"),
+                    )?;
+                }
+            }
         }
     }
 
@@ -293,6 +352,18 @@ pub fn validate(config: &WorkbenchConfiguration) -> Result<(), ConfigError> {
                     "must be at least 1",
                 );
             }
+            validate_unique(
+                &step.tools,
+                &format!("workflows.{name}.steps.{}.tools", step.id),
+            )?;
+            for tool in &step.tools {
+                if !config.tools.contains_key(tool) {
+                    return invalid(
+                        &format!("workflows.{name}.steps.{}.tools", step.id),
+                        "references an unknown tool",
+                    );
+                }
+            }
         }
     }
     Ok(())
@@ -326,6 +397,13 @@ pub fn validate_digest(value: &str, path: &str) -> Result<(), ConfigError> {
 }
 
 fn validate_credential_reference(reference: &str, provider: &str) -> Result<(), ConfigError> {
+    validate_secret_handle(
+        reference,
+        &format!("providers.{provider}.credential_ref"),
+    )
+}
+
+fn validate_secret_handle(reference: &str, path: &str) -> Result<(), ConfigError> {
     let accepted_prefix = ["platform:", "keychain:", "secret-service:"]
         .iter()
         .any(|prefix| reference.starts_with(prefix));
@@ -338,10 +416,7 @@ fn validate_credential_reference(reference: &str, provider: &str) -> Result<(), 
     {
         Ok(())
     } else {
-        invalid(
-            &format!("providers.{provider}.credential_ref"),
-            "must be an opaque platform credential reference",
-        )
+        invalid(path, "must be an opaque platform credential reference")
     }
 }
 

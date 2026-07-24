@@ -29,6 +29,7 @@ workbench-claude = { path = "../workbench-claude" }
 workbench-codex = { path = "../workbench-codex" }
 workbench-config = { path = "../workbench-config" }
 workbench-core = { path = "../workbench-core" }
+workbench-mcp = { path = "../workbench-mcp" }
 workbench-protocol = { path = "../workbench-protocol" }
 workbench-storage = { path = "../workbench-storage" }
 

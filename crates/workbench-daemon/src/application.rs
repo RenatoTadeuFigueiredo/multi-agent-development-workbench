@@ -54,6 +54,7 @@ use workbench_protocol::{
         SessionSummary, StatusResult,
     },
 };
+use workbench_mcp::McpGateway;
 use workbench_storage::{
     CommandEventOutcome, CommandEventsOutcome, CommandOutcome, CreateSession, DeletionSummary,
     EventInput, ExportCommand, KeyStore, MemoryKeyStore, SqliteStorage, StorageError,
@@ -225,6 +226,8 @@ pub struct Application {
     telemetry: Arc<dyn Telemetry>,
     providers: Arc<dyn ProviderRegistry>,
     provider_catalog: BTreeMap<String, ConfigProviderCapabilities>,
+    /// Daemon-owned MCP gateway. Shared tools are only available through it.
+    mcp: Mutex<Option<Arc<McpGateway>>>,
     fake: FakeBehavior,
     #[cfg(test)]
     fail_next_command_commit: AtomicBool,
@@ -326,6 +329,7 @@ impl Application {
             telemetry,
             providers,
             provider_catalog,
+            mcp: Mutex::new(None),
             fake,
             #[cfg(test)]
             fail_next_command_commit: AtomicBool::new(false),
@@ -334,6 +338,20 @@ impl Application {
             #[cfg(test)]
             history_replays: AtomicUsize::new(0),
         })
+    }
+
+    /// Attaches the daemon-owned MCP gateway after configuration and lock load.
+    ///
+    /// Shared tools are available only through this gateway; Features 004–006
+    /// provider adapters keep provider-local MCP registration disabled.
+    pub fn attach_mcp_gateway(&self, gateway: Arc<McpGateway>) {
+        *self.mcp.lock().expect("mcp mutex") = Some(gateway);
+    }
+
+    /// Returns the attached MCP gateway when present.
+    #[must_use]
+    pub fn mcp_gateway(&self) -> Option<Arc<McpGateway>> {
+        self.mcp.lock().expect("mcp mutex").clone()
     }
 
     /// Creates a persistent-semantics application over an encrypted in-memory store.
@@ -2379,6 +2397,13 @@ impl Application {
     pub async fn prepare_shutdown(&self) -> Result<(), StorageError> {
         let _lifecycle_guard = self.lifecycle_gate.write().await;
         self.shutting_down.store(true, Ordering::Release);
+        if let Some(gateway) = self.mcp_gateway() {
+            // Reject new MCP work and reap supervised stdio children. A child
+            // that cannot be reaped is a shutdown failure, not tool success.
+            if gateway.shutdown().await.is_err() {
+                warn!("MCP gateway failed to reap one or more supervised children");
+            }
+        }
         let active = {
             let mut active = self.active.lock().await;
             std::mem::take(&mut *active)

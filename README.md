@@ -27,11 +27,11 @@
 </p>
 
 > [!IMPORTANT]
-> Features 001–005 provide the Rust orchestration kernel, encrypted
+> Features 001–006 provide the Rust orchestration kernel, encrypted
 > workspace-scoped sessions, headless CLI, thin VS Code bridge, session
-> discovery, Grok Build over ACP v1, and a supervised read-only Claude Code
-> subscription adapter. Codex, OpenRouter, shared MCP, the Workbench ACP
-> server, and the Grok-derived TUI remain future increments.
+> discovery, supervised Grok/Claude/Codex adapters, and Feature 007 ships the
+> central MCP lifecycle gateway. OpenRouter, the workflow executor, the
+> Workbench ACP server, and the Grok-derived TUI remain future increments.
 
 ## Table of Contents
 
@@ -43,7 +43,7 @@
 - [Next Steps](#next-steps)
 - [Speckit source of truth](doc/arch/functional/product-overview.md)
 
-🧭 **Current phase:** Feature 005 implemented and validated locally.
+🧭 **Current phase:** Feature 007 central MCP gateway shipping (issue #13).
 
 ## Executive Summary
 
@@ -260,8 +260,11 @@ for kernel prompts, event attachment, controls, and JSON output. The
 [Grok ACP runbook](docs/operations/grok-acp-provider.md) covers the production
 provider boundary. The
 [Claude Code runbook](docs/operations/claude-code-provider.md) covers the
-read-only subscription adapter. The terminal client, shared MCP gateway,
-Workbench ACP server, and additional live providers are planned increments.
+read-only subscription adapter. The
+[local operations guide](doc/arch/operations/operations.md) covers the daemon
+MCP gateway (pins, allowlists, approvals, offline fakes). The terminal client,
+Workbench ACP server, workflow executor, and OpenRouter remain planned
+increments.
 
 The VS Code extension is the only first-party component outside Rust because
 VS Code extensions run in a TypeScript/JavaScript host. It remains a

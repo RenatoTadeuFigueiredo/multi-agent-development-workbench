@@ -156,6 +156,25 @@ pub struct McpServer {
     pub transport: McpTransport,
     pub version: String,
     pub sha256: String,
+    /// Absolute user-owned executable path for `stdio` transport.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub executable: Option<String>,
+    /// Optional argv suffix after the executable for `stdio` transport.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub args: Vec<String>,
+    /// Opaque secret handles (`platform:` / `keychain:` / `secret-service:`)
+    /// resolved at call time for `stdio` child environment.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
+    /// Absolute HTTPS or loopback HTTP URL for `http` transport.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// Opaque secret handles for HTTP header values.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
+    /// Optional tighter response ceiling; defaults to 8 MiB when absent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_response_bytes: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -180,6 +199,9 @@ pub struct WorkflowStep {
     pub on_findings: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_iterations: Option<u32>,
+    /// Optional step allowlist that further restricts the role tool grant.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
