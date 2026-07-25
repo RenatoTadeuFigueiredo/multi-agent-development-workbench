@@ -1,5 +1,7 @@
 //! Offline unit coverage for the OpenRouter provider adapter.
 
+#![allow(clippy::manual_let_else)]
+
 use std::{sync::Arc, time::Duration};
 
 use futures_util::StreamExt as _;

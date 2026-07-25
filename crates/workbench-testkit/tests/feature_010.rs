@@ -1,5 +1,7 @@
 //! Feature 010 acceptance: OpenRouter API provider and cost controls.
 
+#![allow(clippy::manual_let_else)]
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -9,7 +11,7 @@ use futures_util::StreamExt as _;
 use workbench_config::{
     ConfigurationSnapshot, WorkbenchConfiguration, WorkbenchLock,
     model::{CostPolicy, DataCollection, Privacy, Provider, ProviderType},
-    validate,
+    validate::validate as validate_config,
 };
 use workbench_core::{
     AttemptId, FailureCategory, SessionId,
@@ -374,7 +376,7 @@ fn configuration_requires_cost_policy() {
             runtime_model: "test/model".to_owned(),
         },
     );
-    let err = validate(&configuration).expect_err("cost required");
+    let err = validate_config(&configuration).expect_err("cost required");
     assert!(
         matches!(err, workbench_config::ConfigError::Invalid { path, .. } if path == "policies.cost")
     );
@@ -383,7 +385,7 @@ fn configuration_requires_cost_policy() {
         max_session_usd_micros: 1_000_000,
         max_attempt_usd_micros: Some(100_000),
     });
-    validate(&configuration).expect("valid with cost");
+    validate_config(&configuration).expect("valid with cost");
     let snapshot =
         ConfigurationSnapshot::create(&configuration, vec!["test".to_owned()]).expect("snapshot");
     WorkbenchLock::repository(&configuration, &snapshot, &BTreeMap::new()).expect("lock");
