@@ -4,9 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use workbench_config::model::{
-    NativeWriteMode, ProviderNativeWritePolicy, WorkbenchConfiguration,
-};
+use workbench_config::model::{NativeWriteMode, ProviderNativeWritePolicy, WorkbenchConfiguration};
 
 const FEATURE: &str = include_str!(
     "../../../doc/arch/specs/features/provider-native-write-tools-under-central-policy.feature"
@@ -127,8 +125,13 @@ fn allowlist_enables_provider_writes() {
 fn deny_path_rejects_write_tools() {
     let disabled = ProviderNativeWritePolicy::default();
     assert!(!disabled.allows("claude"));
-    assert!(CLAUDE_PROTOCOL.contains("CapabilityUnavailable") || CLAUDE_PROTOCOL.contains("capability_violation"));
-    assert!(CODEX_PROTOCOL.contains("capability_violation") || CODEX_PROTOCOL.contains("FORBIDDEN"));
+    assert!(
+        CLAUDE_PROTOCOL.contains("CapabilityUnavailable")
+            || CLAUDE_PROTOCOL.contains("capability_violation")
+    );
+    assert!(
+        CODEX_PROTOCOL.contains("capability_violation") || CODEX_PROTOCOL.contains("FORBIDDEN")
+    );
 }
 
 #[test]
