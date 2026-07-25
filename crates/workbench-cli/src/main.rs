@@ -54,7 +54,7 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
     let command = resolve(&cli, stdin_prompt).map_err(CommandFailure::invalid_input)?;
     match command {
         Err(LocalCommand::Daemon) => run_daemon(&cli, &repository_root).await,
-        Err(LocalCommand::AgentStdio) => run_agent_stdio().await,
+        Err(LocalCommand::AgentStdio) => run_agent_stdio(&repository_root).await,
         Err(LocalCommand::ConfigValidate) => run_config(&cli, &repository_root, false).await,
         Err(LocalCommand::ConfigLock) => run_config(&cli, &repository_root, true).await,
         Ok(command) => {
@@ -68,13 +68,26 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
     }
 }
 
-async fn run_agent_stdio() -> Result<(), CommandFailure> {
+async fn run_agent_stdio(repository_root: &Path) -> Result<(), CommandFailure> {
     use std::io::{BufRead, Write};
     use std::sync::Arc;
-    use workbench_acp_server::{AcpAgentServer, InProcessBackend};
+    use workbench_acp_server::{AcpAgentServer, DaemonSocketBackend};
 
-    let backend = Arc::new(InProcessBackend::offline_fake());
-    let server = AcpAgentServer::new(backend);
+    let paths = RuntimePaths::discover(repository_root)
+        .map_err(|error| CommandFailure::runtime_path(&error))?;
+    let backend = DaemonSocketBackend::connect(&paths.endpoint)
+        .await
+        .map_err(|error| {
+            CommandFailure::new(
+                ExitCode::Internal,
+                error.message().to_owned(),
+                json!({
+                    "code": "daemon_unavailable",
+                    "message": error.message().to_owned(),
+                }),
+            )
+        })?;
+    let server = AcpAgentServer::new(Arc::new(backend));
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     for line in stdin.lock().lines() {
