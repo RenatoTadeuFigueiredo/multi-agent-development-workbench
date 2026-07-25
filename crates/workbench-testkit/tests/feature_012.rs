@@ -161,10 +161,9 @@ async fn attach_initialize_create_list_prompt_cancel() {
         .to_owned();
     assert!(!session_id.is_empty());
 
-    let mut observer =
-        ProtocolTestClient::connect(harness.endpoint(), "feature-012-observer")
-            .await
-            .expect("observer");
+    let mut observer = ProtocolTestClient::connect(harness.endpoint(), "feature-012-observer")
+        .await
+        .expect("observer");
     let listed = observer
         .call(ClientCommand {
             protocol: PROTOCOL_V1.to_owned(),
@@ -177,8 +176,7 @@ async fn attach_initialize_create_list_prompt_cancel() {
         })
         .await
         .expect("session list");
-    let listed: ListSessionsResult =
-        serde_json::from_value(listed).expect("decode list sessions");
+    let listed: ListSessionsResult = serde_json::from_value(listed).expect("decode list sessions");
     assert!(
         listed
             .sessions
@@ -252,9 +250,7 @@ async fn missing_daemon_fails_closed_and_defaults_stay_offline() {
     );
 
     assert!(BRIDGE.contains("DaemonSocketBackend") || BRIDGE.contains("daemon socket unavailable"));
-    assert!(
-        CLI_MAIN.contains("DaemonSocketBackend") || CLI_MAIN.contains("daemon_unavailable")
-    );
+    assert!(CLI_MAIN.contains("DaemonSocketBackend") || CLI_MAIN.contains("daemon_unavailable"));
     assert!(MAKEFILE.contains("feature_012") || MAKEFILE.contains("test-acp-attach"));
     assert!(
         STATUS.contains("#29")

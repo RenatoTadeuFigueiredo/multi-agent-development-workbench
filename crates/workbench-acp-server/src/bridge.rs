@@ -425,9 +425,7 @@ impl DaemonSocketBackend {
                 protocol: PROTOCOL_V1.to_owned(),
                 request_id: Uuid::now_v7(),
                 session_id: Some(session_id),
-                command: Command::SessionAttach(AttachSessionParams {
-                    after_sequence: 0,
-                }),
+                command: Command::SessionAttach(AttachSessionParams { after_sequence: 0 }),
             },
         )
         .await?;
@@ -533,10 +531,7 @@ impl BridgeBackend for DaemonSocketBackend {
         )
         .await?;
         let created: CreateSessionResult = serde_json::from_value(result).map_err(|_| {
-            AcpServerError::new(
-                AcpServerErrorKind::Backend,
-                "create session result invalid",
-            )
+            AcpServerError::new(AcpServerErrorKind::Backend, "create session result invalid")
         })?;
         Ok(created.session_id)
     }
