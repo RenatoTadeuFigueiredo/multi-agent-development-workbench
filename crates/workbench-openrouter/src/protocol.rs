@@ -183,7 +183,7 @@ mod tests {
             "usage": {
                 "prompt_tokens": 10,
                 "completion_tokens": 20,
-                "cost": 0.012345
+                "cost": 0.012_345
             }
         }));
         assert_eq!(usage.prompt_tokens, 10);
