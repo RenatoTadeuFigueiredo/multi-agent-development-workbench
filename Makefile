@@ -10,8 +10,9 @@
 	license-source-check-ci sbom supply-chain-ci
 .PHONY: help context test-context build fmt lint test contract-test test-platform \
 	test-acceptance test-acceptance-bindings test-acp test-acp-attach test-claude \
-	test-codex test-mcp-tls test-openrouter-durable test-provider-writes test-slo \
-	check spec-gate validate verify analyze spec-status
+	test-codex test-mcp-tls test-openrouter-durable test-provider-writes \
+	test-terminal-backend test-slo check spec-gate validate verify analyze \
+	spec-status
 
 CARGO_OFFLINE := CARGO_NET_OFFLINE=true cargo
 
@@ -85,6 +86,10 @@ test-mcp-tls: ## Run the offline non-loopback HTTPS MCP TLS profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_013 --locked
 	$(CARGO_OFFLINE) test -p workbench-mcp --locked
 
+test-terminal-backend: ## Run the offline WorkbenchBackend terminal integration profile
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_016 --locked
+	$(CARGO_OFFLINE) test -p workbench-terminal-backend --locked
+
 test-acceptance-bindings: ## Inventory Gherkin features vs workbench-testkit harnesses
 	./scripts/check-acceptance-bindings.sh
 
@@ -104,6 +109,7 @@ test-acceptance: test-acceptance-bindings ## Run all committed feature acceptanc
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_013 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_014 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_015 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_016 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements
 	$(CARGO_OFFLINE) test -p workbench-testkit --test slo_001 --locked -- \

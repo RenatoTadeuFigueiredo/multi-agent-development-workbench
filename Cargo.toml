@@ -12,6 +12,7 @@ members = [
     "crates/workbench-openrouter",
     "crates/workbench-protocol",
     "crates/workbench-storage",
+    "crates/workbench-terminal-backend",
     "crates/workbench-testkit",
 ]
 resolver = "3"

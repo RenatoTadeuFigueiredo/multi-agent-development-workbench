@@ -3429,7 +3429,16 @@ dependencies = [
  "workbench-openrouter",
  "workbench-protocol",
  "workbench-storage",
+ "workbench-terminal-backend",
  "zeroize",
+]
+
+[[package]]
+name = "workbench-terminal-backend"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

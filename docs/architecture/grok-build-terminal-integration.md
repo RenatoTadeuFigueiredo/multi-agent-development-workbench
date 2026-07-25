@@ -3,8 +3,10 @@
 ## Status
 
 Accepted architecture. Feature 004 implements the daemon-to-official-Grok ACP
-provider boundary. The Grok-derived terminal client and Workbench ACP bridge
-described here remain gated by the project's Speckit workflow.
+provider boundary. Feature 011/012 deliver `workbench agent stdio`. Feature 016
+ships the monorepo `workbench-terminal-backend::WorkbenchBackend` launch
+surface the Grok Build fork selects beside `GrokShellBackend`. Full pager
+fork/rebase remains in the `grok-build` repository.
 
 ## Decision
 
