@@ -278,7 +278,6 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
             .ok()
             .is_some_and(|pending| pending.contains(&prompt.attempt_id));
         if cancelled_before_dispatch {
-
             clear_active(&session, prompt.attempt_id);
             return Err(OpenRouterError::new(
                 OpenRouterErrorKind::Cancelled,
