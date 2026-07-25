@@ -1,4 +1,4 @@
-//! Feature 016 acceptance: Grok terminal WorkbenchBackend MVP.
+//! Feature 016 acceptance: Grok terminal `WorkbenchBackend` MVP.
 
 #![allow(clippy::manual_let_else)]
 
@@ -19,6 +19,7 @@ const ARCH: &str = include_str!("../../../docs/architecture/grok-build-terminal-
 
 struct ScenarioBinding {
     case_name: &'static str,
+    #[allow(dead_code)]
     fingerprint: u64,
     evidence_test: &'static str,
 }
