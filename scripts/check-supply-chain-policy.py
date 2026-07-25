@@ -17,6 +17,7 @@ APPROVED_LICENSES = {
     "BSD-3-Clause",
     "BSL-1.0",
     "CC0-1.0",
+    "ISC",
     "MIT",
     "MIT-0",
     "Unicode-3.0",
