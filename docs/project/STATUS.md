@@ -32,8 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`f33b89f` (issue #17 / PR #26). Features 001–011 are on `main`. Feature 013
-(non-loopback HTTPS MCP TLS) is delivered on this change (issue #30).
+`fa7bdee` (issue #30 / PR #34). Features 001–011 and 013 are on `main`.
+Tooling issue #28 (acceptance-binding inventory) ships on this change.
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -66,9 +66,9 @@ the network HTTP/TLS client.
 
 ## Active Work
 
-- **Branch:** `013-compose-tls-https-client-for-non-loopback-mcp-endpoints-so`
-- **Issue:** [#30](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/30) — Non-loopback HTTPS MCP TLS client
-- **Next ready after merge:** gap-zero sequence #28 → #29 → #31 → #32 → #33 (see Known Gaps)
+- **Branch:** `chore/28-speckit-registry-bindings`
+- **Issue:** [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) — Speckit acceptance-binding inventory
+- **Next ready after merge:** gap-zero sequence #29 → #31 → #32 → #33 (see Known Gaps)
 
 ## Ordered Roadmap
 
@@ -80,6 +80,7 @@ the network HTTP/TLS client.
 | done | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
 | done | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client MVP | Stable workflows |
 | done | [#30](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/30) | Non-loopback HTTPS MCP TLS client | Feature 007 MCP gateway |
+| done | [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) | Speckit acceptance-binding inventory (tooling) | Features 001–011, 013 harnesses |
 
 ## Known Gaps
 
@@ -87,7 +88,6 @@ Tracked open issues (gap-zero backlog):
 
 | Gap | Issue | Size | Speckit? |
 |---|---|---|---|
-| Speckit verify unbound / acceptance binding inventory | [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) | S | No (tooling) |
 | ACP agent stdio attach to running daemon | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | M | Yes |
 | Durable cost ledger + opt-in OpenRouter live HTTPS | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | M–L | Yes |
 | Claude/Codex provider-native write tools under policy | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | L | Yes |
@@ -110,7 +110,9 @@ Detail:
   through the central MCP gateway allowlist (#32).
 - Speckit corpus `verifyHealth` stays 0 because Speckit's executable registry is
   binary-local (ADR-0020) and cannot load external Rust acceptance runners.
-  Repository-owned inventory is a follow-up (#28).
+  Repository-owned inventory is delivered (#28): `make test-acceptance-bindings`
+  maps every committed `.feature` to a `workbench-testkit` harness; authoritative
+  offline gate remains `make test-acceptance`.
 
 ## Maintenance Contract
 
