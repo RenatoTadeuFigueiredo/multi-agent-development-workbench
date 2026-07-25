@@ -3,7 +3,8 @@
 ![Claude, Codex, Grok, and OpenRouter connected to a portable Rust orchestration core](assets/readme-hero.svg)
 
 <p align="center">
-  <img alt="Project status: Claude and Grok provider adapters validated" src="https://img.shields.io/badge/status-Claude%20%2B%20Grok%20adapters-2563EB">
+  <img alt="Project status: monorepo MVP complete (Features 001–016)" src="https://img.shields.io/badge/status-monorepo%20MVP%20complete-16A34A">
+  <img alt="Control plane: Features 001–016 delivered" src="https://img.shields.io/badge/control%20plane-001%E2%80%93016-2563EB">
   <img alt="Core language: Rust" src="https://img.shields.io/badge/core-Rust-DEA584?logo=rust&logoColor=111827">
   <img alt="Primary interface: VS Code" src="https://img.shields.io/badge/interface-VS%20Code-007ACC?logo=visualstudiocode&logoColor=white">
   <img alt="License: Apache 2.0" src="https://img.shields.io/github/license/RenatoTadeuFigueiredo/multi-agent-development-workbench?color=2563EB">
@@ -27,12 +28,17 @@
 </p>
 
 > [!IMPORTANT]
-> Features 001–008 provide the Rust orchestration kernel, encrypted
-> workspace-scoped sessions, headless CLI, thin VS Code bridge, session
-> discovery, supervised Grok/Claude/Codex adapters, central MCP lifecycle
-> gateway, and configurable multi-agent workflow executor. Feature 009 adds
-> real-time VS Code workflow controls (routing, stages, approvals). OpenRouter,
-> the Workbench ACP server, and the Grok-derived TUI remain future increments.
+> Features **001–016** deliver the monorepo control plane: Rust orchestration
+> kernel, encrypted workspace-scoped sessions, headless CLI, thin VS Code
+> bridge with real-time workflow controls, supervised Grok/Claude/Codex
+> adapters, central MCP lifecycle gateway (including non-loopback HTTPS TLS),
+> configurable multi-agent workflows, OpenRouter with cost controls and a
+> durable session spend ledger, `workbench agent stdio` (ACP bridge attached to
+> the running daemon), fail-closed provider-native write tools under central
+> policy, and the `WorkbenchBackend` terminal launch surface. Residual work
+> lives outside this monorepo: the full Grok Build pager fork dual-upstream
+> rebase and PTY suite remain in
+> [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build).
 
 ## Table of Contents
 
@@ -44,24 +50,33 @@
 - [Next Steps](#next-steps)
 - [Speckit source of truth](doc/arch/functional/product-overview.md)
 
-🧭 **Current phase:** Feature 009 real-time VS Code workflow controls (issue #15).
+🧭 **Current phase:** monorepo control plane complete (Features 001–016).
+Active monorepo work is maintenance and operator enablement. Residual product
+work is the Grok-derived TUI pager fork in `grok-build` (dual-upstream rebase
+and published fork pin).
 
 ## Executive Summary
 
-The Multi-Agent Development Workbench is building one place to plan, execute,
-review, and supervise software work performed by different AI coding agents.
-The implemented foundation proves the provider-independent control plane with
-deterministic fakes plus supervised Grok Build ACP and Claude Code stream-JSON
-providers. Later adapters will add Codex and OpenRouter-backed models against
-the same role-oriented contracts.
+The Multi-Agent Development Workbench is one place to plan, execute, review,
+and supervise software work performed by different AI coding agents. The
+provider-independent control plane is **delivered in this monorepo** through
+Features 001–016: deterministic offline fakes plus supervised adapters for
+Grok Build (ACP), Claude Code (stream-JSON), Codex (exec JSONL), and
+OpenRouter (Chat Completions) against the same role-oriented contracts, with
+central MCP, workflow execution, cost ledgers, and ACP agent stdio for editor
+and terminal clients.
 
 The primary interface is **Visual Studio Code**, using its agent sessions,
 extension APIs, Git tooling, and native Markdown preview. The thin TypeScript
 bridge connects to the provider-independent Rust core and can create, list,
-select, attach to, and follow workspace-scoped sessions. A terminal client
-derived from the open-source Grok Build pager will connect to the same daemon
-through a narrow ACP bridge, while a future Workbench ACP server will let other
-editors reuse the core.
+select, attach to, and follow workspace-scoped sessions with real-time
+routing, stage, and approval surfaces. `workbench agent stdio` presents
+daemon sessions as an ACP agent; the monorepo ships `WorkbenchBackend` as the
+launch contract for a Grok-derived pager. The full interactive TUI remains a
+fork patch in
+[grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build). Optional
+ACP compatibility for other editors reuses the same daemon services through
+the Workbench ACP server crate.
 
 The goal is not to create another AI model. It is to create a provider-independent control plane that makes multiple existing agents behave like one accountable engineering team.
 
@@ -117,9 +132,9 @@ VS Code is the primary daily workspace:
 The implemented Workbench bridge uses stable public extension APIs and the
 versioned local protocol for workspace endpoint resolution, session creation
 and selection, attachment, reconnection, controls, and an in-memory Markdown
-event document. The richer deterministic workflow view—provider stages,
-conditional loops, approvals, and cross-provider audit—is a later UI
-increment. Workflow and provider logic remain in Rust.
+event document. Feature 009 surfaces routing plans, workflow stages, and
+approvals in that document and status bar. Workflow and provider logic remain
+in Rust.
 
 Specifications will be stored as normal repository files, for example:
 
@@ -143,30 +158,31 @@ Reviewers can edit the documents directly or add visible review blocks:
 
 ### Terminal Interface
 
-The planned terminal application will reuse the mature Grok Build pager for prompt
-editing, scrollback, Markdown and Mermaid, diffs, approvals, tasks, mouse
-support, and terminal behavior. It will be built from the
-[Workbench Grok Build fork](https://github.com/RenatoTadeuFigueiredo/grok-build)
-and is intended to expose the same sessions, workflows, and policies as VS
-Code:
+The terminal path reuses the mature Grok Build pager for prompt editing,
+scrollback, Markdown and Mermaid, diffs, approvals, tasks, mouse support, and
+terminal behavior. Presentation lives in the
+[Workbench Grok Build fork](https://github.com/RenatoTadeuFigueiredo/grok-build);
+this monorepo ships the ACP launch surface and daemon bridge:
 
 ```bash
-workbench
-workbench run workflows/feature.yaml
-workbench status
-workbench attach <session-id>
-workbench pause <session-id>
-workbench resume <session-id>
-workbench cancel <session-id>
 workbench daemon
-workbench serve-acp
+workbench agent stdio
+workbench status
+workbench session create
+workbench session attach <session-id>
+workbench session pause <session-id>
+workbench session resume <session-id>
+workbench session cancel <session-id>
 ```
 
-The planned terminal binary is a presentation client, not the orchestrator. It launches
-`workbench agent stdio`, which translates ACP into the daemon's versioned local
-protocol. The official `grok` executable remains a separate provider runtime
-for SuperGrok-backed work. Interactive TUI and structured streaming output will
-support local terminals, SSH, scripts, and CI jobs.
+The terminal binary is a presentation client, not the orchestrator. It
+launches `workbench agent stdio` (Features 011–012), which attaches to the
+running workspace daemon and translates ACP into the versioned local protocol.
+`WorkbenchBackend` (Feature 016) plans that launch with absolute paths. The
+official `grok` executable remains a separate provider runtime for
+SuperGrok-backed work. Headless CLI and structured JSON already support
+scripts and CI; the full interactive pager dual-upstream rebase remains in
+`grok-build`.
 
 ## Architecture
 
@@ -200,7 +216,9 @@ flowchart TB
     OA --> OR[OpenRouter API]
 ```
 
-All orchestration and application logic, plus every first-party binary, will be implemented in Rust as a small set of independently testable components. The thin VS Code client is the only planned runtime exception:
+All orchestration and application logic, plus every first-party binary, is
+implemented in Rust as a small set of independently testable components. The
+thin VS Code client is the only first-party runtime exception:
 
 - **Workflow engine:** deterministic stages, transitions, policy-gated retries,
   and review loops.
@@ -231,19 +249,23 @@ The current implementation is a pinned Rust 1.95 Cargo workspace:
 
 ```text
 crates/
-├── workbench-core/          # Domain model, routing, policy, and ports
-├── workbench-config/        # Layers, validation, snapshots, and locks
-├── workbench-storage/       # Encrypted SQLite, key stores, export, retention
-├── workbench-protocol/      # Strict versioned NDJSON commands and events
-├── workbench-daemon/        # Application services and same-user Unix IPC
-├── workbench-cli/           # Daemon lifecycle and headless client commands
-├── workbench-acp/           # Bounded ACP v1 client and process supervision
-├── workbench-claude/        # Claude stream-JSON and per-attempt supervision
-├── workbench-codex/         # Codex exec JSONL and per-attempt supervision
-└── workbench-testkit/       # Deterministic fakes, contracts, acceptance, SLOs
+├── workbench-core/              # Domain model, routing, policy, and ports
+├── workbench-config/            # Layers, validation, snapshots, and locks
+├── workbench-storage/           # Encrypted SQLite, key stores, export, spend
+├── workbench-protocol/          # Strict versioned NDJSON commands and events
+├── workbench-daemon/            # Application services and same-user Unix IPC
+├── workbench-cli/               # Daemon lifecycle and headless client commands
+├── workbench-acp/               # Bounded ACP v1 provider client and supervision
+├── workbench-acp-server/        # ACP agent stdio bridge to the local protocol
+├── workbench-claude/            # Claude stream-JSON and per-attempt supervision
+├── workbench-codex/             # Codex exec JSONL and per-attempt supervision
+├── workbench-openrouter/        # OpenRouter Chat Completions and cost budgets
+├── workbench-mcp/               # Central MCP gateway, pins, TLS, allowlists
+├── workbench-terminal-backend/  # WorkbenchBackend launch contract for the TUI
+└── workbench-testkit/           # Deterministic fakes, contracts, acceptance, SLOs
 ```
 
-Build and exercise the current offline vertical slice:
+Build and exercise the offline vertical slice:
 
 ```bash
 make build
@@ -256,16 +278,15 @@ cargo run -p workbench-cli -- --json session create
 ```
 
 See the
-[feature 001 quickstart](doc/arch/sdd/001-build-the-workbench-orchestration-kernel-foundation-as-a/quickstart.md)
-for kernel prompts, event attachment, controls, and JSON output. The
-[Grok ACP runbook](docs/operations/grok-acp-provider.md) covers the production
-provider boundary. The
-[Claude Code runbook](docs/operations/claude-code-provider.md) covers the
-read-only subscription adapter. The
-[local operations guide](doc/arch/operations/operations.md) covers the daemon
-MCP gateway (pins, allowlists, approvals, offline fakes). The terminal client,
-Workbench ACP server, workflow executor, and OpenRouter remain planned
-increments.
+[operator E2E quickstart](docs/operations/operator-e2e-quickstart.md) for
+lock, daemon, session, workflow, VS Code attach, agent stdio, and cost-policy
+paths (offline vs live). Feature-specific runbooks cover
+[Grok ACP](docs/operations/grok-acp-provider.md),
+[Claude Code](docs/operations/claude-code-provider.md),
+[Codex](docs/operations/codex-provider.md), and
+[OpenRouter](docs/operations/openrouter-provider.md). The
+[local operations guide](doc/arch/operations/operations.md) covers runtime
+layout, MCP gateway, recovery, and backup.
 
 The VS Code extension is the only first-party component outside Rust because
 VS Code extensions run in a TypeScript/JavaScript host. It remains a
@@ -346,8 +367,9 @@ workflows:
 This is a repository-layer example. Safe built-ins supply omitted empty role
 fields; tools and data sources must be declared before a role can reference
 them. The resolved configuration is fully explicit and must satisfy the
-committed schema. Codex and OpenRouter remain planned adapters and must not be
-added as runnable providers until their drivers ship.
+committed schema. Claude, Codex, Grok, and OpenRouter drivers ship in this
+monorepo; only declare a provider when its executable or credential path is
+installed and authenticated for that workstation.
 
 Configuration resolves from built-in safe defaults, user configuration,
 `.workbench/workbench.yaml`, and explicit session overrides. A
@@ -491,92 +513,79 @@ compatibility gates, and rollback policy are documented in
 [`docs/architecture/grok-build-terminal-integration.md`](docs/architecture/grok-build-terminal-integration.md).
 
 Feature 004 implements the required ACP v1 client subset as a small bounded
-JSON-RPC/NDJSON adapter. The
+JSON-RPC/NDJSON adapter. Features 011–012 deliver `workbench agent stdio` via
+`workbench-acp-server`. OpenRouter is integrated through its HTTP API from
+Rust (`workbench-openrouter`) with local cost budgets and a durable session
+spend ledger—never as an agent runtime inside the VS Code extension. The
 [ACP Rust SDK](https://github.com/agentclientprotocol/rust-sdk) remains a
-candidate for future ACP server and proxy surfaces, subject to compatibility
-and supply-chain review. OpenRouter will be integrated through its HTTP API
-directly from Rust rather than placing an agent runtime in the VS Code
-extension.
+candidate for broader ACP server surfaces subject to compatibility and
+supply-chain review.
 
 This repository is licensed under the [Apache License 2.0](LICENSE). Reused or modified third-party components must retain their required copyright, license, and notice files.
 
 ## MVP Scope
 
-The first usable release will include:
+The monorepo MVP (Features 001–016) includes:
 
 1. Claude, Codex, and Grok process adapters using provider-owned authentication.
-2. A generic Rust agent runtime and OpenRouter adapter with capability and cost controls.
-3. Sequential specification, review, implementation, and validation workflows.
+2. OpenRouter Chat Completions adapter with capability and cost controls plus a
+   durable session spend ledger.
+3. Configurable multi-agent workflows (specification, review, implementation,
+   validation loops).
 4. Encrypted persistent sessions with pause, resume, cancel, and
    human-controlled reconciliation after uncertain outcomes.
-5. A thin VS Code extension for prompts, workflow progress, artifacts, approvals, and session control.
-6. A Grok-derived terminal client connected through the Workbench ACP bridge,
-   plus headless JSON output.
+5. A thin VS Code extension for prompts, workflow progress, artifacts,
+   approvals, routing/stage surfaces, and session control.
+6. `workbench agent stdio` ACP bridge attached to the running daemon, headless
+   JSON CLI, and `WorkbenchBackend` launch contract for the Grok-derived TUI.
 7. Markdown artifacts, Mermaid diagrams, and configurable review gates.
-8. Central instruction resolution, MCP lifecycle, tool permissions, and
+8. Central instruction resolution, MCP lifecycle (stdio and non-loopback
+   HTTPS), tool permissions, provider-native writes under policy, and
    approval policies.
 9. Layered configuration, explainable intent routing, model aliases, provider
    capability discovery, and safe provider removal.
-10. Automated adapter, workflow, terminal compatibility, recovery, and
-   end-to-end tests.
+10. Automated adapter, workflow, acceptance-binding inventory, recovery, and
+    offline end-to-end harnesses.
 
-Parallel feature branches, remote workers, a visual workflow designer, team collaboration, analytics, deep integration with the VS Code Agents window, and additional editor-specific extensions are follow-up capabilities.
+Residual outside this monorepo: full Grok pager dual-upstream rebase, PTY
+snapshot suite, and published fork SHA pin (`GROK_BUILD_FORK_COMPATIBILITY_PIN`
+is empty until the fork publishes a pin). Parallel feature branches, remote
+workers, a visual workflow designer, team collaboration, analytics, deeper
+VS Code Agents integration, and additional editor-specific extensions remain
+follow-up product roadmap items.
 
 ## Current Validation
 
-- The nine-crate Rust workspace builds a same-user daemon and headless CLI
-  with encrypted workspace isolation, deterministic fake execution, and a
-  supervised Grok Build ACP v1 provider boundary.
+- The multi-crate Rust workspace builds a same-user daemon and headless CLI
+  with encrypted workspace isolation, deterministic fake execution, supervised
+  provider adapters (Grok ACP, Claude, Codex, OpenRouter), central MCP,
+  workflow execution, and ACP agent stdio.
 - Sensitive session payloads are encrypted in SQLite; root keys use macOS
-  Keychain or Linux Secret Service, and exports use age encryption.
-- Feature 001 retains 23/23 repository-owned Rust acceptance contracts, and
-  Feature 003 adds bounded workspace-local session discovery for the CLI and
-  VS Code.
-- Feature 004 targeted checks pass the ACP codec, supervisor, provider-port,
-  launch, malformed-input, permission, cancellation, crash, and fake-process
-  profiles. Its acceptance target reports 21 offline tests passed and one
-  live-only test ignored by default. The 15 Gherkin headings expand into 23
-  fingerprinted concrete cases whose 11 evidence tests cross the application,
-  adapter, supervisor, transport, and fake-process layers.
-- Feature 005 adds the isolated `workbench-claude` adapter, strict 8 MiB
-  stream-JSON codec, subscription-only auth preflight, fixed read-only launch
-  profile, per-attempt child ownership, correlated interruption, and 27/27
-  fingerprinted quota-free acceptance cases.
-- Feature 006 adds the isolated `workbench-codex` adapter for ChatGPT-backed
-  `codex exec --json`, strict 8 MiB JSONL framing, ChatGPT-only login preflight,
-  fixed read-only ephemeral launch profile, process-group reaping, and 23/23
-  bound quota-free acceptance cases.
-- Speckit 0.18.10 `verify` is advisory for Features 001–011 and 013: its
-  executable registry is binary-local (ADR-0020) and cannot load external Rust
-  step bindings, so Gherkin steps report `unbound`. Authoritative gates are
-  `make test-acceptance-bindings` (feature↔harness inventory) and
-  `make test-acceptance` (`workbench-testkit` feature harnesses).
-- ACP boundary hardening accepts an exact 8 MiB frame with incremental newline
-  scanning, rejects one byte over the limit, and divides cancellation into a
-  4.5-second provider budget plus a 500-millisecond durable-finalization
-  reserve.
-- `make check` and `make supply-chain-ci` pass locally. PR #8 also records all
-  four required jobs green in
-  [GitHub Actions run 30106637866](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30106637866):
-  macOS, Linux with Secret Service, supply chain, and VS Code.
-- Feature 005 merged through
-  [PR #10](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/pull/10);
-  all four required jobs passed again on the resulting `main` commit in
-  [GitHub Actions run 30114671439](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/actions/runs/30114671439).
-- The production adapter launches the configured executable directly as
-  `grok agent --no-leader stdio`, disables its auto-updater, pins its digest,
-  negotiates ACP v1, and keeps Grok-owned authentication outside Workbench.
-- The handshake-only production-path smoke passed on the recorded macOS host
-  with Grok Build 0.2.111; it created no provider session, sent no prompt, and
-  remains separate from the offline gate.
-- The thin VS Code bridge creates, lists, selects, attaches to, and follows
-  sessions only for its resolved workspace endpoint.
-- Source inspection confirmed that the current pager spawns only its in-process
-  GrokShell backend; the Workbench terminal backend remains a separate fork
-  increment.
-- Codex, OpenRouter, and shared MCP production adapters remain future features
-  against the proven provider contract. Claude write tools and centralized
-  permission/MCP bridging also remain out of scope.
+  Keychain or Linux Secret Service; exports use age encryption; Feature 014
+  adds a durable per-session spend ledger for cost policy.
+- Features 001–016 ship offline acceptance harnesses under
+  `workbench-testkit` (`make test-acceptance`). Repository-owned feature↔harness
+  inventory is gated by `make test-acceptance-bindings` (issue #28).
+- Speckit `verifyHealth` stays 0 because Speckit's executable registry is
+  binary-local (ADR-0020) and cannot load external Rust runners; authoritative
+  offline gates remain the repository harnesses above.
+- Default CI is offline and quota-free. Live provider smokes (Grok, Claude,
+  Codex, OpenRouter) and real Keychain/Secret Service coverage are opt-in /
+  ignored (`make test-platform` for credential stores).
+- Production Grok path launches `grok agent --no-leader stdio`, disables
+  auto-update, pins digest, negotiates ACP v1, and keeps credentials outside
+  Workbench. Claude/Codex provider-native writes require
+  `policies.provider_native_writes` allowlist + approval-required mode
+  (Feature 015; default disabled).
+- The thin VS Code bridge creates, lists, selects, attaches, and follows
+  sessions for its resolved workspace endpoint, including workflow routing and
+  approval surfaces (Feature 009).
+- `WorkbenchBackend` plans `workbench agent stdio` with absolute paths
+  (Feature 016). Full pager dual-upstream rebase and PTY suite remain in
+  `grok-build`; `GROK_BUILD_FORK_COMPATIBILITY_PIN` is empty until the fork
+  publishes a pin.
+- Durable delivery evidence and issue/PR mapping live in
+  [`docs/project/STATUS.md`](docs/project/STATUS.md).
 
 ## Success Criteria
 
@@ -605,27 +614,31 @@ The MVP is successful when a user can submit one feature request and:
 | Grok Build terminal integration decision and update policy | Ready | `docs/architecture/grok-build-terminal-integration.md` |
 | Configuration, routing, and provider modularity decision | Ready | `docs/architecture/configuration-routing-and-providers.md` |
 | Speckit scaffold, constitution, and governance baseline | Ready | `doc/arch/` |
-| Orchestration kernel, encrypted sessions, protocol, and CLI | Implemented | Feature 001 |
-| Thin VS Code session bridge | Implemented | Feature 002 |
-| Workspace-local session discovery and isolation | Implemented | Feature 003 |
-| Supervised Grok Build ACP provider | Implemented and validated | Feature 004 |
-| Supervised read-only Claude Code provider | Implemented and validated | Feature 005 |
-| Cargo workspace and deterministic acceptance harnesses | Implemented | Nine Rust crates |
-| VS Code extension | Implemented foundation | TypeScript extension |
-| Fork external-ACP backend and two-snapshot rebase spike | Pending | Later Speckit feature |
-| Codex, OpenRouter, and shared MCP adapters | Pending | Later Speckit features |
+| Orchestration kernel, encrypted sessions, protocol, and CLI | Delivered | Feature 001 |
+| Thin VS Code session bridge and workflow controls | Delivered | Features 002, 003, 009 |
+| Supervised Grok Build ACP provider | Delivered | Feature 004 |
+| Supervised Claude Code provider (+ policy-gated native writes) | Delivered | Features 005, 015 |
+| Supervised Codex provider (+ policy-gated native writes) | Delivered | Features 006, 015 |
+| Central MCP gateway (stdio + non-loopback HTTPS TLS) | Delivered | Features 007, 013 |
+| Configurable multi-agent workflow executor | Delivered | Feature 008 |
+| OpenRouter API provider, cost controls, spend ledger | Delivered | Features 010, 014 |
+| Workbench ACP agent stdio (MVP + daemon attach) | Delivered | Features 011, 012 |
+| WorkbenchBackend terminal launch surface | Delivered | Feature 016 |
+| Cargo workspace and deterministic acceptance harnesses | Delivered | Rust crates + `workbench-testkit` |
+| Operator E2E quickstart | Delivered | `docs/operations/operator-e2e-quickstart.md` |
+| Full Grok pager fork dual-upstream rebase and PTY suite | Residual (out of tree) | [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build) |
 
 The workspace pins Rust 1.95.0 and direct dependencies. The default
 `make check` gate is deterministic and offline; real Keychain/Secret Service
 coverage runs through the explicit `make test-platform` gate on macOS and
-Linux.
+Linux. Monorepo Known Gaps are empty; see
+[`docs/project/STATUS.md`](docs/project/STATUS.md).
 
 ## Specification-First Delivery
 
 This README defines the product vision; `doc/arch/` defines implementation
-requirements. Features 001–005 have completed the Speckit workflow through
-`implement`. Feature 005 records complete local, pull-request, merge, and
-post-merge CI evidence:
+requirements. Features 001–016 completed the Speckit workflow through
+`implement` for the monorepo control plane:
 
 ```text
 specify → clarify → plan → tasks → analyze → implement
@@ -638,15 +651,19 @@ a tracked change and a new or active Speckit feature before product code.
 ## Next Steps
 
 Run `make context` in a fresh session and use
-[`docs/project/STATUS.md`](docs/project/STATUS.md) as the durable handoff. The
-ordered roadmap is:
+[`docs/project/STATUS.md`](docs/project/STATUS.md) as the durable handoff.
 
-1. [Codex subscription adapter](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/12).
-2. [Central MCP lifecycle and tool permissions](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/13).
-3. [Configurable multi-agent workflow executor](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/14).
-4. [Real-time VS Code workflow controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/15).
-5. [OpenRouter provider with cost controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
-6. [Workbench ACP server and terminal client](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17).
+1. **Operate the monorepo control plane** with the
+   [operator E2E quickstart](docs/operations/operator-e2e-quickstart.md)
+   (config lock, daemon, session, workflow, VS Code attach, agent stdio, cost
+   policy; offline vs live).
+2. **Residual product work (out of tree):** complete the Grok Build pager
+   dual-upstream rebase, PTY snapshot suite, and published fork compatibility
+   pin in
+   [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build)
+   (consumes monorepo `WorkbenchBackend` / `workbench agent stdio`).
+3. **Monorepo maintenance:** new roadmap items only—no open gap-zero backlog
+   issues in this repository.
 
 ## References
 
@@ -665,6 +682,8 @@ ordered roadmap is:
 - [Grok Build terminal integration decision](docs/architecture/grok-build-terminal-integration.md)
 - [Configuration, routing, and provider modularity decision](docs/architecture/configuration-routing-and-providers.md)
 - [OpenRouter API](https://openrouter.ai/docs/quickstart)
+- [Operator E2E quickstart](docs/operations/operator-e2e-quickstart.md)
+- [Project status](docs/project/STATUS.md)
 - [Claude Code for VS Code](https://code.claude.com/docs/en/ide-integrations)
 - [Codex authentication](https://learn.chatgpt.com/docs/auth)
 - [Zed External Agents](https://zed.dev/docs/ai/external-agents)
