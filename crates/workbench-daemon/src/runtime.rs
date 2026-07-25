@@ -96,7 +96,8 @@ impl DaemonRuntime {
             providers.catalog(),
         );
         // Central MCP gateway: pin verification only at attach; children spawn
-        // on demand. Offline HTTP client until non-loopback TLS is composed.
+        // on demand. Production uses the network HTTP/TLS client; tests inject
+        // offline fakes via Application helpers.
         let workspace_key = paths
             .state_directory
             .file_name()
@@ -108,7 +109,7 @@ impl DaemonRuntime {
             &mcp_lock,
             paths.state_directory.join("mcp-runtime"),
             workspace_key,
-            true,
+            false,
         ) {
             Ok(gateway) => application.attach_mcp_gateway(std::sync::Arc::new(gateway)),
             Err(error) => {

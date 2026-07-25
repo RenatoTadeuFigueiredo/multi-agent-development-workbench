@@ -1,5 +1,5 @@
 ---
-id: 019f9720-a1b2-7c3d-8e4f-0100openrouter
+id: 019f9720-a1b2-7c3d-8e4f-0100a0be0001
 number: 010
 slug: add-an-openrouter-api-provider-with-cost-controls
 status: implemented
@@ -138,3 +138,11 @@ This feature excludes:
   for the active daemon; session event payloads may carry redacted spend
   summaries when emitted).
 - Grok-derived terminal fork and Workbench ACP server (Feature 011 / #17).
+
+## Observability
+
+Budget denials, missing credentials, and transport failures map to existing
+redacted provider failure categories and session events. Spend micros may be
+recorded in-process for subsequent budget checks. Secrets, raw request bodies,
+and Authorization headers never appear in telemetry labels or structured logs.
+

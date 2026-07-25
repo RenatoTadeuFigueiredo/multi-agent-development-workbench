@@ -38,8 +38,12 @@ keyring = { version = "=4.1.5", default-features = false }
 libc = "=0.2.189"
 proptest = "=1.8.0"
 rand = "=0.9.3"
+rcgen = { version = "=0.13.2", default-features = false, features = ["pem", "ring"] }
 rusqlite = { version = "=0.40.1", features = ["bundled"] }
 rustix = { version = "=1.1.4", features = ["fs", "process"] }
+rustls = { version = "=0.23.35", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "=0.8.4"
+rustls-pki-types = { version = "=1.15.1", features = ["std"] }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.145"
 serde_yaml_ng = "=0.10.0"
@@ -48,6 +52,7 @@ tempfile = "=3.23.0"
 thiserror = "=2.0.17"
 time = { version = "=0.3.47", features = ["formatting", "parsing", "serde"] }
 tokio = { version = "=1.53.1", features = ["fs", "io-util", "macros", "net", "process", "rt-multi-thread", "signal", "sync", "time"] }
+tokio-rustls = { version = "=0.26.4", default-features = false, features = ["ring", "tls12"] }
 tokio-util = { version = "=0.7.16", features = ["codec"] }
 tracing = "=0.1.41"
 tracing-subscriber = { version = "=0.3.20", features = ["env-filter", "fmt", "json"] }

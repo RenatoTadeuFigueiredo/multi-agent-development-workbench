@@ -15,7 +15,10 @@ pub use gateway::{
     McpGateway, SharedMcpGateway, ToolAuditFact, ToolInvokeOutcome, ToolInvokeRequest,
     allows_automatic_retry, permission_label, user_deny_authoritative,
 };
-pub use http::{DEFAULT_MAX_RESPONSE_BYTES, FakeHttpMode, FakeHttpTransport, HttpMcpClient};
+pub use http::{
+    DEFAULT_MAX_RESPONSE_BYTES, FakeHttpMode, FakeHttpTransport, HttpMcpClient,
+    client_config_with_root_der,
+};
 pub use pin::{
     HttpIdentity, PinStatus, canonicalize_mcp_executable, http_endpoint_sha256, require_available,
     verify_registry,

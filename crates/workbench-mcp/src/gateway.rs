@@ -127,7 +127,7 @@ impl McpGateway {
             http: if offline_http {
                 HttpMcpClient::offline()
             } else {
-                HttpMcpClient::with_loopback()
+                HttpMcpClient::with_network()
             },
             audit: Mutex::new(Vec::new()),
             shutting_down: AtomicBool::new(false),

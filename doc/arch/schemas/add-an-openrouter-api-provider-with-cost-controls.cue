@@ -18,7 +18,9 @@ package schemas
 #OpenRouterCredentialPolicy: {
 	credentialRefRequired: true
 	plaintextSecretsInConfig: false
-	acceptedPrefixes: ["platform:", "keychain:", "secret-service:"]
+	acceptedPrefixPlatform: true
+	acceptedPrefixKeychain: true
+	acceptedPrefixSecretService: true
 	missingCredential: "fail-closed-pre-dispatch"
 }
 

@@ -62,8 +62,8 @@ Configured `mcp_servers` entries are pin-checked against the lock `mcps` map
 (version + sha256). Empty MCP maps remain valid. Stdio servers launch with a
 direct argv (no shell), private runtime working directory, piped stdio, and
 workspace isolation. HTTP servers use the pinned endpoint identity; non-loopback
-endpoints require TLS, unpinned redirects are rejected, and encoded responses
-default to an 8 MiB ceiling.
+endpoints require TLS (composed via rustls with platform native roots), unpinned
+redirects are rejected, and encoded responses default to an 8 MiB ceiling.
 
 Tool dispatch intersects built-in, user, repository, session, role, workflow,
 and effect-class policy. Unlisted tools are denied. Repository grants cannot
