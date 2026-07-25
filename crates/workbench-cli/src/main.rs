@@ -54,6 +54,7 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
     let command = resolve(&cli, stdin_prompt).map_err(CommandFailure::invalid_input)?;
     match command {
         Err(LocalCommand::Daemon) => run_daemon(&cli, &repository_root).await,
+        Err(LocalCommand::AgentStdio) => run_agent_stdio().await,
         Err(LocalCommand::ConfigValidate) => run_config(&cli, &repository_root, false).await,
         Err(LocalCommand::ConfigLock) => run_config(&cli, &repository_root, true).await,
         Ok(command) => {
@@ -65,6 +66,57 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
             run_remote(&cli, &repository_root, command).await
         }
     }
+}
+
+async fn run_agent_stdio() -> Result<(), CommandFailure> {
+    use std::io::{BufRead, Write};
+    use std::sync::Arc;
+    use workbench_acp_server::{AcpAgentServer, InProcessBackend};
+
+    let backend = Arc::new(InProcessBackend::offline_fake());
+    let server = AcpAgentServer::new(backend);
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|error| {
+            CommandFailure::new(
+                ExitCode::Internal,
+                format!("failed to read ACP stdin: {error}"),
+                json!({
+                    "code": "io_failure",
+                    "message": format!("ACP stdin read failed: {error}"),
+                }),
+            )
+        })?;
+        let frames = server.handle_line(line.as_bytes()).await.map_err(|error| {
+            CommandFailure::new(
+                ExitCode::InvalidInput,
+                error.message().to_owned(),
+                json!({
+                    "code": "invalid_request",
+                    "message": error.message().to_owned(),
+                }),
+            )
+        })?;
+        for frame in frames {
+            stdout
+                .write_all(&frame)
+                .and_then(|()| stdout.write_all(b"\n"))
+                .and_then(|()| stdout.flush())
+                .map_err(|error| {
+                    CommandFailure::new(
+                        ExitCode::Internal,
+                        format!("failed to write ACP stdout: {error}"),
+                        json!({
+                            "code": "io_failure",
+                            "message": format!("ACP stdout write failed: {error}"),
+                        }),
+                    )
+                })?;
+        }
+    }
+    server.shutdown();
+    Ok(())
 }
 
 async fn run_daemon(cli: &Cli, repository_root: &Path) -> Result<(), CommandFailure> {

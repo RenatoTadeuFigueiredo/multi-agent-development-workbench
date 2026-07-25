@@ -19,6 +19,11 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 pub enum Command {
     Daemon,
+    /// ACP agent surfaces for editor and terminal clients.
+    Agent {
+        #[command(subcommand)]
+        command: AgentCommand,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -29,6 +34,12 @@ pub enum Command {
     },
     Prompt(PromptArgs),
     Status(StatusArgs),
+}
+
+#[derive(Debug, Subcommand)]
+pub enum AgentCommand {
+    /// Speak ACP v1 agent JSON-RPC NDJSON on stdio (bridge to the daemon).
+    Stdio,
 }
 
 #[derive(Debug, Subcommand)]

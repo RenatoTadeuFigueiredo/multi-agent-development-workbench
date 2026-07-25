@@ -9,11 +9,14 @@ use workbench_protocol::{
     },
 };
 
-use crate::args::{ApprovalDecision, Cli, Command, ConfigCommand, Reconciliation, SessionCommand};
+use crate::args::{
+    AgentCommand, ApprovalDecision, Cli, Command, ConfigCommand, Reconciliation, SessionCommand,
+};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum LocalCommand {
     Daemon,
+    AgentStdio,
     ConfigValidate,
     ConfigLock,
 }
@@ -38,6 +41,11 @@ pub fn resolve(
     let request_id = cli.request_id.unwrap_or_else(Uuid::now_v7);
     let (session_id, command) = match &cli.command {
         Command::Daemon => return Ok(Err(LocalCommand::Daemon)),
+        Command::Agent { command } => {
+            return Ok(Err(match command {
+                AgentCommand::Stdio => LocalCommand::AgentStdio,
+            }));
+        }
         Command::Config { command } => {
             return Ok(Err(match command {
                 ConfigCommand::Validate => LocalCommand::ConfigValidate,

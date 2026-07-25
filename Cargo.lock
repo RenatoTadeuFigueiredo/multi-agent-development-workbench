@@ -2995,6 +2995,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "workbench-acp-server"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "uuid",
+ "workbench-daemon",
+ "workbench-protocol",
+ "workbench-storage",
+]
+
+[[package]]
 name = "workbench-claude"
 version = "0.1.0"
 dependencies = [
@@ -3024,6 +3039,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
+ "workbench-acp-server",
  "workbench-config",
  "workbench-core",
  "workbench-daemon",
@@ -3205,6 +3221,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "workbench-acp-server",
  "workbench-claude",
  "workbench-codex",
  "workbench-config",

@@ -1,6 +1,6 @@
 # Project Status
 
-Last reviewed: 2026-07-24
+Last reviewed: 2026-07-25
 
 This file is the durable handoff for a fresh working session. Conversational
 memory is optional context and must never override the repository, Speckit, or
@@ -32,8 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`709ec20a6167e066cfa75b0ba37f6fab2795443d` (issue #15 / PR #23). Features
-001–009 are on `main`.
+`e8acdbd` (issue #16 / PR #25). Features 001–010 are on `main`. Feature 011
+ACP server MVP ships on the active branch for issue #17.
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -46,52 +46,49 @@ The last reviewed `main` checkpoint is merge commit
 | 007 | Central MCP lifecycle, pins, allowlists, approvals | Issue #13 / PR #20 |
 | 008 | Configurable multi-agent workflow executor | Issue #14 / PR #21 + #22 |
 | 009 | Real-time VS Code workflow controls | Issue #15 / PR #23 |
+| 010 | OpenRouter API provider with cost controls | Issue #16 / PR #25 |
+| 011 | Workbench ACP agent stdio bridge MVP (`workbench agent stdio`) | Issue #17 / in progress |
 
-Features 001–009 completed the Speckit lifecycle through implementation and
-are on `main`. Feature 009 keeps the VS Code extension a thin protocol client
-with workflow control summary, routing/workflow/approval rendering, status bar,
-lifecycle controls, approval grant/deny, and offline tests.
+Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
+credential_ref resolution, `policies.cost` fail-closed budgets, daemon API
+provider composition, and ignored live smoke.
+
+Feature 011 MVP exposes ACP v1 agent stdio that bridges to the daemon/fake
+application path without embedding Grok.
 
 ## Active Work
 
-- **Branch:** `main`
-- **Issue:** none active after #15 merge
-- **Speckit feature:** none (run `speckit specify` for the next increment)
-- **Phase at last handoff:** ready for [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16)
+- **Branch:** `017-workbench-acp-server-and-terminal-client`
+- **Issue:** [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17)
+- **Speckit feature:** 011-workbench-acp-server-and-terminal-client
+- **Phase at last handoff:** implement / CI for #17
 
 ## Ordered Roadmap
 
-- **Next ready:** [#16 — OpenRouter provider and cost controls](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16).
-- **Then:** [#17 — Workbench ACP server and terminal client](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17).
+- **Next ready after #17 merge:** none — roadmap issues #16 and #17 complete the
+  planned 001–017 delivery sequence for this product slice.
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
-| 1 | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
-| 2 | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows and terminal fork spike |
-
-Each product increment requires its own branch from `main`, tracked issue,
-active Speckit feature, and completion of the phase returned by `speckit next`.
+| done | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
+| active | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows |
 
 ## Known Gaps
 
-- OpenRouter is not implemented.
-- Feature 007 ships the offline MCP gateway (stdio supervision, loopback/fake
-  HTTP, pins, allowlists, approvals). Non-loopback HTTPS MCP still fails
-  closed until a TLS client is composed; live package registries are opt-in.
-- Feature 008 multi-step auto-advance uses the offline fake path and schedules
-  live adapters without nesting non-Send provider streams into stream tasks.
-- The Workbench ACP server and Grok-derived terminal backend remain pending.
+- **Grok-derived terminal pager fork** remains deferred. Feature 011 ships the
+  ACP agent stdio bridge (`workbench agent stdio`) only; it does not modify the
+  upstream Grok Build pager or add a WorkbenchBackend PTY path.
+- Feature 011 agent stdio currently uses an in-process offline application for
+  the CLI entry (not a long-lived attached daemon socket). Attaching the bridge
+  to an already-running daemon endpoint is a follow-up.
+- OpenRouter live HTTPS client remains opt-in / ignored; default path is offline
+  fake only. Process-local session cost ledger does not survive daemon restart.
+- Feature 007 non-loopback HTTPS MCP still fails closed until a TLS client is
+  composed; live package registries are opt-in.
 - Claude and Codex provider-native write tools remain disabled; shared tools go
   through the central MCP gateway allowlist.
-- The Feature 005 live smoke was skipped because the recorded host did not
-  have an authenticated eligible Claude Code installation.
-- The Feature 006 live smoke is opt-in and ignored by default
-  (`live_codex`, requires authenticated Codex and pinned executable/version).
-- Speckit corpus health is 87/100. Validation is green; the score remains
-  reduced because its executable registry does not load the external Rust
-  acceptance runners.
-- An archived accidental draft feature `099-central-mcp-lifecycle-and-tool-permissions`
-  exists from a partial specify collision; implement only against Feature 007.
+- Speckit corpus health remains reduced because its executable registry does not
+  load the external Rust acceptance runners.
 
 ## Maintenance Contract
 
