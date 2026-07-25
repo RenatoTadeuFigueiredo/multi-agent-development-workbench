@@ -8,10 +8,12 @@ repository.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+futures-util.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 uuid.workspace = true
 workbench-daemon = { path = "../workbench-daemon" }
 workbench-protocol = { path = "../workbench-protocol" }

@@ -9,8 +9,9 @@
 .PHONY: supply-chain-policy secret-scan advisory-check-ci \
 	license-source-check-ci sbom supply-chain-ci
 .PHONY: help context test-context build fmt lint test contract-test test-platform \
-	test-acceptance test-acceptance-bindings test-acp test-claude test-codex \
-	test-mcp-tls test-slo check spec-gate validate verify analyze spec-status
+	test-acceptance test-acceptance-bindings test-acp test-acp-attach test-claude \
+	test-codex test-mcp-tls test-slo check spec-gate validate verify analyze \
+	spec-status
 
 CARGO_OFFLINE := CARGO_NET_OFFLINE=true cargo
 
@@ -71,6 +72,9 @@ test-openrouter: ## Run the deterministic offline OpenRouter profile
 test-acp-server: ## Run the deterministic offline Workbench ACP server profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_011 --locked
 
+test-acp-attach: ## Run the offline ACP agent attach-to-daemon profile
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_012 --locked
+
 test-mcp-tls: ## Run the offline non-loopback HTTPS MCP TLS profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_013 --locked
 	$(CARGO_OFFLINE) test -p workbench-mcp --locked
@@ -90,6 +94,7 @@ test-acceptance: test-acceptance-bindings ## Run all committed feature acceptanc
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_009 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_010 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_011 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_012 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_013 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements

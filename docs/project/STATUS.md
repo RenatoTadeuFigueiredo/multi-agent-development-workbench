@@ -32,8 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`fa7bdee` (issue #30 / PR #34). Features 001–011 and 013 are on `main`.
-Tooling issue #28 (acceptance-binding inventory) ships on this change.
+`fff5f61` (issue #28 / PR #35). Features 001–013 are on `main` after this change
+(Feature 012 attaches ACP agent stdio to a running daemon; issue #29).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -48,6 +48,7 @@ Tooling issue #28 (acceptance-binding inventory) ships on this change.
 | 009 | Real-time VS Code workflow controls | Issue #15 / PR #23 |
 | 010 | OpenRouter API provider with cost controls | Issue #16 / PR #25 |
 | 011 | Workbench ACP agent stdio bridge MVP (`workbench agent stdio`) | Issue #17 / PR #26 |
+| 012 | ACP agent stdio attach to running daemon endpoint | Issue #29 |
 | 013 | Non-loopback HTTPS MCP TLS client (`rustls` + native roots) | Issue #30 |
 
 Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
@@ -58,6 +59,10 @@ Feature 011 MVP exposes ACP v1 agent stdio (`workbench agent stdio` via
 `workbench-acp-server`) that bridges to the daemon/fake application path
 without embedding Grok.
 
+Feature 012 production `workbench agent stdio` attaches to the workspace-local
+daemon Unix socket (`DaemonSocketBackend`). Missing daemons fail closed.
+`InProcessBackend::offline_fake` remains for Feature 011 offline acceptance.
+
 Feature 013 composes `rustls` / `tokio-rustls` / `rustls-native-certs` in
 `workbench-mcp` so pinned non-loopback `https://` MCP endpoints dial over TLS.
 Offline fakes and loopback cleartext HTTP remain; an offline local TLS fixture
@@ -66,9 +71,9 @@ the network HTTP/TLS client.
 
 ## Active Work
 
-- **Branch:** `chore/28-speckit-registry-bindings`
-- **Issue:** [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) — Speckit acceptance-binding inventory
-- **Next ready after merge:** gap-zero sequence #29 → #31 → #32 → #33 (see Known Gaps)
+- **Branch:** `012-attach-acp-agent-stdio-to-running-daemon`
+- **Issue:** [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) — ACP attach to running daemon
+- **Next ready after merge:** gap-zero sequence #31 → #32 → #33 (see Known Gaps)
 
 ## Ordered Roadmap
 
@@ -81,6 +86,7 @@ the network HTTP/TLS client.
 | done | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client MVP | Stable workflows |
 | done | [#30](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/30) | Non-loopback HTTPS MCP TLS client | Feature 007 MCP gateway |
 | done | [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) | Speckit acceptance-binding inventory (tooling) | Features 001–011, 013 harnesses |
+| done | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | ACP agent stdio attach to running daemon | Feature 011 stdio MVP |
 
 ## Known Gaps
 
@@ -88,7 +94,6 @@ Tracked open issues (gap-zero backlog):
 
 | Gap | Issue | Size | Speckit? |
 |---|---|---|---|
-| ACP agent stdio attach to running daemon | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | M | Yes |
 | Durable cost ledger + opt-in OpenRouter live HTTPS | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | M–L | Yes |
 | Claude/Codex provider-native write tools under policy | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | L | Yes |
 | Grok-derived terminal pager WorkbenchBackend | [#33](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/33) | XL | Yes |
@@ -98,9 +103,9 @@ Detail:
 - **Grok-derived terminal pager fork** remains deferred (#33). Feature 011 ships
   the ACP agent stdio bridge (`workbench agent stdio`) only; it does not modify
   the upstream Grok Build pager or add a WorkbenchBackend PTY path.
-- Feature 011 agent stdio currently uses an in-process offline application for
-  the CLI entry (not a long-lived attached daemon socket). Attaching the bridge
-  to an already-running daemon endpoint is #29.
+- Feature 012 attaches production `workbench agent stdio` to the running
+  workspace daemon socket (#29). Offline Feature 011 harnesses keep
+  `InProcessBackend`.
 - OpenRouter live HTTPS client remains opt-in / ignored; default path is offline
   fake only. Process-local session cost ledger does not survive daemon restart
   (#31).

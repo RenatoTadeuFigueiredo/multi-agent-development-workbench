@@ -6,7 +6,7 @@ mod bridge;
 mod error;
 mod frame;
 
-pub use bridge::{AcpAgentServer, BridgeBackend, InProcessBackend};
+pub use bridge::{AcpAgentServer, BridgeBackend, DaemonSocketBackend, InProcessBackend};
 pub use error::{AcpServerError, AcpServerErrorKind};
 pub use frame::{MAX_FRAME_BYTES, decode_line, encode_message};
 
