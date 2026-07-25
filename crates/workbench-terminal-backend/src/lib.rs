@@ -1,4 +1,4 @@
-//! WorkbenchBackend — selectable external ACP backend for the Grok-derived
+//! `WorkbenchBackend` — selectable external ACP backend for the Grok-derived
 //! terminal integration path.
 //!
 //! Architecture ([`docs/architecture/grok-build-terminal-integration.md`](../../../docs/architecture/grok-build-terminal-integration.md)):
@@ -31,7 +31,7 @@ pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "";
 /// Documented CLI subcommand the terminal launches.
 pub const WORKBENCH_AGENT_STDIO_ARGS: &[&str] = &["agent", "stdio"];
 
-/// Errors from constructing or validating a WorkbenchBackend launch.
+/// Errors from constructing or validating a `WorkbenchBackend` launch.
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum WorkbenchBackendError {
     #[error("workbench executable path is empty")]
@@ -88,7 +88,7 @@ impl WorkbenchBackend {
 
     /// Argv for the ACP agent stdio child (excluding the executable).
     #[must_use]
-    pub fn agent_stdio_args(&self) -> Vec<OsString> {
+    pub fn agent_stdio_args() -> Vec<OsString> {
         WORKBENCH_AGENT_STDIO_ARGS
             .iter()
             .map(OsString::from)
@@ -114,7 +114,7 @@ impl WorkbenchBackend {
     ///
     /// Returns when the planned argv would not match the stdio contract.
     pub fn validate_launch_plan(&self) -> Result<(), WorkbenchBackendError> {
-        let args = self.agent_stdio_args();
+        let args = Self::agent_stdio_args();
         if args.len() != 2 {
             return Err(WorkbenchBackendError::InvalidLaunch(
                 "expected exactly two args: agent stdio",
@@ -125,6 +125,8 @@ impl WorkbenchBackend {
                 "args must be agent stdio",
             ));
         }
+        // Keep path fields reachable for callers that probe configuration.
+        let _ = (self.executable(), self.workspace());
         Ok(())
     }
 }
@@ -175,7 +177,7 @@ mod tests {
         .expect("absolute paths");
         backend.validate_launch_plan().expect("plan");
         assert_eq!(
-            backend.agent_stdio_args(),
+            WorkbenchBackend::agent_stdio_args(),
             vec![OsString::from("agent"), OsString::from("stdio")]
         );
         let program = backend.command();
