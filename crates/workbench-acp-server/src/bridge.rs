@@ -67,6 +67,50 @@ impl InProcessBackend {
         let application = Application::new(storage, startup, FakeBehavior::default());
         Self::new(application)
     }
+
+    async fn auto_grant_pending(&self, session_id: Uuid) -> Result<(), AcpServerError> {
+        let history = self
+            .application
+            .session_history(session_id)
+            .map_err(|_| AcpServerError::new(AcpServerErrorKind::Backend, "history unavailable"))?;
+        let approval_id = history.iter().rev().find_map(|event| {
+            (event.kind == "approval_requested")
+                .then_some(())
+                .and_then(|()| {
+                    event
+                        .payload
+                        .get("approval_id")
+                        .and_then(Value::as_str)
+                        .and_then(|value| Uuid::parse_str(value).ok())
+                })
+        });
+        let Some(approval_id) = approval_id else {
+            return Ok(());
+        };
+        let reply = self
+            .application
+            .dispatch(
+                ClientCommand {
+                    protocol: PROTOCOL_V1.to_owned(),
+                    request_id: Uuid::now_v7(),
+                    session_id: Some(session_id),
+                    command: Command::SessionApprovalResolve(ApprovalParams {
+                        approval_id,
+                        decision: ApprovalDecision::Grant,
+                    }),
+                },
+                &self.client,
+            )
+            .await
+            .reply;
+        match reply {
+            ServerReply::Success { .. } => Ok(()),
+            ServerReply::Failure { error, .. } => Err(AcpServerError::new(
+                AcpServerErrorKind::Backend,
+                error.message,
+            )),
+        }
+    }
 }
 
 #[async_trait]
@@ -76,7 +120,7 @@ impl BridgeBackend for InProcessBackend {
             .application
             .dispatch(
                 ClientCommand {
-                    protocol: PROTOCOL_V1,
+                    protocol: PROTOCOL_V1.to_owned(),
                     request_id: Uuid::now_v7(),
                     session_id: None,
                     command: Command::Initialize(InitializeParams {
@@ -117,7 +161,7 @@ impl BridgeBackend for InProcessBackend {
             .application
             .dispatch(
                 ClientCommand {
-                    protocol: PROTOCOL_V1,
+                    protocol: PROTOCOL_V1.to_owned(),
                     request_id: Uuid::now_v7(),
                     session_id: None,
                     command: Command::SessionCreate(CreateSessionParams {
@@ -153,7 +197,7 @@ impl BridgeBackend for InProcessBackend {
             .application
             .dispatch(
                 ClientCommand {
-                    protocol: PROTOCOL_V1,
+                    protocol: PROTOCOL_V1.to_owned(),
                     request_id: Uuid::now_v7(),
                     session_id: Some(session_id),
                     command: Command::SessionPrompt(PromptParams {
@@ -202,53 +246,12 @@ impl BridgeBackend for InProcessBackend {
         }
     }
 
-    async fn auto_grant_pending(&self, session_id: Uuid) -> Result<(), AcpServerError> {
-        let history = self.application.session_history(session_id).map_err(|_| {
-            AcpServerError::new(AcpServerErrorKind::Backend, "history unavailable")
-        })?;
-        let approval_id = history.iter().rev().find_map(|event| {
-            (event.kind == "approval_requested").then_some(()).and_then(|()| {
-                event
-                    .payload
-                    .get("approval_id")
-                    .and_then(Value::as_str)
-                    .and_then(|value| Uuid::parse_str(value).ok())
-            })
-        });
-        let Some(approval_id) = approval_id else {
-            return Ok(());
-        };
-        let reply = self
-            .application
-            .dispatch(
-                ClientCommand {
-                    protocol: PROTOCOL_V1,
-                    request_id: Uuid::now_v7(),
-                    session_id: Some(session_id),
-                    command: Command::SessionApprovalResolve(ApprovalParams {
-                        approval_id,
-                        decision: ApprovalDecision::Grant,
-                    }),
-                },
-                &self.client,
-            )
-            .await
-            .reply;
-        match reply {
-            ServerReply::Success { .. } => Ok(()),
-            ServerReply::Failure { error, .. } => Err(AcpServerError::new(
-                AcpServerErrorKind::Backend,
-                error.message,
-            )),
-        }
-    }
-
     async fn cancel(&self, session_id: Uuid) -> Result<(), AcpServerError> {
         let reply = self
             .application
             .dispatch(
                 ClientCommand {
-                    protocol: PROTOCOL_V1,
+                    protocol: PROTOCOL_V1.to_owned(),
                     request_id: Uuid::now_v7(),
                     session_id: Some(session_id),
                     command: Command::SessionCancel(EmptyParams {}),
@@ -342,15 +345,16 @@ impl AcpAgentServer {
             }
             "session/prompt" => {
                 let params = object.get("params").cloned().unwrap_or(json!({}));
-                let session_key = params
-                    .get("sessionId")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| {
-                        AcpServerError::new(
-                            AcpServerErrorKind::InvalidRequest,
-                            "session/prompt requires sessionId",
-                        )
-                    })?;
+                let session_key =
+                    params
+                        .get("sessionId")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| {
+                            AcpServerError::new(
+                                AcpServerErrorKind::InvalidRequest,
+                                "session/prompt requires sessionId",
+                            )
+                        })?;
                 let session_id = self
                     .sessions
                     .lock()
@@ -394,15 +398,16 @@ impl AcpAgentServer {
             }
             "session/cancel" => {
                 let params = object.get("params").cloned().unwrap_or(json!({}));
-                let session_key = params
-                    .get("sessionId")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| {
-                        AcpServerError::new(
-                            AcpServerErrorKind::InvalidRequest,
-                            "session/cancel requires sessionId",
-                        )
-                    })?;
+                let session_key =
+                    params
+                        .get("sessionId")
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| {
+                            AcpServerError::new(
+                                AcpServerErrorKind::InvalidRequest,
+                                "session/cancel requires sessionId",
+                            )
+                        })?;
                 let session_id = self
                     .sessions
                     .lock()
@@ -440,17 +445,13 @@ impl AcpAgentServer {
 }
 
 fn success(id: Option<Value>, result: Value) -> Value {
-    let mut response = json!({
-        "jsonrpc": "2.0",
-        "result": result,
-    });
+    let mut map = serde_json::Map::new();
+    map.insert("jsonrpc".to_owned(), Value::String("2.0".to_owned()));
+    map.insert("result".to_owned(), result);
     if let Some(id) = id {
-        response
-            .as_object_mut()
-            .expect("object")
-            .insert("id".to_owned(), id);
+        map.insert("id".to_owned(), id);
     }
-    response
+    Value::Object(map)
 }
 
 fn extract_prompt_text(params: &Value) -> Result<String, AcpServerError> {

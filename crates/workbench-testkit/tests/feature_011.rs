@@ -2,7 +2,10 @@
 
 #![allow(clippy::manual_let_else)]
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use serde_json::{Value, json};
 use workbench_acp_server::{
@@ -87,6 +90,23 @@ fn repository_owned_gherkin_has_fingerprinted_cases() {
         assert_ne!(fp, 0);
         eprintln!("FINGERPRINT {} => 0x{fp:016x}", case.name);
     }
+}
+
+#[test]
+fn every_binding_names_executable_repository_evidence() {
+    let _ = initialize_create_prompt_and_cancel_work_offline;
+    let _ = frame_bounds_and_offline_defaults;
+    let evidence = SCENARIO_BINDINGS
+        .iter()
+        .map(|binding| binding.evidence_test)
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        evidence,
+        BTreeSet::from([
+            "initialize_create_prompt_and_cancel_work_offline",
+            "frame_bounds_and_offline_defaults",
+        ])
+    );
 }
 
 #[tokio::test]

@@ -78,43 +78,40 @@ async fn run_agent_stdio() -> Result<(), CommandFailure> {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
     for line in stdin.lock().lines() {
-        let line = line.map_err(|error| CommandFailure {
-            exit: ExitCode::Internal,
-            message: format!("failed to read ACP stdin: {error}"),
-            error: ProtocolError {
-                code: workbench_protocol::ErrorCode::Internal,
-                message: "ACP stdin read failed".to_owned(),
-                retryable: false,
-                correlation_id: Uuid::now_v7(),
-            },
+        let line = line.map_err(|error| {
+            CommandFailure::new(
+                ExitCode::Internal,
+                format!("failed to read ACP stdin: {error}"),
+                json!({
+                    "code": "io_failure",
+                    "message": format!("ACP stdin read failed: {error}"),
+                }),
+            )
         })?;
-        let frames = server
-            .handle_line(line.as_bytes())
-            .await
-            .map_err(|error| CommandFailure {
-                exit: ExitCode::InvalidInput,
-                message: error.message().to_owned(),
-                error: ProtocolError {
-                    code: workbench_protocol::ErrorCode::InvalidRequest,
-                    message: error.message().to_owned(),
-                    retryable: false,
-                    correlation_id: Uuid::now_v7(),
-                },
-            })?;
+        let frames = server.handle_line(line.as_bytes()).await.map_err(|error| {
+            CommandFailure::new(
+                ExitCode::InvalidInput,
+                error.message().to_owned(),
+                json!({
+                    "code": "invalid_request",
+                    "message": error.message().to_owned(),
+                }),
+            )
+        })?;
         for frame in frames {
             stdout
                 .write_all(&frame)
                 .and_then(|()| stdout.write_all(b"\n"))
                 .and_then(|()| stdout.flush())
-                .map_err(|error| CommandFailure {
-                    exit: ExitCode::Internal,
-                    message: format!("failed to write ACP stdout: {error}"),
-                    error: ProtocolError {
-                        code: workbench_protocol::ErrorCode::Internal,
-                        message: "ACP stdout write failed".to_owned(),
-                        retryable: false,
-                        correlation_id: Uuid::now_v7(),
-                    },
+                .map_err(|error| {
+                    CommandFailure::new(
+                        ExitCode::Internal,
+                        format!("failed to write ACP stdout: {error}"),
+                        json!({
+                            "code": "io_failure",
+                            "message": format!("ACP stdout write failed: {error}"),
+                        }),
+                    )
                 })?;
         }
     }
