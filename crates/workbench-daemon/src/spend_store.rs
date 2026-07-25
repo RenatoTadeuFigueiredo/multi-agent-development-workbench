@@ -1,7 +1,6 @@
-//! Durable OpenRouter spend store backed by encrypted SQLite sessions.
+//! Durable `OpenRouter` spend store backed by encrypted `SQLite` sessions.
 
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::path::PathBuf;
 
 use uuid::Uuid;
 use workbench_openrouter::{DurableSpendStore, OpenRouterError, OpenRouterErrorKind};
@@ -19,11 +18,6 @@ impl PathSpendStore {
         Self {
             database: database.into(),
         }
-    }
-
-    #[must_use]
-    pub fn database(&self) -> &Path {
-        &self.database
     }
 }
 
@@ -66,6 +60,3 @@ impl DurableSpendStore for PathSpendStore {
             })
     }
 }
-
-/// Shared handle for optional composition.
-pub type SharedSpendStore = Arc<PathSpendStore>;

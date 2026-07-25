@@ -150,12 +150,13 @@ impl ProviderRuntime {
         Self::bootstrap_with_spend_store(startup, workspace, snapshot_root, None).await
     }
 
-    /// Starts providers with an optional durable OpenRouter spend store.
+    /// Starts providers with an optional durable `OpenRouter` spend store.
     ///
     /// # Errors
     ///
     /// Returns a redacted provider error when an adapter cannot initialize or
     /// the durable spend store fails to restore.
+    #[allow(clippy::too_many_lines)]
     pub async fn bootstrap_with_spend_store(
         startup: &StartupConfiguration,
         workspace: &Path,
