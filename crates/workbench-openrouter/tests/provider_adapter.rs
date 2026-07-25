@@ -1,4 +1,4 @@
-//! Offline unit coverage for the OpenRouter provider adapter.
+//! Offline unit coverage for the `OpenRouter` provider adapter.
 
 #![allow(clippy::manual_let_else)]
 

@@ -1,4 +1,4 @@
-//! Feature 010 acceptance: OpenRouter API provider and cost controls.
+//! Feature 010 acceptance: `OpenRouter` API provider and cost controls.
 
 #![allow(clippy::manual_let_else)]
 
