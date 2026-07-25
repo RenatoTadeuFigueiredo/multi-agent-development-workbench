@@ -1,6 +1,6 @@
-//! Opt-in live OpenRouter smoke. Never runs in default CI.
+//! Opt-in live `OpenRouter` smoke. Never runs in default CI.
 
-/// Live smoke remains ignored: requires OPENROUTER_API_KEY and network.
+/// Live smoke remains ignored: requires `OPENROUTER_API_KEY` and network.
 #[tokio::test]
 #[ignore = "live OpenRouter smoke requires credentials and network"]
 async fn live_openrouter_handshake_is_opt_in() {
