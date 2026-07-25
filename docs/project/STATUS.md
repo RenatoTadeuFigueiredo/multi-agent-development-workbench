@@ -32,8 +32,7 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`e8acdbd` (issue #16 / PR #25). Features 001–010 are on `main`. Feature 011
-ACP server MVP ships on the active branch for issue #17.
+`f33b89f` (issue #17 / PR #26). Features 001–011 are on `main`.
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -47,31 +46,31 @@ ACP server MVP ships on the active branch for issue #17.
 | 008 | Configurable multi-agent workflow executor | Issue #14 / PR #21 + #22 |
 | 009 | Real-time VS Code workflow controls | Issue #15 / PR #23 |
 | 010 | OpenRouter API provider with cost controls | Issue #16 / PR #25 |
-| 011 | Workbench ACP agent stdio bridge MVP (`workbench agent stdio`) | Issue #17 / in progress |
+| 011 | Workbench ACP agent stdio bridge MVP (`workbench agent stdio`) | Issue #17 / PR #26 |
 
 Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
 credential_ref resolution, `policies.cost` fail-closed budgets, daemon API
 provider composition, and ignored live smoke.
 
-Feature 011 MVP exposes ACP v1 agent stdio that bridges to the daemon/fake
-application path without embedding Grok.
+Feature 011 MVP exposes ACP v1 agent stdio (`workbench agent stdio` via
+`workbench-acp-server`) that bridges to the daemon/fake application path
+without embedding Grok.
 
 ## Active Work
 
-- **Branch:** `017-workbench-acp-server-and-terminal-client`
-- **Issue:** [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17)
-- **Speckit feature:** 011-workbench-acp-server-and-terminal-client
-- **Phase at last handoff:** implement / CI for #17
+- **Branch:** `main`
+- **Issue:** none — planned Features 001–011 delivery sequence is complete
+- **Next ready:** none unless a new roadmap issue is opened
 
 ## Ordered Roadmap
 
-- **Next ready after #17 merge:** none — roadmap issues #16 and #17 complete the
-  planned 001–017 delivery sequence for this product slice.
+- **Planned 001–011 slice:** complete. Residual work is gap follow-ups only
+  (see Known Gaps), not new numbered roadmap features.
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
 | done | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
-| active | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client | Stable workflows |
+| done | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client MVP | Stable workflows |
 
 ## Known Gaps
 
