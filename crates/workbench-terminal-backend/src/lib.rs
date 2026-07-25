@@ -30,8 +30,7 @@ use thiserror::Error;
 /// Current pin: `feature/workbench-backend` commit that adds selectable
 /// `WorkbenchBackend` (`feat(acp): selectable Workbench external ACP backend`)
 /// in https://github.com/RenatoTadeuFigueiredo/grok-build.
-pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str =
-    "0da6c56f43b1ac1c5468d83f02e8ef4a4f24856c";
+pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "0da6c56f43b1ac1c5468d83f02e8ef4a4f24856c";
 
 /// Documented CLI subcommand the terminal launches.
 pub const WORKBENCH_AGENT_STDIO_ARGS: &[&str] = &["agent", "stdio"];
