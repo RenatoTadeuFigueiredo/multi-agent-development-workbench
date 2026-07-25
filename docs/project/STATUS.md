@@ -32,8 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`d9852a7` (issue #29 / PR #36). Features 001–014 are on `main` after this change
-(Feature 014 durable cost ledger + OpenRouter live HTTPS; issue #31).
+`3e14943` (issue #31 / PR #37). Features 001–015 ship after this change
+(Feature 015 provider-native write tools under central policy; issue #32).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -51,6 +51,7 @@ The last reviewed `main` checkpoint is merge commit
 | 012 | ACP agent stdio attach to running daemon endpoint | Issue #29 |
 | 013 | Non-loopback HTTPS MCP TLS client (`rustls` + native roots) | Issue #30 |
 | 014 | Durable session cost ledger + opt-in OpenRouter live HTTPS | Issue #31 |
+| 015 | Claude/Codex provider-native write tools under central policy | Issue #32 |
 
 Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
 credential_ref resolution, `policies.cost` fail-closed budgets, daemon API
@@ -75,11 +76,16 @@ OpenRouter cost ledger via `DurableSpendStore`. Default transport remains
 offline fake; `OpenRouterTransport::live_https` is explicit opt-in with an
 ignored live smoke.
 
+Feature 015 adds fail-closed `policies.provider_native_writes` (default
+disabled). When `mode: approval-required` and a provider id is allowlisted,
+Claude may launch Write/Edit and Codex may use workspace-write sandbox with
+`file_change` observation. Shared tools stay on the MCP gateway.
+
 ## Active Work
 
-- **Branch:** `014-durable-cost-ledger-openrouter-live-https`
-- **Issue:** [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) — Durable cost ledger + OpenRouter live HTTPS
-- **Next ready after merge:** gap-zero sequence #32 → #33 (see Known Gaps)
+- **Branch:** `015-provider-native-write-tools-under-central-policy`
+- **Issue:** [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) — Claude/Codex native write tools under policy
+- **Next ready after merge:** gap-zero sequence #33 (see Known Gaps)
 
 ## Ordered Roadmap
 
@@ -94,6 +100,7 @@ ignored live smoke.
 | done | [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) | Speckit acceptance-binding inventory (tooling) | Features 001–011, 013 harnesses |
 | done | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | ACP agent stdio attach to running daemon | Feature 011 stdio MVP |
 | done | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | Durable cost ledger + OpenRouter live HTTPS | Feature 010 cost controls |
+| done | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | Claude/Codex provider-native write tools under policy | Feature 007 + 005/006 |
 
 ## Known Gaps
 
@@ -101,7 +108,6 @@ Tracked open issues (gap-zero backlog):
 
 | Gap | Issue | Size | Speckit? |
 |---|---|---|---|
-| Claude/Codex provider-native write tools under policy | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | L | Yes |
 | Grok-derived terminal pager WorkbenchBackend | [#33](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/33) | XL | Yes |
 
 Detail:
@@ -116,8 +122,9 @@ Detail:
   delivered (#31). Default CI remains offline fake.
 - Feature 007 non-loopback HTTPS MCP TLS is composed (Feature 013 / #30). Live
   package registries and public HTTPS smoke remain opt-in / ignored.
-- Claude and Codex provider-native write tools remain disabled; shared tools go
-  through the central MCP gateway allowlist (#32).
+- Feature 015 enables Claude/Codex provider-native writes only under
+  `policies.provider_native_writes` allowlist + approval-required mode (#32).
+  Default remains disabled; reverse permission UI is residual.
 - Speckit corpus `verifyHealth` stays 0 because Speckit's executable registry is
   binary-local (ADR-0020) and cannot load external Rust acceptance runners.
   Repository-owned inventory is delivered (#28): `make test-acceptance-bindings`

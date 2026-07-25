@@ -15,7 +15,7 @@ use tokio::{
 use crate::{
     ClaudeError, ClaudeErrorKind,
     codec::{FrameReader, write_frame},
-    protocol::{Inbound, initialize_request, parse_inbound},
+    protocol::{Inbound, initialize_request, parse_inbound_with_policy},
 };
 
 const DEFAULT_INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -31,6 +31,8 @@ pub struct ClaudeLaunchProfile {
     workspace: PathBuf,
     initialization_timeout: Duration,
     shutdown_grace: Duration,
+    /// When true, provider-native Write/Edit tools are launched under policy.
+    native_writes: bool,
 }
 
 impl ClaudeLaunchProfile {
@@ -40,6 +42,7 @@ impl ClaudeLaunchProfile {
             workspace: workspace.into(),
             initialization_timeout: DEFAULT_INITIALIZATION_TIMEOUT,
             shutdown_grace: DEFAULT_SHUTDOWN_GRACE,
+            native_writes: false,
         }
     }
 
@@ -53,6 +56,18 @@ impl ClaudeLaunchProfile {
     pub const fn shutdown_grace(mut self, grace: Duration) -> Self {
         self.shutdown_grace = grace;
         self
+    }
+
+    /// Enables provider-native Write/Edit tools (fail-closed default is off).
+    #[must_use]
+    pub const fn native_writes(mut self, enabled: bool) -> Self {
+        self.native_writes = enabled;
+        self
+    }
+
+    #[must_use]
+    pub const fn native_writes_enabled(&self) -> bool {
+        self.native_writes
     }
 }
 
@@ -68,6 +83,7 @@ pub(crate) struct ClaudeProcess {
     reader: FrameReader<tokio::process::ChildStdout>,
     stderr: JoinHandle<()>,
     shutdown_grace: Duration,
+    native_writes: bool,
 }
 
 impl ClaudeProcess {
@@ -91,11 +107,23 @@ impl ClaudeProcess {
                 "stream-json",
                 "--include-partial-messages",
                 "--permission-mode",
-                "dontAsk",
+                if profile.native_writes {
+                    "default"
+                } else {
+                    "dontAsk"
+                },
                 "--tools",
-                "Read,Glob,Grep",
+                if profile.native_writes {
+                    "Read,Glob,Grep,Write,Edit"
+                } else {
+                    "Read,Glob,Grep"
+                },
                 "--allowedTools",
-                "Read,Glob,Grep",
+                if profile.native_writes {
+                    "Read,Glob,Grep,Write,Edit"
+                } else {
+                    "Read,Glob,Grep"
+                },
                 "--safe-mode",
                 "--disable-slash-commands",
                 "--no-chrome",
@@ -133,6 +161,7 @@ impl ClaudeProcess {
             reader: FrameReader::new(stdout),
             stderr: spawn_stderr_drain(stderr),
             shutdown_grace: profile.shutdown_grace,
+            native_writes: profile.native_writes,
         };
         let initialized = process.initialize(expected_version);
         match tokio::time::timeout(profile.initialization_timeout, initialized).await {
@@ -170,7 +199,7 @@ impl ClaudeProcess {
                 .next_frame()
                 .await?
                 .ok_or_else(transport_closed)?;
-            match parse_inbound(&value)? {
+            match parse_inbound_with_policy(&value, self.native_writes)? {
                 Inbound::ControlResponse {
                     request_id: response_id,
                     success,
@@ -205,11 +234,12 @@ impl ClaudeProcess {
     }
 
     pub(crate) async fn next(&mut self) -> Result<Option<Inbound>, ClaudeError> {
+        let native_writes = self.native_writes;
         self.reader
             .next_frame()
             .await?
             .as_ref()
-            .map(parse_inbound)
+            .map(|value| parse_inbound_with_policy(value, native_writes))
             .transpose()
     }
 

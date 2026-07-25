@@ -9,9 +9,11 @@ const MAX_TEXT_BYTES: usize = 4 * 1024 * 1024;
 /// Allowed bounded tool item names for read-only observation.
 const ALLOWED_TOOL_ITEM_TYPES: [&str; 3] = ["command_execution", "web_search", "search"];
 
+/// Write-path item types permitted only when native writes are enabled.
+const WRITE_TOOL_ITEM_TYPES: [&str; 1] = ["file_change"];
+
 /// Item types that prove elevated authority and fail closed.
-const FORBIDDEN_ITEM_TYPES: [&str; 5] = [
-    "file_change",
+const FORBIDDEN_ITEM_TYPES: [&str; 4] = [
     "mcp_tool_call",
     "mcp_tool_call_begin",
     "mcp_tool_call_end",
@@ -31,6 +33,14 @@ pub(crate) enum Inbound {
 }
 
 pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, CodexError> {
+    parse_inbound_with_policy(value, false)
+}
+
+/// Parses Codex frames with optional native-write item types.
+pub(crate) fn parse_inbound_with_policy(
+    value: &Value,
+    native_writes: bool,
+) -> Result<Inbound, CodexError> {
     let object = value.as_object().ok_or_else(protocol_violation)?;
     let kind = required_string(object.get("type"))?;
     match kind {
@@ -48,7 +58,9 @@ pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, CodexError> {
             cancelled: cancelled_marker(object.get("error"))
                 || cancelled_string(object.get("reason")),
         }),
-        "item.started" | "item.completed" | "item.updated" => parse_item(kind, object),
+        "item.started" | "item.completed" | "item.updated" => {
+            parse_item(kind, object, native_writes)
+        }
         "error" => Ok(Inbound::Error {
             cancelled: cancelled_marker(Some(value))
                 || cancelled_string(object.get("message"))
@@ -59,7 +71,11 @@ pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, CodexError> {
     }
 }
 
-fn parse_item(kind: &str, object: &serde_json::Map<String, Value>) -> Result<Inbound, CodexError> {
+fn parse_item(
+    kind: &str,
+    object: &serde_json::Map<String, Value>,
+    native_writes: bool,
+) -> Result<Inbound, CodexError> {
     let item = object
         .get("item")
         .and_then(Value::as_object)
@@ -74,6 +90,14 @@ fn parse_item(kind: &str, object: &serde_json::Map<String, Value>) -> Result<Inb
     }
     if FORBIDDEN_ITEM_TYPES.contains(&item_type) {
         return Err(capability_violation());
+    }
+    if WRITE_TOOL_ITEM_TYPES.contains(&item_type) {
+        if !native_writes {
+            return Err(capability_violation());
+        }
+        return Ok(Inbound::ToolStarted {
+            name: item_type.to_owned(),
+        });
     }
     match item_type {
         "agent_message" => {
@@ -171,7 +195,7 @@ mod tests {
 
     use crate::CodexErrorKind;
 
-    use super::{Inbound, parse_inbound};
+    use super::{Inbound, parse_inbound, parse_inbound_with_policy};
 
     #[test]
     fn parses_text_and_ignores_reasoning() {
@@ -217,6 +241,10 @@ mod tests {
             parse_inbound(&file_change).expect_err("file change").kind(),
             CodexErrorKind::CapabilityUnavailable
         );
+        assert!(matches!(
+            parse_inbound_with_policy(&file_change, true).expect("file change under policy"),
+            Inbound::ToolStarted { .. }
+        ));
     }
 
     #[test]
