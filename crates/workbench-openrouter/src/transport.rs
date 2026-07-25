@@ -268,14 +268,12 @@ async fn live_chat_completion(
     prompt: &str,
 ) -> Result<TransportResult, OpenRouterError> {
     // Parse https://host[:port][/path] without a URL crate dependency.
-    let stripped = base_url
-        .strip_prefix("https://")
-        .ok_or_else(|| {
-            OpenRouterError::new(
-                OpenRouterErrorKind::InvalidConfig,
-                "live OpenRouter base_url must use https://",
-            )
-        })?;
+    let stripped = base_url.strip_prefix("https://").ok_or_else(|| {
+        OpenRouterError::new(
+            OpenRouterErrorKind::InvalidConfig,
+            "live OpenRouter base_url must use https://",
+        )
+    })?;
     let (host_port, base_path) = match stripped.split_once('/') {
         Some((host_port, rest)) => (host_port, format!("/{rest}")),
         None => (stripped, String::new()),
@@ -321,19 +319,22 @@ async fn live_chat_completion(
         )
     })?;
     let connector = TlsConnector::from(default_client_config());
-    let stream = tokio::time::timeout(
-        CONNECT_TIMEOUT,
-        TcpStream::connect((host, port)),
-    )
-    .await
-    .map_err(|_| {
-        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter connect timed out")
-    })?
-    .map_err(|_| {
-        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter connect failed")
-    })?;
+    let stream = tokio::time::timeout(CONNECT_TIMEOUT, TcpStream::connect((host, port)))
+        .await
+        .map_err(|_| {
+            OpenRouterError::new(
+                OpenRouterErrorKind::Transport,
+                "OpenRouter connect timed out",
+            )
+        })?
+        .map_err(|_| {
+            OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter connect failed")
+        })?;
     let mut tls = connector.connect(server_name, stream).await.map_err(|_| {
-        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter TLS handshake failed")
+        OpenRouterError::new(
+            OpenRouterErrorKind::Transport,
+            "OpenRouter TLS handshake failed",
+        )
     })?;
     tls.write_all(request.as_bytes()).await.map_err(|_| {
         OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter write failed")
@@ -402,7 +403,9 @@ fn extract_usage_from_sse(body: &[u8]) -> UsageSummary {
         }
         if let Ok(value) = serde_json::from_str::<Value>(payload.trim()) {
             let usage = extract_usage(&value);
-            if usage.prompt_tokens > 0 || usage.completion_tokens > 0 || value.get("usage").is_some()
+            if usage.prompt_tokens > 0
+                || usage.completion_tokens > 0
+                || value.get("usage").is_some()
             {
                 return usage;
             }

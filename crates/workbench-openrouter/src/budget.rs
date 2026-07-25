@@ -36,7 +36,8 @@ pub trait DurableSpendStore: Send + Sync {
     /// # Errors
     ///
     /// Returns when durable storage cannot be written.
-    fn persist_spend(&self, session_id: Uuid, spend_usd_micros: u64) -> Result<(), OpenRouterError>;
+    fn persist_spend(&self, session_id: Uuid, spend_usd_micros: u64)
+    -> Result<(), OpenRouterError>;
 }
 
 /// Per-session paid-inference spend ledger consulted before paid dispatch.
@@ -102,11 +103,7 @@ impl SessionCostLedger {
     /// # Errors
     ///
     /// Returns when durable persistence fails after an in-memory update.
-    pub fn record_spend(
-        &self,
-        session_id: Uuid,
-        usd_micros: u64,
-    ) -> Result<u64, OpenRouterError> {
+    pub fn record_spend(&self, session_id: Uuid, usd_micros: u64) -> Result<u64, OpenRouterError> {
         if usd_micros == 0 {
             return Ok(self.spend_usd_micros(session_id));
         }
@@ -241,7 +238,10 @@ mod tests {
                 estimate_usd_micros: 10_000
             }
         );
-        assert_eq!(ledger.record_spend(session, 12_345).expect("record"), 12_345);
+        assert_eq!(
+            ledger.record_spend(session, 12_345).expect("record"),
+            12_345
+        );
         assert_eq!(ledger.spend_usd_micros(session), 12_345);
         assert_eq!(ledger.spend_usd_micros(other), 0);
     }
@@ -281,6 +281,9 @@ mod tests {
         let ledger = SessionCostLedger::with_durable_store(store.clone()).expect("restore");
         assert_eq!(ledger.spend_usd_micros(session), 42_000);
         assert_eq!(ledger.record_spend(session, 8_000).expect("record"), 50_000);
-        assert_eq!(store.rows.lock().expect("lock").get(&session), Some(&50_000));
+        assert_eq!(
+            store.rows.lock().expect("lock").get(&session),
+            Some(&50_000)
+        );
     }
 }

@@ -84,9 +84,9 @@ impl DaemonRuntime {
             .await
             .map_err(|_| RuntimeError::StartupTask)??;
         let spend_store: Option<std::sync::Arc<dyn workbench_openrouter::DurableSpendStore>> =
-            Some(std::sync::Arc::new(crate::spend_store::PathSpendStore::new(
-                &paths.database_file,
-            )));
+            Some(std::sync::Arc::new(
+                crate::spend_store::PathSpendStore::new(&paths.database_file),
+            ));
         let providers = ProviderRuntime::bootstrap_with_spend_store(
             &startup,
             repository_root,
