@@ -141,6 +141,7 @@ impl ProviderRuntime {
     ///
     /// Returns a redacted provider error when an adapter cannot initialize or
     /// its reported identity differs from the committed pin.
+    #[allow(clippy::too_many_lines)]
     pub async fn bootstrap(
         startup: &StartupConfiguration,
         workspace: &Path,
@@ -220,7 +221,7 @@ impl ProviderRuntime {
         match connect_openrouter_providers(
             startup,
             Arc::clone(&secrets),
-            openrouter_ledger.clone(),
+            &openrouter_ledger,
             cancellation_deadline,
         ) {
             Ok(api_adapters) => {
@@ -256,13 +257,13 @@ impl ProviderRuntime {
         })
     }
 
-    /// Session cost ledger shared by OpenRouter adapters in this runtime.
+    /// Session cost ledger shared by `OpenRouter` adapters in this runtime.
     #[must_use]
     pub fn openrouter_ledger(&self) -> &SessionCostLedger {
         &self.openrouter_ledger
     }
 
-    /// Boots only OpenRouter API adapters for offline acceptance tests.
+    /// Boots only `OpenRouter` API adapters for offline acceptance tests.
     ///
     /// # Errors
     ///
@@ -288,7 +289,7 @@ impl ProviderRuntime {
         let mut catalog = BTreeMap::new();
         let mut managed = Vec::new();
         let api_adapters =
-            connect_openrouter_providers(startup, secrets, ledger.clone(), cancellation_deadline)?;
+            connect_openrouter_providers(startup, secrets, &ledger, cancellation_deadline)?;
         for (name, provider_id, adapter, owned) in api_adapters {
             // capabilities() is async; use blocking via known offline values.
             catalog.insert(
@@ -404,12 +405,15 @@ async fn connect_descriptor(
     }
 }
 
+type ConnectedOpenRouter = (String, ProviderId, Arc<dyn ProviderAdapter>, ManagedAdapter);
+
+#[allow(clippy::needless_pass_by_value, clippy::too_many_lines)]
 fn connect_openrouter_providers(
     startup: &StartupConfiguration,
     secrets: Arc<dyn SecretSource>,
-    ledger: SessionCostLedger,
+    ledger: &SessionCostLedger,
     cancellation_deadline: Duration,
-) -> Result<Vec<(String, ProviderId, Arc<dyn ProviderAdapter>, ManagedAdapter)>, CoreError> {
+) -> Result<Vec<ConnectedOpenRouter>, CoreError> {
     let mut connected = Vec::new();
     let cost = startup.resolved.policies.cost.as_ref();
     for (name, provider) in &startup.resolved.providers {

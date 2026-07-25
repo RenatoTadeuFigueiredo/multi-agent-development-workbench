@@ -210,10 +210,13 @@ async fn offline_happy_path_and_budget_gates() {
     let missing = MemorySecretSource::new();
     let missing_provider = connect(Arc::new(missing), SessionCostLedger::new(), 5_000_000, None);
     let handle = missing_provider.start_session().await.expect("session");
-    let err = missing_provider
+    let err = match missing_provider
         .prompt_stream(&handle, prompt("missing cred"))
         .await
-        .expect_err("missing");
+    {
+        Ok(_) => panic!("missing cred"),
+        Err(error) => error,
+    };
     assert_eq!(err.category, FailureCategory::ProviderUnavailable);
     assert_eq!(missing_provider.transport().fake().call_count(), 0);
 
@@ -221,10 +224,13 @@ async fn offline_happy_path_and_budget_gates() {
     empty.put("platform:openrouter", "");
     let empty_provider = connect(empty, SessionCostLedger::new(), 5_000_000, None);
     let handle = empty_provider.start_session().await.expect("session");
-    let err = empty_provider
+    let err = match empty_provider
         .prompt_stream(&handle, prompt("empty cred"))
         .await
-        .expect_err("empty");
+    {
+        Ok(_) => panic!("empty cred"),
+        Err(error) => error,
+    };
     assert_eq!(err.category, FailureCategory::ProviderUnavailable);
     assert_eq!(empty_provider.transport().fake().call_count(), 0);
 
@@ -232,19 +238,25 @@ async fn offline_happy_path_and_budget_gates() {
     exhausted.seed_spend(5_000_000);
     let budgeted = connect(secrets.clone(), exhausted, 5_000_000, Some(500_000));
     let handle = budgeted.start_session().await.expect("session");
-    let err = budgeted
+    let err = match budgeted
         .prompt_stream(&handle, prompt("over session budget"))
         .await
-        .expect_err("session budget");
+    {
+        Ok(_) => panic!("session budget"),
+        Err(error) => error,
+    };
     assert_eq!(err.category, FailureCategory::PolicyDenied);
     assert_eq!(budgeted.transport().fake().call_count(), 0);
 
     let attempt = connect(secrets, SessionCostLedger::new(), 5_000_000, Some(1));
     let handle = attempt.start_session().await.expect("session");
-    let err = attempt
+    let err = match attempt
         .prompt_stream(&handle, prompt("over attempt budget"))
         .await
-        .expect_err("attempt budget");
+    {
+        Ok(_) => panic!("attempt budget"),
+        Err(error) => error,
+    };
     assert_eq!(err.category, FailureCategory::PolicyDenied);
     assert_eq!(attempt.transport().fake().call_count(), 0);
 }
@@ -277,10 +289,10 @@ async fn body_and_malformed_boundaries() {
         },
     );
     let handle = rejected.start_session().await.expect("session");
-    let err = rejected
-        .prompt_stream(&handle, prompt("one over"))
-        .await
-        .expect_err("oversized");
+    let err = match rejected.prompt_stream(&handle, prompt("one over")).await {
+        Ok(_) => panic!("oversized"),
+        Err(error) => error,
+    };
     assert_eq!(err.category, FailureCategory::ProviderUnavailable);
 
     for mode in [
@@ -294,10 +306,13 @@ async fn body_and_malformed_boundaries() {
         let provider = connect(secrets.clone(), SessionCostLedger::new(), 5_000_000, None);
         provider.transport().fake().set_mode("chat", mode);
         let handle = provider.start_session().await.expect("session");
-        let err = provider
+        let err = match provider
             .prompt_stream(&handle, prompt("malformed path"))
             .await
-            .expect_err("malformed");
+        {
+            Ok(_) => panic!("malformed"),
+            Err(error) => error,
+        };
         assert!(matches!(
             err.category,
             FailureCategory::ProviderUnavailable | FailureCategory::OutcomeUnknown
@@ -325,10 +340,10 @@ async fn cancellation_and_secrecy() {
         .fake()
         .set_mode("chat", FakeHttpMode::TransportError);
     let handle = provider.start_session().await.expect("session");
-    let err = provider
-        .prompt_stream(&handle, prompt("secret path"))
-        .await
-        .expect_err("transport");
+    let err = match provider.prompt_stream(&handle, prompt("secret path")).await {
+        Ok(_) => panic!("transport"),
+        Err(error) => error,
+    };
     for marker in SECRET_MARKERS {
         assert!(!err.user_safe_message.contains(marker));
         assert!(!OPENROUTER_ADAPTER.contains(marker));

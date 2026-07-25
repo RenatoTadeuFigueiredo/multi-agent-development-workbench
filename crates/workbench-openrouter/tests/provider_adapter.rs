@@ -74,7 +74,7 @@ async fn missing_credential_fails_before_http() {
     let ledger = SessionCostLedger::new();
     let provider = adapter(secrets, ledger);
     let handle = provider.start_session().await.expect("session");
-    let error = provider
+    let error = match provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
@@ -85,7 +85,10 @@ async fn missing_credential_fails_before_http() {
             },
         )
         .await
-        .expect_err("missing credential");
+    {
+        Ok(_) => panic!("missing credential should fail"),
+        Err(error) => error,
+    };
     assert_eq!(error.category, FailureCategory::ProviderUnavailable);
     assert_eq!(provider.transport().fake().call_count(), 0);
 }
@@ -97,7 +100,7 @@ async fn empty_credential_fails_before_http() {
     let ledger = SessionCostLedger::new();
     let provider = adapter(secrets, ledger);
     let handle = provider.start_session().await.expect("session");
-    let error = provider
+    let error = match provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
@@ -108,7 +111,10 @@ async fn empty_credential_fails_before_http() {
             },
         )
         .await
-        .expect_err("empty credential");
+    {
+        Ok(_) => panic!("empty credential should fail"),
+        Err(error) => error,
+    };
     assert_eq!(error.category, FailureCategory::ProviderUnavailable);
     assert_eq!(provider.transport().fake().call_count(), 0);
 }
@@ -121,7 +127,7 @@ async fn session_budget_fails_before_http() {
     ledger.seed_spend(5_000_000);
     let provider = adapter(secrets, ledger);
     let handle = provider.start_session().await.expect("session");
-    let error = provider
+    let error = match provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
@@ -132,7 +138,10 @@ async fn session_budget_fails_before_http() {
             },
         )
         .await
-        .expect_err("budget");
+    {
+        Ok(_) => panic!("budget should fail"),
+        Err(error) => error,
+    };
     assert_eq!(error.category, FailureCategory::PolicyDenied);
     assert_eq!(provider.transport().fake().call_count(), 0);
 }
@@ -190,7 +199,7 @@ async fn oversized_body_is_rejected() {
         },
     );
     let handle = provider.start_session().await.expect("session");
-    let error = provider
+    let error = match provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
@@ -201,7 +210,10 @@ async fn oversized_body_is_rejected() {
             },
         )
         .await
-        .expect_err("oversized");
+    {
+        Ok(_) => panic!("oversized should fail"),
+        Err(error) => error,
+    };
     assert_eq!(error.category, FailureCategory::ProviderUnavailable);
 }
 
@@ -218,7 +230,7 @@ async fn malformed_streams_fail_closed() {
         let provider = adapter(secrets, ledger);
         provider.transport().fake().set_mode("chat", mode);
         let handle = provider.start_session().await.expect("session");
-        let error = provider
+        let error = match provider
             .prompt_stream(
                 &handle,
                 ProviderPrompt {
@@ -229,7 +241,10 @@ async fn malformed_streams_fail_closed() {
                 },
             )
             .await
-            .expect_err("malformed");
+        {
+            Ok(_) => panic!("malformed should fail"),
+            Err(error) => error,
+        };
         assert!(
             matches!(
                 error.category,
@@ -253,7 +268,7 @@ async fn secret_markers_are_not_returned_in_failures() {
         .fake()
         .set_mode("chat", FakeHttpMode::TransportError);
     let handle = provider.start_session().await.expect("session");
-    let error = provider
+    let error = match provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
@@ -264,6 +279,9 @@ async fn secret_markers_are_not_returned_in_failures() {
             },
         )
         .await
-        .expect_err("transport");
+    {
+        Ok(_) => panic!("transport should fail"),
+        Err(error) => error,
+    };
     assert!(!error.user_safe_message.contains(marker));
 }
