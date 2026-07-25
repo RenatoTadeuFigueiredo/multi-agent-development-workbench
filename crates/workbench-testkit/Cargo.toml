@@ -30,6 +30,7 @@ workbench-claude = { path = "../workbench-claude" }
 workbench-codex = { path = "../workbench-codex" }
 workbench-daemon = { path = "../workbench-daemon" }
 workbench-mcp = { path = "../workbench-mcp" }
+workbench-acp-server = { path = "../workbench-acp-server" }
 workbench-openrouter = { path = "../workbench-openrouter" }
 workbench-protocol = { path = "../workbench-protocol" }
 workbench-storage = { path = "../workbench-storage" }

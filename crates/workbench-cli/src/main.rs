@@ -54,6 +54,7 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
     let command = resolve(&cli, stdin_prompt).map_err(CommandFailure::invalid_input)?;
     match command {
         Err(LocalCommand::Daemon) => run_daemon(&cli, &repository_root).await,
+        Err(LocalCommand::AgentStdio) => run_agent_stdio().await,
         Err(LocalCommand::ConfigValidate) => run_config(&cli, &repository_root, false).await,
         Err(LocalCommand::ConfigLock) => run_config(&cli, &repository_root, true).await,
         Ok(command) => {
@@ -65,6 +66,60 @@ async fn run(cli: Cli) -> Result<(), CommandFailure> {
             run_remote(&cli, &repository_root, command).await
         }
     }
+}
+
+async fn run_agent_stdio() -> Result<(), CommandFailure> {
+    use std::io::{BufRead, Write};
+    use std::sync::Arc;
+    use workbench_acp_server::{AcpAgentServer, InProcessBackend};
+
+    let backend = Arc::new(InProcessBackend::offline_fake());
+    let server = AcpAgentServer::new(backend);
+    let stdin = io::stdin();
+    let mut stdout = io::stdout();
+    for line in stdin.lock().lines() {
+        let line = line.map_err(|error| CommandFailure {
+            exit: ExitCode::Internal,
+            message: format!("failed to read ACP stdin: {error}"),
+            error: ProtocolError {
+                code: workbench_protocol::ErrorCode::Internal,
+                message: "ACP stdin read failed".to_owned(),
+                retryable: false,
+                correlation_id: Uuid::now_v7(),
+            },
+        })?;
+        let frames = server
+            .handle_line(line.as_bytes())
+            .await
+            .map_err(|error| CommandFailure {
+                exit: ExitCode::InvalidInput,
+                message: error.message().to_owned(),
+                error: ProtocolError {
+                    code: workbench_protocol::ErrorCode::InvalidRequest,
+                    message: error.message().to_owned(),
+                    retryable: false,
+                    correlation_id: Uuid::now_v7(),
+                },
+            })?;
+        for frame in frames {
+            stdout
+                .write_all(&frame)
+                .and_then(|()| stdout.write_all(b"\n"))
+                .and_then(|()| stdout.flush())
+                .map_err(|error| CommandFailure {
+                    exit: ExitCode::Internal,
+                    message: format!("failed to write ACP stdout: {error}"),
+                    error: ProtocolError {
+                        code: workbench_protocol::ErrorCode::Internal,
+                        message: "ACP stdout write failed".to_owned(),
+                        retryable: false,
+                        correlation_id: Uuid::now_v7(),
+                    },
+                })?;
+        }
+    }
+    server.shutdown();
+    Ok(())
 }
 
 async fn run_daemon(cli: &Cli, repository_root: &Path) -> Result<(), CommandFailure> {

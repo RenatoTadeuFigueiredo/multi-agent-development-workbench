@@ -68,6 +68,9 @@ test-openrouter: ## Run the deterministic offline OpenRouter profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_010 --locked
 	$(CARGO_OFFLINE) test -p workbench-openrouter --locked
 
+test-acp-server: ## Run the deterministic offline Workbench ACP server profile
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_011 --locked
+
 test-acceptance: ## Run all committed feature acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_001 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_002 --locked
@@ -79,6 +82,7 @@ test-acceptance: ## Run all committed feature acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_008 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_009 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_010 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_011 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements
 	$(CARGO_OFFLINE) test -p workbench-testkit --test slo_001 --locked -- \

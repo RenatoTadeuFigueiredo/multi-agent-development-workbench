@@ -114,9 +114,10 @@ impl ClientContext {
     }
 }
 
-pub(crate) struct DispatchResult {
+/// Reply produced by one protocol command dispatch.
+pub struct DispatchResult {
     pub reply: ServerReply<Value>,
-    pub subscription: Option<SessionSubscription>,
+    pub(crate) subscription: Option<SessionSubscription>,
 }
 
 struct CommandSuccess {
@@ -682,7 +683,8 @@ impl Application {
         Ok(())
     }
 
-    pub(crate) async fn dispatch(
+    /// Dispatches one versioned protocol command against this application.
+    pub async fn dispatch(
         self: &Arc<Self>,
         command: ClientCommand,
         context: &ClientContext,
