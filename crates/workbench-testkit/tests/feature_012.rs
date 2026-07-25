@@ -116,6 +116,7 @@ fn every_binding_names_executable_repository_evidence() {
 }
 
 #[tokio::test]
+#[allow(clippy::too_many_lines)]
 async fn attach_initialize_create_list_prompt_cancel() {
     let application = Application::in_memory(
         StartupConfiguration::safe_builtins().expect("safe builtins"),
