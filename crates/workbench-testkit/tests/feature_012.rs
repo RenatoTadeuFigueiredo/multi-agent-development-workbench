@@ -17,7 +17,7 @@ use workbench_protocol::{
     command::{EmptyParams, ListSessionsParams},
     response::ListSessionsResult,
 };
-use workbench_testkit::{LocalDaemonHarness, ProtocolTestClient};
+use workbench_testkit::client::{LocalDaemonHarness, ProtocolTestClient};
 
 const FEATURE: &str = include_str!(
     "../../../doc/arch/specs/features/attach-acp-agent-stdio-to-running-daemon.feature"
@@ -238,9 +238,10 @@ async fn missing_daemon_fails_closed_and_defaults_stay_offline() {
         "workbench-missing-daemon-{}.sock",
         uuid::Uuid::now_v7()
     ));
-    let error = DaemonSocketBackend::connect(&missing)
-        .await
-        .expect_err("missing socket must fail closed");
+    let error = match DaemonSocketBackend::connect(&missing).await {
+        Ok(_) => panic!("missing socket must fail closed"),
+        Err(error) => error,
+    };
     assert_eq!(error.kind(), AcpServerErrorKind::Backend);
     assert!(
         error.message().contains("daemon socket unavailable")
