@@ -32,7 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`f33b89f` (issue #17 / PR #26). Features 001–011 are on `main`.
+`f33b89f` (issue #17 / PR #26). Features 001–011 are on `main`. Feature 013
+(non-loopback HTTPS MCP TLS) is delivered on this change (issue #30).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -47,6 +48,7 @@ The last reviewed `main` checkpoint is merge commit
 | 009 | Real-time VS Code workflow controls | Issue #15 / PR #23 |
 | 010 | OpenRouter API provider with cost controls | Issue #16 / PR #25 |
 | 011 | Workbench ACP agent stdio bridge MVP (`workbench agent stdio`) | Issue #17 / PR #26 |
+| 013 | Non-loopback HTTPS MCP TLS client (`rustls` + native roots) | Issue #30 |
 
 Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
 credential_ref resolution, `policies.cost` fail-closed budgets, daemon API
@@ -56,11 +58,17 @@ Feature 011 MVP exposes ACP v1 agent stdio (`workbench agent stdio` via
 `workbench-acp-server`) that bridges to the daemon/fake application path
 without embedding Grok.
 
+Feature 013 composes `rustls` / `tokio-rustls` / `rustls-native-certs` in
+`workbench-mcp` so pinned non-loopback `https://` MCP endpoints dial over TLS.
+Offline fakes and loopback cleartext HTTP remain; an offline local TLS fixture
+and an ignored live HTTPS smoke cover the path. Production daemon attach uses
+the network HTTP/TLS client.
+
 ## Active Work
 
-- **Branch:** `main`
-- **Issue:** none — planned Features 001–011 delivery sequence is complete
-- **Next ready:** none unless a new roadmap issue is opened
+- **Branch:** `013-compose-tls-https-client-for-non-loopback-mcp-endpoints-so`
+- **Issue:** [#30](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/30) — Non-loopback HTTPS MCP TLS client
+- **Next ready after merge:** gap-zero sequence #28 → #29 → #31 → #32 → #33 (see Known Gaps)
 
 ## Ordered Roadmap
 
@@ -71,23 +79,38 @@ without embedding Grok.
 |---|---|---|---|
 | done | [#16](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/16) | OpenRouter provider and cost controls | Central approval and audit policy |
 | done | [#17](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/17) | Workbench ACP server and terminal client MVP | Stable workflows |
+| done | [#30](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/30) | Non-loopback HTTPS MCP TLS client | Feature 007 MCP gateway |
 
 ## Known Gaps
 
-- **Grok-derived terminal pager fork** remains deferred. Feature 011 ships the
-  ACP agent stdio bridge (`workbench agent stdio`) only; it does not modify the
-  upstream Grok Build pager or add a WorkbenchBackend PTY path.
+Tracked open issues (gap-zero backlog):
+
+| Gap | Issue | Size | Speckit? |
+|---|---|---|---|
+| Speckit verify unbound / acceptance binding inventory | [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) | S | No (tooling) |
+| ACP agent stdio attach to running daemon | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | M | Yes |
+| Durable cost ledger + opt-in OpenRouter live HTTPS | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | M–L | Yes |
+| Claude/Codex provider-native write tools under policy | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | L | Yes |
+| Grok-derived terminal pager WorkbenchBackend | [#33](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/33) | XL | Yes |
+
+Detail:
+
+- **Grok-derived terminal pager fork** remains deferred (#33). Feature 011 ships
+  the ACP agent stdio bridge (`workbench agent stdio`) only; it does not modify
+  the upstream Grok Build pager or add a WorkbenchBackend PTY path.
 - Feature 011 agent stdio currently uses an in-process offline application for
   the CLI entry (not a long-lived attached daemon socket). Attaching the bridge
-  to an already-running daemon endpoint is a follow-up.
+  to an already-running daemon endpoint is #29.
 - OpenRouter live HTTPS client remains opt-in / ignored; default path is offline
-  fake only. Process-local session cost ledger does not survive daemon restart.
-- Feature 007 non-loopback HTTPS MCP still fails closed until a TLS client is
-  composed; live package registries are opt-in.
+  fake only. Process-local session cost ledger does not survive daemon restart
+  (#31).
+- Feature 007 non-loopback HTTPS MCP TLS is composed (Feature 013 / #30). Live
+  package registries and public HTTPS smoke remain opt-in / ignored.
 - Claude and Codex provider-native write tools remain disabled; shared tools go
-  through the central MCP gateway allowlist.
-- Speckit corpus health remains reduced because its executable registry does not
-  load the external Rust acceptance runners.
+  through the central MCP gateway allowlist (#32).
+- Speckit corpus `verifyHealth` stays 0 because Speckit's executable registry is
+  binary-local (ADR-0020) and cannot load external Rust acceptance runners.
+  Repository-owned inventory is a follow-up (#28).
 
 ## Maintenance Contract
 

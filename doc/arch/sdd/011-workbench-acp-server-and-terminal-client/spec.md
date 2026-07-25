@@ -1,5 +1,5 @@
 ---
-id: 019f9730-b2c3-7d4e-9f5a-0110acpserver
+id: 019f9730-b2c3-7d4e-9f5a-0110ac950001
 number: 011
 slug: workbench-acp-server-and-terminal-client
 status: implemented
@@ -59,3 +59,10 @@ Excludes:
 - `workbench agent stdio` handshake and prompt path proven offline.
 - STATUS marks 011 delivered or gap-listed; roadmap 001–017 complete or gaps
   explicit.
+
+## Observability
+
+ACP agent stdio surfaces only redacted daemon session and attempt outcomes.
+Frame decode failures and oversized frames fail closed with stable error kinds.
+No provider credentials, raw tool payloads, or absolute host paths are logged
+on the agent stdio path.
