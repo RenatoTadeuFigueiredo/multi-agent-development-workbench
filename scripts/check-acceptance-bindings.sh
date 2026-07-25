@@ -73,6 +73,7 @@ check_pair 008 execute-configurable-multi-agent-workflows-that-resolve
 check_pair 009 add-real-time-vs-code-workflow-controls-that-show-routing
 check_pair 010 add-an-openrouter-api-provider-with-cost-controls
 check_pair 011 workbench-acp-server-and-terminal-client
+check_pair 012 attach-acp-agent-stdio-to-running-daemon
 check_pair 013 compose-tls-https-client-for-non-loopback-mcp-endpoints-so
 
 # Ghost / renumbered paths must not leave orphan feature files unmapped.
@@ -92,6 +93,7 @@ for feature_path in "$features_dir"/*.feature; do
 	add-real-time-vs-code-workflow-controls-that-show-routing | \
 	add-an-openrouter-api-provider-with-cost-controls | \
 	workbench-acp-server-and-terminal-client | \
+	attach-acp-agent-stdio-to-running-daemon | \
 	compose-tls-https-client-for-non-loopback-mcp-endpoints-so) ;;
 	*)
 		printf 'ORPHAN feature (no harness map entry): %s\n' "$feature_path" >&2
@@ -108,5 +110,5 @@ if [ "$missing" -ne 0 ] || [ "$orphan" -ne 0 ]; then
 	exit 1
 fi
 
-printf '%s\n' "Acceptance binding inventory green (Features 001–011, 013)."
+printf '%s\n' "Acceptance binding inventory green (Features 001–013)."
 printf '%s\n' "Note: speckit verify unbound steps remain advisory — Speckit's executable registry is binary-local (ADR-0020) and does not load external Rust harnesses. Authoritative gate: make test-acceptance."
