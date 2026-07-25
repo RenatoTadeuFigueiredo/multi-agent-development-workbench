@@ -32,8 +32,9 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`00db188` (issue #32 / PR #38). Features 001–016 ship after gap-zero completion
-(Feature 016 WorkbenchBackend terminal integration MVP; issue #33).
+`64315a0` (issue #33 / PR #39, Feature 016). Features 001–016 ship after
+gap-zero completion (WorkbenchBackend terminal integration MVP). Public product
+docs (README, `llms.txt`, operator E2E quickstart) align with that baseline.
 
 | Feature | Delivered capability | Change |
 |---|---|---|
