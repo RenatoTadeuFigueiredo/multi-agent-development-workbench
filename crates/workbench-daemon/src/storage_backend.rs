@@ -51,6 +51,13 @@ pub trait StorageBackend: Send + Sync {
     ) -> Result<CommandEventsOutcome, StorageError>;
     fn load_session_state(&self, session_id: Uuid) -> Result<String, StorageError>;
     fn load_session(&self, session_id: Uuid) -> Result<StoredSession, StorageError>;
+    fn load_session_spend_usd_micros(&self, session_id: Uuid) -> Result<u64, StorageError>;
+    fn store_session_spend_usd_micros(
+        &self,
+        session_id: Uuid,
+        spend_usd_micros: u64,
+    ) -> Result<(), StorageError>;
+    fn load_all_session_spends(&self) -> Result<Vec<(Uuid, u64)>, StorageError>;
     fn load_sessions(&self) -> Result<Vec<StoredSession>, StorageError>;
     fn list_session_metadata(
         &self,
@@ -175,6 +182,23 @@ impl<K: KeyStore + 'static> StorageBackend for LockedStorage<K> {
 
     fn load_session(&self, session_id: Uuid) -> Result<StoredSession, StorageError> {
         self.lock()?.load_session(session_id)
+    }
+
+    fn load_session_spend_usd_micros(&self, session_id: Uuid) -> Result<u64, StorageError> {
+        self.lock()?.load_session_spend_usd_micros(session_id)
+    }
+
+    fn store_session_spend_usd_micros(
+        &self,
+        session_id: Uuid,
+        spend_usd_micros: u64,
+    ) -> Result<(), StorageError> {
+        self.lock()?
+            .store_session_spend_usd_micros(session_id, spend_usd_micros)
+    }
+
+    fn load_all_session_spends(&self) -> Result<Vec<(Uuid, u64)>, StorageError> {
+        self.lock()?.load_all_session_spends()
     }
 
     fn load_sessions(&self) -> Result<Vec<StoredSession>, StorageError> {

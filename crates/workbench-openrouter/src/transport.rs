@@ -4,15 +4,26 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 
+use rustls::{ClientConfig, RootCertStore};
+use rustls_pki_types::ServerName;
 use serde_json::{Value, json};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+};
+use tokio_rustls::TlsConnector;
 use zeroize::Zeroizing;
 
 use crate::{
     MAX_BODY_BYTES, OpenRouterError, OpenRouterErrorKind,
     protocol::{UsageSummary, extract_usage, normalize_sse_data, split_sse_data},
 };
+
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const READ_TIMEOUT: Duration = Duration::from_secs(60);
 
 /// Offline-injectable HTTP behavior for `OpenRouter` fake transport tests.
 #[derive(Clone, Debug)]
@@ -192,6 +203,16 @@ impl OpenRouterTransport {
         }
     }
 
+    /// Live HTTPS Chat Completions against `base_url` using rustls + native roots.
+    #[must_use]
+    pub fn live_https(base_url: impl Into<String>) -> Self {
+        Self {
+            fake: FakeOpenRouterTransport::new(),
+            use_fake: false,
+            base_url: base_url.into(),
+        }
+    }
+
     #[must_use]
     pub fn fake(&self) -> &FakeOpenRouterTransport {
         &self.fake
@@ -202,13 +223,18 @@ impl OpenRouterTransport {
         &self.base_url
     }
 
+    #[must_use]
+    pub const fn uses_fake(&self) -> bool {
+        self.use_fake
+    }
+
     /// Performs a Chat Completions request.
     ///
     /// # Errors
     ///
-    /// Returns redacted transport or validation failures. Live HTTPS is not
-    /// used unless explicitly enabled in a future live path; default is fake.
-    pub fn chat_completion(
+    /// Returns redacted transport or validation failures. Default composition
+    /// uses the offline fake; live HTTPS is available via [`Self::live_https`].
+    pub async fn chat_completion(
         &self,
         secret: &Zeroizing<String>,
         model: &str,
@@ -218,13 +244,171 @@ impl OpenRouterTransport {
         if self.use_fake || self.base_url.starts_with("fake://") {
             return self.fake.chat_completion(&authorization, model, prompt);
         }
-        // Live path is intentionally not wired into default builds; ignored live
-        // tests can inject a fake or loopback. Refuse public network by default.
-        Err(OpenRouterError::new(
-            OpenRouterErrorKind::Unavailable,
-            "live OpenRouter HTTP is disabled outside opt-in tests",
-        ))
+        live_chat_completion(&self.base_url, &authorization, model, prompt).await
     }
+}
+
+fn default_client_config() -> Arc<ClientConfig> {
+    let mut roots = RootCertStore::empty();
+    let certs = rustls_native_certs::load_native_certs();
+    for cert in certs.certs {
+        let _ = roots.add(cert);
+    }
+    let mut config = ClientConfig::builder()
+        .with_root_certificates(roots)
+        .with_no_client_auth();
+    config.alpn_protocols = vec![b"http/1.1".to_vec()];
+    Arc::new(config)
+}
+
+async fn live_chat_completion(
+    base_url: &str,
+    authorization: &str,
+    model: &str,
+    prompt: &str,
+) -> Result<TransportResult, OpenRouterError> {
+    // Parse https://host[:port][/path] without a URL crate dependency.
+    let stripped = base_url
+        .strip_prefix("https://")
+        .ok_or_else(|| {
+            OpenRouterError::new(
+                OpenRouterErrorKind::InvalidConfig,
+                "live OpenRouter base_url must use https://",
+            )
+        })?;
+    let (host_port, base_path) = match stripped.split_once('/') {
+        Some((host_port, rest)) => (host_port, format!("/{rest}")),
+        None => (stripped, String::new()),
+    };
+    let host = host_port
+        .split(':')
+        .next()
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            OpenRouterError::new(
+                OpenRouterErrorKind::InvalidConfig,
+                "OpenRouter base_url host is missing",
+            )
+        })?;
+    let port = host_port
+        .split_once(':')
+        .and_then(|(_, port)| port.parse::<u16>().ok())
+        .unwrap_or(443);
+    let path = if base_path.ends_with("/chat/completions") {
+        base_path
+    } else if base_path.ends_with('/') {
+        format!("{base_path}chat/completions")
+    } else if base_path.is_empty() {
+        "/api/v1/chat/completions".to_owned()
+    } else {
+        format!("{base_path}/chat/completions")
+    };
+    let body = json!({
+        "model": model,
+        "stream": true,
+        "messages": [{ "role": "user", "content": prompt }]
+    })
+    .to_string();
+    let request = format!(
+        "POST {path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: {authorization}\r\nContent-Type: application/json\r\nAccept: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+
+    let server_name = ServerName::try_from(host.to_owned()).map_err(|_| {
+        OpenRouterError::new(
+            OpenRouterErrorKind::InvalidConfig,
+            "OpenRouter base_url host is not a valid TLS server name",
+        )
+    })?;
+    let connector = TlsConnector::from(default_client_config());
+    let stream = tokio::time::timeout(
+        CONNECT_TIMEOUT,
+        TcpStream::connect((host, port)),
+    )
+    .await
+    .map_err(|_| {
+        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter connect timed out")
+    })?
+    .map_err(|_| {
+        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter connect failed")
+    })?;
+    let mut tls = connector.connect(server_name, stream).await.map_err(|_| {
+        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter TLS handshake failed")
+    })?;
+    tls.write_all(request.as_bytes()).await.map_err(|_| {
+        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter write failed")
+    })?;
+    tls.flush().await.map_err(|_| {
+        OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter flush failed")
+    })?;
+
+    let mut response = Vec::new();
+    let mut buf = [0_u8; 8192];
+    loop {
+        let read = tokio::time::timeout(READ_TIMEOUT, tls.read(&mut buf))
+            .await
+            .map_err(|_| {
+                OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter read timed out")
+            })?
+            .map_err(|_| {
+                OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter read failed")
+            })?;
+        if read == 0 {
+            break;
+        }
+        response.extend_from_slice(&buf[..read]);
+        if response.len() > MAX_BODY_BYTES {
+            return Err(OpenRouterError::new(
+                OpenRouterErrorKind::ResponseTooLarge,
+                "OpenRouter response exceeds the encoded body ceiling",
+            ));
+        }
+    }
+
+    let body = split_http_body(&response)?;
+    if body.len() > MAX_BODY_BYTES {
+        return Err(OpenRouterError::new(
+            OpenRouterErrorKind::ResponseTooLarge,
+            "OpenRouter response exceeds the encoded body ceiling",
+        ));
+    }
+    let usage = extract_usage_from_sse(body);
+    Ok(TransportResult {
+        body: body.to_vec(),
+        usage,
+    })
+}
+
+fn split_http_body(response: &[u8]) -> Result<&[u8], OpenRouterError> {
+    let separator = response
+        .windows(4)
+        .position(|window| window == b"\r\n\r\n")
+        .ok_or_else(|| {
+            OpenRouterError::new(
+                OpenRouterErrorKind::Transport,
+                "OpenRouter response missing header terminator",
+            )
+        })?;
+    Ok(&response[separator + 4..])
+}
+
+fn extract_usage_from_sse(body: &[u8]) -> UsageSummary {
+    let Ok(payloads) = split_sse_data(body) else {
+        return UsageSummary::default();
+    };
+    for payload in payloads {
+        if payload.trim() == "[DONE]" {
+            continue;
+        }
+        if let Ok(value) = serde_json::from_str::<Value>(payload.trim()) {
+            let usage = extract_usage(&value);
+            if usage.prompt_tokens > 0 || usage.completion_tokens > 0 || value.get("usage").is_some()
+            {
+                return usage;
+            }
+        }
+    }
+    UsageSummary::default()
 }
 
 /// Decodes a transport body into normalized outputs and whether it completed.

@@ -13,7 +13,7 @@ mod protocol;
 mod transport;
 
 pub use adapter::{OpenRouterConnect, OpenRouterProviderAdapter};
-pub use budget::{BudgetDecision, CostPolicyConfig, SessionCostLedger};
+pub use budget::{BudgetDecision, CostPolicyConfig, DurableSpendStore, SessionCostLedger};
 pub use credential::{MemorySecretSource, SecretSource};
 pub use error::{OpenRouterError, OpenRouterErrorKind};
 pub use platform_secret::PlatformSecretSource;

@@ -24,6 +24,7 @@ tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 uuid.workspace = true
+zeroize.workspace = true
 workbench-config = { path = "../workbench-config" }
 workbench-core = { path = "../workbench-core" }
 workbench-claude = { path = "../workbench-claude" }

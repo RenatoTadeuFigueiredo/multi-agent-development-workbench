@@ -8,6 +8,7 @@ pub mod providers;
 pub mod runtime;
 pub mod runtime_paths;
 pub mod startup;
+mod spend_store;
 mod storage_backend;
 mod subscription;
 pub mod telemetry;
