@@ -32,10 +32,10 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`548bce1` (PR #40 — product docs aligned with Features 001–016). Feature code
+`4f523ad` (PR #41 — STATUS checkpoint after docs 001–016). Feature code
 baseline remains gap-zero through Feature 016 (issue #33 / PR #39,
-`64315a0`). Public product docs (README, `llms.txt`, operator E2E quickstart)
-match that control-plane delivery.
+`64315a0`). Public product docs include Mode C operator runbook and published
+`GROK_BUILD_FORK_COMPATIBILITY_PIN` (this change).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -63,8 +63,11 @@ Claude may launch Write/Edit and Codex may use workspace-write sandbox with
 
 Feature 016 delivers `workbench-terminal-backend::WorkbenchBackend`, the
 selectable external ACP backend that plans `workbench agent stdio` with
-absolute paths for the Grok-derived terminal integration. The full Grok pager
-fork and dual-upstream rebase remain in the `grok-build` repository.
+absolute paths for the Grok-derived terminal integration. The fork
+compatibility pin is published for the `WorkbenchBackend` integration commit;
+full dual-upstream rebase automation and expanded PTY suite remain residual in
+`grok-build`. Mode C runbook:
+[`docs/operations/mode-c-grok-tui-workbench.md`](../operations/mode-c-grok-tui-workbench.md).
 
 ## Active Work
 
@@ -98,10 +101,14 @@ Tracked open issues (gap-zero backlog):
 
 Residual (out of tree, not a monorepo Known Gap):
 
-- Full Grok Build pager fork dual-upstream rebase, PTY snapshot suite, and fork
-  SHA pin publication remain in the `grok-build` repository. This monorepo
-  ships the `WorkbenchBackend` launch contract those patches call
-  (`GROK_BUILD_FORK_COMPATIBILITY_PIN` is empty until the fork publishes a pin).
+- Full Grok Build pager dual-upstream rebase automation and expanded PTY
+  snapshot suite remain in the `grok-build` repository. This monorepo ships
+  the `WorkbenchBackend` launch contract and publishes
+  `GROK_BUILD_FORK_COMPATIBILITY_PIN` to the fork `feature/workbench-backend`
+  integration commit (`0da6c56f43b1ac1c5468d83f02e8ef4a4f24856c`). Mode C
+  operator path (Grok TUI → `workbench agent stdio` → daemon, same-session
+  VS Code attach):
+  [`docs/operations/mode-c-grok-tui-workbench.md`](../operations/mode-c-grok-tui-workbench.md).
 
 Detail:
 

@@ -180,9 +180,11 @@ Feature 016 ships `workbench-terminal-backend::WorkbenchBackend`, which plans:
 
 with absolute executable and workspace paths for the Grok-derived terminal
 integration. The full pager UI remains in the
-[grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build) fork;
-`GROK_BUILD_FORK_COMPATIBILITY_PIN` in this monorepo is empty until that fork
-publishes a pin.
+[grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build) fork.
+`GROK_BUILD_FORK_COMPATIBILITY_PIN` records the tested WorkbenchBackend
+integration commit. For Modes A/B/C, env vars, and same-session VS Code + TUI
+attach, see
+[Mode C — Grok TUI as Workbench ACP client](mode-c-grok-tui-workbench.md).
 
 ## 8. Cost policy notes
 
@@ -234,3 +236,5 @@ make test-acceptance
 - CLI surface: [`doc/arch/domain/cli-surface.md`](../../doc/arch/domain/cli-surface.md)
 - Terminal integration:
   [`docs/architecture/grok-build-terminal-integration.md`](../architecture/grok-build-terminal-integration.md)
+- Mode C (Grok TUI → Workbench):
+  [`mode-c-grok-tui-workbench.md`](mode-c-grok-tui-workbench.md)

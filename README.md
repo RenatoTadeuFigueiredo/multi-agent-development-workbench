@@ -547,12 +547,15 @@ The monorepo MVP (Features 001–016) includes:
 10. Automated adapter, workflow, acceptance-binding inventory, recovery, and
     offline end-to-end harnesses.
 
-Residual outside this monorepo: full Grok pager dual-upstream rebase, PTY
-snapshot suite, and published fork SHA pin (`GROK_BUILD_FORK_COMPATIBILITY_PIN`
-is empty until the fork publishes a pin). Parallel feature branches, remote
-workers, a visual workflow designer, team collaboration, analytics, deeper
-VS Code Agents integration, and additional editor-specific extensions remain
-follow-up product roadmap items.
+Residual outside this monorepo: full Grok pager dual-upstream rebase automation
+and expanded PTY snapshot suite in `grok-build`. The fork compatibility pin
+(`GROK_BUILD_FORK_COMPATIBILITY_PIN`) is published for the WorkbenchBackend
+integration commit. Mode C operator path (Grok TUI → `workbench agent stdio` →
+daemon):
+[docs/operations/mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md).
+Parallel feature branches, remote workers, a visual workflow designer, team
+collaboration, analytics, deeper VS Code Agents integration, and additional
+editor-specific extensions remain follow-up product roadmap items.
 
 ## Current Validation
 
@@ -581,9 +584,10 @@ follow-up product roadmap items.
   sessions for its resolved workspace endpoint, including workflow routing and
   approval surfaces (Feature 009).
 - `WorkbenchBackend` plans `workbench agent stdio` with absolute paths
-  (Feature 016). Full pager dual-upstream rebase and PTY suite remain in
-  `grok-build`; `GROK_BUILD_FORK_COMPATIBILITY_PIN` is empty until the fork
-  publishes a pin.
+  (Feature 016). `GROK_BUILD_FORK_COMPATIBILITY_PIN` is published; full pager
+  dual-upstream rebase automation and expanded PTY suite remain in
+  `grok-build`. Mode C:
+  [mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md).
 - Durable delivery evidence and issue/PR mapping live in
   [`docs/project/STATUS.md`](docs/project/STATUS.md).
 
@@ -626,7 +630,8 @@ The MVP is successful when a user can submit one feature request and:
 | WorkbenchBackend terminal launch surface | Delivered | Feature 016 |
 | Cargo workspace and deterministic acceptance harnesses | Delivered | Rust crates + `workbench-testkit` |
 | Operator E2E quickstart | Delivered | `docs/operations/operator-e2e-quickstart.md` |
-| Full Grok pager fork dual-upstream rebase and PTY suite | Residual (out of tree) | [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build) |
+| Mode C Grok TUI → Workbench bridge | Delivered (docs + pin) | `docs/operations/mode-c-grok-tui-workbench.md` |
+| Full Grok pager dual-upstream rebase automation and PTY suite | Residual (out of tree) | [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build) |
 
 The workspace pins Rust 1.95.0 and direct dependencies. The default
 `make check` gate is deterministic and offline; real Keychain/Secret Service
@@ -657,12 +662,15 @@ Run `make context` in a fresh session and use
    [operator E2E quickstart](docs/operations/operator-e2e-quickstart.md)
    (config lock, daemon, session, workflow, VS Code attach, agent stdio, cost
    policy; offline vs live).
-2. **Residual product work (out of tree):** complete the Grok Build pager
-   dual-upstream rebase, PTY snapshot suite, and published fork compatibility
-   pin in
+2. **Mode C (combined):** run the Grok TUI as an ACP client of
+   `workbench agent stdio` —
+   [mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md)
+   (env vars, same-session VS Code + TUI, fail-closed troubleshooting).
+3. **Residual product work (out of tree):** complete Grok Build dual-upstream
+   rebase automation and expanded PTY suite in
    [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build)
-   (consumes monorepo `WorkbenchBackend` / `workbench agent stdio`).
-3. **Monorepo maintenance:** new roadmap items only—no open gap-zero backlog
+   (consumes monorepo `WorkbenchBackend` / pin).
+4. **Monorepo maintenance:** new roadmap items only—no open gap-zero backlog
    issues in this repository.
 
 ## References
@@ -683,6 +691,7 @@ Run `make context` in a fresh session and use
 - [Configuration, routing, and provider modularity decision](docs/architecture/configuration-routing-and-providers.md)
 - [OpenRouter API](https://openrouter.ai/docs/quickstart)
 - [Operator E2E quickstart](docs/operations/operator-e2e-quickstart.md)
+- [Mode C Grok TUI → Workbench](docs/operations/mode-c-grok-tui-workbench.md)
 - [Project status](docs/project/STATUS.md)
 - [Claude Code for VS Code](https://code.claude.com/docs/en/ide-integrations)
 - [Codex authentication](https://learn.chatgpt.com/docs/auth)

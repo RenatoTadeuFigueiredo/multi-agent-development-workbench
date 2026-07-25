@@ -138,15 +138,35 @@ Secrets stay in the operating-system keychain or provider-owned credential
 stores. Neither the fork nor version-controlled configuration may contain
 provider sessions, OAuth tokens, or API keys.
 
+## Operating modes (A / B / C)
+
+| Mode | Role |
+|---|---|
+| **A** | Grok multi-model solo (TUI + in-process shell) |
+| **B** | Workbench solo (VS Code / CLI → daemon) |
+| **C** | Grok TUI as ACP client of `workbench agent stdio` → daemon |
+
+Operator runbook for Mode C (env vars, same-session VS Code attach, fail-closed
+troubleshooting):
+[`docs/operations/mode-c-grok-tui-workbench.md`](../operations/mode-c-grok-tui-workbench.md).
+
+## Compatibility pin (monorepo)
+
+`workbench-terminal-backend::GROK_BUILD_FORK_COMPATIBILITY_PIN` records the
+tested Grok Build fork commit that implements selectable `WorkbenchBackend`.
+Update it when the dual-upstream patch stack is rebased and verified.
+
 ## Current Baseline
 
-Source inspection confirmed that the pager currently spawns only its
-in-process GrokShell backend, so the external Workbench backend remains the
-critical terminal implementation spike. Feature 004 provides deterministic
-offline coverage for the separately supervised provider boundary. The
-handshake-only production-path smoke passed on the recorded macOS host with
-Grok Build 0.2.111, without creating a provider session or sending a prompt.
-It is compatibility evidence, not a general live provider execution claim.
+Feature 016 ships the monorepo launch contract. The Grok Build fork branch
+`feature/workbench-backend` adds the selectable external backend beside
+`GrokShellBackend` (see fork `docs/workbench-backend.md`). Full dual-upstream
+rebase automation and expanded PTY snapshots remain residual in `grok-build`.
+Feature 004 provides deterministic offline coverage for the separately
+supervised official Grok **provider** boundary. The handshake-only
+production-path smoke passed on the recorded macOS host with Grok Build
+0.2.111, without creating a provider session or sending a prompt. It is
+compatibility evidence, not a general live provider execution claim.
 
 ## Licensing and Attribution
 
