@@ -1,4 +1,4 @@
-//! OpenRouter Chat Completions adapter with credential and cost controls.
+//! `OpenRouter` Chat Completions adapter with credential and cost controls.
 //!
 //! Protocol identity: `openrouter-chat-completions/1`.
 
@@ -25,7 +25,7 @@ pub const MAX_BODY_BYTES: usize = 8 * 1024 * 1024;
 /// Locked protocol identity implemented by this adapter.
 pub const OPENROUTER_CHAT_COMPLETIONS_PROTOCOL: &str = "openrouter-chat-completions/1";
 
-/// Default public OpenRouter API base URL.
+/// Default public `OpenRouter` API base URL.
 pub const DEFAULT_BASE_URL: &str = "https://openrouter.ai/api/v1";
 
 /// Offline fake base URL (`fake://openrouter`) accepted by configuration validation.

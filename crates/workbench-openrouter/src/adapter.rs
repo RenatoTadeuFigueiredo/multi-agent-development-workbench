@@ -59,7 +59,7 @@ pub struct OpenRouterConnect {
     pub require_secret_at_connect: bool,
 }
 
-/// Provider-port implementation for OpenRouter Chat Completions streaming.
+/// Provider-port implementation for `OpenRouter` Chat Completions streaming.
 pub struct OpenRouterProviderAdapter {
     adapter_id: ProviderId,
     adapter_version: String,
@@ -75,7 +75,7 @@ pub struct OpenRouterProviderAdapter {
 }
 
 impl OpenRouterProviderAdapter {
-    /// Connects an offline or configured OpenRouter adapter after secret probe.
+    /// Connects an offline or configured `OpenRouter` adapter after secret probe.
     ///
     /// # Errors
     ///

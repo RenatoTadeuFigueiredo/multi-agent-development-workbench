@@ -14,7 +14,7 @@ use crate::{
     protocol::{UsageSummary, extract_usage, normalize_sse_data, split_sse_data},
 };
 
-/// Offline-injectable HTTP behavior for OpenRouter fake transport tests.
+/// Offline-injectable HTTP behavior for `OpenRouter` fake transport tests.
 #[derive(Clone, Debug)]
 pub enum FakeHttpMode {
     Stream { events: Vec<String>, usage: Value },
@@ -26,7 +26,7 @@ pub enum FakeHttpMode {
     MidStreamFailure { events: Vec<String> },
 }
 
-/// In-process OpenRouter HTTP transport used by default tests.
+/// In-process `OpenRouter` HTTP transport used by default tests.
 #[derive(Clone, Default)]
 pub struct FakeOpenRouterTransport {
     modes: Arc<Mutex<BTreeMap<String, FakeHttpMode>>>,

@@ -1,6 +1,6 @@
 use workbench_core::{CoreError, FailureCategory, ports::ProviderFailure};
 
-/// Stable redacted OpenRouter failure kinds used by the adapter.
+/// Stable redacted `OpenRouter` failure kinds used by the adapter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpenRouterErrorKind {
     InvalidConfig,
@@ -16,7 +16,7 @@ pub enum OpenRouterErrorKind {
     ShuttingDown,
 }
 
-/// Redacted OpenRouter adapter failure returned to the core port.
+/// Redacted `OpenRouter` adapter failure returned to the core port.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpenRouterError {
     kind: OpenRouterErrorKind,
