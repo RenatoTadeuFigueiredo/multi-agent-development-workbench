@@ -280,7 +280,9 @@ cargo run -p workbench-cli -- --json session create
 O
 [quickstart E2E do operador](docs/operations/operator-e2e-quickstart.md)
 cobre lock, daemon, sessão, workflow, anexo no VS Code, agent stdio e
-políticas de custo (offline vs live). Runbooks por provider:
+políticas de custo (offline vs live). Modo C (TUI Grok → Workbench):
+[mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md).
+Runbooks por provider:
 [Grok ACP](docs/operations/grok-acp-provider.md),
 [Claude Code](docs/operations/claude-code-provider.pt-BR.md),
 [Codex](docs/operations/codex-provider.pt-BR.md) e
@@ -555,12 +557,15 @@ O MVP do monorepo (Features 001–016) inclui:
 10. Harnesses automatizados de adaptadores, workflows, inventário de bindings
     de aceitação, recuperação e ponta a ponta offline.
 
-Residual fora deste monorepo: rebase dual-upstream completo do pager Grok,
-suíte PTY e pin publicado do fork (`GROK_BUILD_FORK_COMPATIBILITY_PIN` fica
-vazio até o fork publicar um pin). Branches paralelas, workers remotos, editor
-visual de workflows, colaboração em equipe, analytics, integração mais
-profunda com a janela Agents do VS Code e extensões de outros editores
-permanecem roadmap futuro.
+Residual fora deste monorepo: automação de rebase dual-upstream do pager Grok
+e suíte PTY expandida em `grok-build`. O pin de compatibilidade
+(`GROK_BUILD_FORK_COMPATIBILITY_PIN`) está publicado para o commit de
+integração do WorkbenchBackend. Modo C (TUI Grok → `workbench agent stdio` →
+daemon):
+[docs/operations/mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md).
+Branches paralelas, workers remotos, editor visual de workflows, colaboração
+em equipe, analytics, integração mais profunda com a janela Agents do VS Code
+e extensões de outros editores permanecem roadmap futuro.
 
 ## Validações realizadas
 
@@ -589,9 +594,10 @@ permanecem roadmap futuro.
   endpoint do workspace, incluindo roteamento de workflow e aprovações
   (Feature 009).
 - `WorkbenchBackend` planeja `workbench agent stdio` com caminhos absolutos
-  (Feature 016). O rebase dual-upstream do pager e a suíte PTY permanecem em
-  `grok-build`; `GROK_BUILD_FORK_COMPATIBILITY_PIN` fica vazio até o fork
-  publicar um pin.
+  (Feature 016). `GROK_BUILD_FORK_COMPATIBILITY_PIN` está publicado; a
+  automação de rebase dual-upstream e a suíte PTY expandida permanecem em
+  `grok-build`. Modo C:
+  [mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md).
 - Evidência de entrega e mapeamento issue/PR vivem em
   [`docs/project/STATUS.md`](docs/project/STATUS.md).
 
@@ -634,6 +640,7 @@ O MVP será considerado bem-sucedido quando um usuário puder enviar uma única 
 | Superfície de launch WorkbenchBackend | Entregue | Feature 016 |
 | Workspace Cargo e harnesses de aceitação determinísticos | Entregue | Crates Rust + `workbench-testkit` |
 | Quickstart E2E do operador | Entregue | `docs/operations/operator-e2e-quickstart.md` |
+| Modo C TUI Grok → Workbench | Entregue (docs + pin) | `docs/operations/mode-c-grok-tui-workbench.md` |
 | Rebase dual-upstream completo do pager Grok e suíte PTY | Residual (fora da árvore) | [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build) |
 
 O workspace fixa Rust 1.95.0 e as dependências diretas. O gate padrão
@@ -666,12 +673,15 @@ Em uma sessão nova, execute `make context` e use
    [quickstart E2E do operador](docs/operations/operator-e2e-quickstart.md)
    (config lock, daemon, sessão, workflow, anexo no VS Code, agent stdio,
    política de custo; offline vs live).
-2. **Trabalho residual de produto (fora da árvore):** concluir o rebase
-   dual-upstream do pager Grok Build, a suíte PTY e o pin de compatibilidade
-   publicado do fork em
+2. **Modo C (combinado):** TUI Grok como cliente ACP de
+   `workbench agent stdio` —
+   [mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md)
+   (env vars, mesma sessão VS Code + TUI, troubleshooting fail-closed).
+3. **Trabalho residual de produto (fora da árvore):** automação de rebase
+   dual-upstream e suíte PTY expandida em
    [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build)
-   (consome monorepo `WorkbenchBackend` / `workbench agent stdio`).
-3. **Manutenção do monorepo:** apenas novos itens de roadmap—não há backlog
+   (consome monorepo `WorkbenchBackend` / pin).
+4. **Manutenção do monorepo:** apenas novos itens de roadmap—não há backlog
    gap-zero aberto neste repositório.
 
 ## Referências
@@ -692,6 +702,7 @@ Em uma sessão nova, execute `make context` e use
 - [Decisão de configuração, roteamento e modularidade de providers](docs/architecture/configuration-routing-and-providers.md)
 - [API do OpenRouter](https://openrouter.ai/docs/quickstart)
 - [Quickstart E2E do operador](docs/operations/operator-e2e-quickstart.md)
+- [Modo C TUI Grok → Workbench](docs/operations/mode-c-grok-tui-workbench.md)
 - [Status do projeto](docs/project/STATUS.md)
 - [Claude Code para VS Code](https://code.claude.com/docs/en/ide-integrations)
 - [Autenticação do Codex](https://learn.chatgpt.com/docs/auth)

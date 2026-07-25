@@ -11,6 +11,7 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 - [Project status](docs/project/STATUS.md): delivered baseline, known gaps, and ordered roadmap
 - [Human overview](README.md): product experience and architecture
 - [Operator E2E quickstart](docs/operations/operator-e2e-quickstart.md): lock, daemon, session, workflow, VS Code, agent stdio
+- [Mode C Grok TUI → Workbench](docs/operations/mode-c-grok-tui-workbench.md): Modes A/B/C, env vars, same-session VS Code + TUI
 - [Constitution](doc/arch/memory/constitution.md): non-negotiable design and governance principles
 - [Product overview](doc/arch/functional/product-overview.md): actors and end-to-end flow
 
@@ -38,8 +39,10 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
   - 015 Claude/Codex provider-native write tools under central policy
   - 016 WorkbenchBackend terminal launch surface
 - Residual (out of tree, not a monorepo Known Gap): full Grok Build pager
-  dual-upstream rebase, PTY suite, and fork SHA pin in
-  [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build).
+  dual-upstream rebase automation and expanded PTY suite in
+  [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build). Fork
+  `GROK_BUILD_FORK_COMPATIBILITY_PIN` is published; Mode C operator guide:
+  [mode-c-grok-tui-workbench.md](docs/operations/mode-c-grok-tui-workbench.md).
 - Spec and decision anchors for the control plane:
   - [Encrypted storage](doc/arch/adr/0002-encrypted-local-session-storage.md)
   - [Central MCP](doc/arch/adr/0008-central-mcp-lifecycle-and-tool-permissions.md)
@@ -56,6 +59,7 @@ spec-first: doc/arch is the source of truth — run `speckit status` then `speck
 - [OpenRouter operations](docs/operations/openrouter-provider.md): credentials, budgets, offline vs live
 - [Grok ACP operations](docs/operations/grok-acp-provider.md): official provider launch boundary
 - [Terminal integration](docs/architecture/grok-build-terminal-integration.md): Grok Build fork and ACP boundary
+- [Mode C operations](docs/operations/mode-c-grok-tui-workbench.md): Grok TUI as Workbench ACP client
 - [Headless CLI](doc/arch/domain/cli-surface.md): commands, JSON output, and stable exit codes
 - [Local operations](doc/arch/operations/operations.md): runtime layout, recovery, and backup
 - [Local SLOs](doc/arch/slo/service-level-objectives.md): durability, latency, and security gates

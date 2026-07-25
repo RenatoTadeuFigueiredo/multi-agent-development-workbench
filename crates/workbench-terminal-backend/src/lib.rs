@@ -26,7 +26,12 @@ use thiserror::Error;
 /// Operators and the fork sync job record the matching upstream SHA here when
 /// the downstream patch stack is rebased. Empty means "integration contract
 /// only; fork pin not yet published from a dual-upstream rebase".
-pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "";
+///
+/// Current pin: `feature/workbench-backend` commit that adds selectable
+/// `WorkbenchBackend` (`feat(acp): selectable Workbench external ACP backend`)
+/// in https://github.com/RenatoTadeuFigueiredo/grok-build.
+pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str =
+    "0da6c56f43b1ac1c5468d83f02e8ef4a4f24856c";
 
 /// Documented CLI subcommand the terminal launches.
 pub const WORKBENCH_AGENT_STDIO_ARGS: &[&str] = &["agent", "stdio"];
@@ -192,8 +197,18 @@ mod tests {
 
     #[test]
     fn compatibility_pin_is_documented_string() {
-        // Empty pin is valid for the monorepo MVP; fork sync fills it later.
-        let _ = GROK_BUILD_FORK_COMPATIBILITY_PIN;
+        // Published pin: Grok Build WorkbenchBackend integration commit.
+        assert!(
+            !GROK_BUILD_FORK_COMPATIBILITY_PIN.is_empty(),
+            "GROK_BUILD_FORK_COMPATIBILITY_PIN must be a non-empty fork SHA"
+        );
+        assert_eq!(GROK_BUILD_FORK_COMPATIBILITY_PIN.len(), 40);
+        assert!(
+            GROK_BUILD_FORK_COMPATIBILITY_PIN
+                .chars()
+                .all(|c| c.is_ascii_hexdigit()),
+            "pin must be a full lowercase hex commit SHA"
+        );
         assert!(WORKBENCH_AGENT_STDIO_ARGS.contains(&"agent"));
         assert!(WORKBENCH_AGENT_STDIO_ARGS.contains(&"stdio"));
     }
