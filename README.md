@@ -546,10 +546,11 @@ Parallel feature branches, remote workers, a visual workflow designer, team coll
   `codex exec --json`, strict 8 MiB JSONL framing, ChatGPT-only login preflight,
   fixed read-only ephemeral launch profile, process-group reaping, and 23/23
   bound quota-free acceptance cases.
-- Speckit 0.18.10 verification is advisory for Features 001 and 004: it reports
-  zero loaded bindings because its executable registry does not load their
-  external Rust tests. The repository-owned runners are the authoritative
-  acceptance gates.
+- Speckit 0.18.10 `verify` is advisory for Features 001–011 and 013: its
+  executable registry is binary-local (ADR-0020) and cannot load external Rust
+  step bindings, so Gherkin steps report `unbound`. Authoritative gates are
+  `make test-acceptance-bindings` (feature↔harness inventory) and
+  `make test-acceptance` (`workbench-testkit` feature harnesses).
 - ACP boundary hardening accepts an exact 8 MiB frame with incremental newline
   scanning, rejects one byte over the limit, and divides cancellation into a
   4.5-second provider budget plus a 500-millisecond durable-finalization
