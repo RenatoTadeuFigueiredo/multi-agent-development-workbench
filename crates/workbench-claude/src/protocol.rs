@@ -7,7 +7,8 @@ use crate::{ClaudeError, ClaudeErrorKind};
 const MAX_IDENTIFIER_BYTES: usize = 4_096;
 const MAX_TOOL_NAME_BYTES: usize = 64;
 const MAX_CONTENT_BLOCKS: usize = 1_024;
-const ALLOWED_TOOLS: [&str; 3] = ["Read", "Glob", "Grep"];
+const READ_ONLY_TOOLS: [&str; 3] = ["Read", "Glob", "Grep"];
+const WRITE_TOOLS: [&str; 5] = ["Read", "Glob", "Grep", "Write", "Edit"];
 
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum Inbound {
@@ -67,22 +68,44 @@ pub(crate) fn user_message(session_id: &str, text: &str) -> Value {
     })
 }
 
+/// Fail-closed read-only parser (default native writes off).
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, ClaudeError> {
+    parse_inbound_with_policy(value, false)
+}
+
+/// Parses inbound frames with an optional native-write tool allowlist.
+pub(crate) fn parse_inbound_with_policy(
+    value: &Value,
+    native_writes: bool,
+) -> Result<Inbound, ClaudeError> {
     let object = value.as_object().ok_or_else(protocol_violation)?;
     let kind = required_string(object.get("type"))?;
     match kind {
-        "system" => parse_system(object),
+        "system" => parse_system(object, native_writes),
         "control_response" => parse_control_response(object),
-        "stream_event" => parse_stream_event(object),
-        "assistant" => parse_assistant(object),
+        "stream_event" => parse_stream_event(object, native_writes),
+        "assistant" => parse_assistant(object, native_writes),
         "user" => parse_user(object),
         "result" => parse_result(object),
+        // Permission prompts remain fail-closed for reverse authority.
         "control_request" | "control_cancel_request" => Err(capability_violation()),
         _ => Err(protocol_violation()),
     }
 }
 
-fn parse_system(object: &serde_json::Map<String, Value>) -> Result<Inbound, ClaudeError> {
+fn allowed_tools(native_writes: bool) -> &'static [&'static str] {
+    if native_writes {
+        &WRITE_TOOLS
+    } else {
+        &READ_ONLY_TOOLS
+    }
+}
+
+fn parse_system(
+    object: &serde_json::Map<String, Value>,
+    native_writes: bool,
+) -> Result<Inbound, ClaudeError> {
     let subtype = required_string(object.get("subtype"))?;
     if subtype != "init" {
         return Ok(Inbound::Ignored);
@@ -98,12 +121,13 @@ fn parse_system(object: &serde_json::Map<String, Value>) -> Result<Inbound, Clau
         .get("tools")
         .and_then(Value::as_array)
         .ok_or_else(capability_violation)?;
-    if tools.len() != ALLOWED_TOOLS.len() {
+    let allowed = allowed_tools(native_writes);
+    if tools.len() != allowed.len() {
         return Err(capability_violation());
     }
     let mut advertised = HashSet::new();
     for tool in tools {
-        let tool = validate_tool(required_string(Some(tool))?)?;
+        let tool = validate_tool(required_string(Some(tool))?, native_writes)?;
         if !advertised.insert(tool) {
             return Err(capability_violation());
         }
@@ -127,7 +151,10 @@ fn parse_control_response(object: &serde_json::Map<String, Value>) -> Result<Inb
     })
 }
 
-fn parse_stream_event(object: &serde_json::Map<String, Value>) -> Result<Inbound, ClaudeError> {
+fn parse_stream_event(
+    object: &serde_json::Map<String, Value>,
+    native_writes: bool,
+) -> Result<Inbound, ClaudeError> {
     required_identifier(object.get("session_id"))?;
     required_identifier(object.get("uuid"))?;
     let event = object
@@ -155,7 +182,7 @@ fn parse_stream_event(object: &serde_json::Map<String, Value>) -> Result<Inbound
                 .ok_or_else(protocol_violation)?;
             match required_string(block.get("type"))? {
                 "tool_use" => {
-                    let name = validate_tool(required_string(block.get("name"))?)?;
+                    let name = validate_tool(required_string(block.get("name"))?, native_writes)?;
                     Ok(Inbound::ToolStarted(name.to_owned()))
                 }
                 "text" | "thinking" | "redacted_thinking" => Ok(Inbound::Ignored),
@@ -169,7 +196,10 @@ fn parse_stream_event(object: &serde_json::Map<String, Value>) -> Result<Inbound
     }
 }
 
-fn parse_assistant(object: &serde_json::Map<String, Value>) -> Result<Inbound, ClaudeError> {
+fn parse_assistant(
+    object: &serde_json::Map<String, Value>,
+    native_writes: bool,
+) -> Result<Inbound, ClaudeError> {
     optional_identifier(object.get("session_id"))?;
     let message = object
         .get("message")
@@ -197,7 +227,9 @@ fn parse_assistant(object: &serde_json::Map<String, Value>) -> Result<Inbound, C
                 }
             }
             "tool_use" => {
-                tools.push(validate_tool(required_string(block.get("name"))?)?.to_owned());
+                tools.push(
+                    validate_tool(required_string(block.get("name"))?, native_writes)?.to_owned(),
+                );
             }
             "thinking" | "redacted_thinking" => {}
             _ => return Err(capability_violation()),
@@ -251,11 +283,11 @@ fn parse_result(object: &serde_json::Map<String, Value>) -> Result<Inbound, Clau
     })
 }
 
-fn validate_tool(name: &str) -> Result<&str, ClaudeError> {
+fn validate_tool(name: &str, native_writes: bool) -> Result<&str, ClaudeError> {
     if name.is_empty()
         || name.len() > MAX_TOOL_NAME_BYTES
         || name.chars().any(char::is_control)
-        || !ALLOWED_TOOLS.contains(&name)
+        || !allowed_tools(native_writes).contains(&name)
     {
         Err(capability_violation())
     } else {
@@ -305,7 +337,7 @@ mod tests {
 
     use crate::ClaudeErrorKind;
 
-    use super::{Inbound, initialize_request, parse_inbound};
+    use super::{Inbound, initialize_request, parse_inbound, parse_inbound_with_policy};
 
     #[test]
     fn initialization_has_no_hooks_agents_or_skills() {
@@ -374,6 +406,24 @@ mod tests {
             parse_inbound(&denied).expect_err("write authority").kind(),
             ClaudeErrorKind::CapabilityUnavailable
         );
+        let write = json!({
+            "type": "assistant",
+            "session_id": "session-1",
+            "message": {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "name": "Write", "input": {}}]
+            }
+        });
+        assert_eq!(
+            parse_inbound(&write)
+                .expect_err("write without policy")
+                .kind(),
+            ClaudeErrorKind::CapabilityUnavailable
+        );
+        assert!(matches!(
+            parse_inbound_with_policy(&write, true).expect("write under policy"),
+            Inbound::Assistant { .. }
+        ));
     }
 
     #[test]

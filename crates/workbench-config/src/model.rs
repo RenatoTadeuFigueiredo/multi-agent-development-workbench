@@ -226,6 +226,52 @@ pub struct Policies {
     /// Paid API budget ceilings. Required when any `type: api` provider exists.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cost: Option<CostPolicy>,
+    /// Provider-native write tools (Claude/Codex). Fail-closed by default.
+    #[serde(default, skip_serializing_if = "ProviderNativeWritePolicy::is_default")]
+    pub provider_native_writes: ProviderNativeWritePolicy,
+}
+
+/// Central policy for Claude/Codex provider-native write tools.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProviderNativeWritePolicy {
+    /// Fail-closed default disables native writes for every provider.
+    #[serde(default)]
+    pub mode: NativeWriteMode,
+    /// Provider ids that may use the write profile when mode is not disabled.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allowlist: Vec<String>,
+}
+
+impl Default for ProviderNativeWritePolicy {
+    fn default() -> Self {
+        Self {
+            mode: NativeWriteMode::Disabled,
+            allowlist: Vec::new(),
+        }
+    }
+}
+
+impl ProviderNativeWritePolicy {
+    #[must_use]
+    pub fn is_default(&self) -> bool {
+        self == &Self::default()
+    }
+
+    /// Returns whether provider-native writes are enabled for `provider_id`.
+    #[must_use]
+    pub fn allows(&self, provider_id: &str) -> bool {
+        matches!(self.mode, NativeWriteMode::ApprovalRequired)
+            && self.allowlist.iter().any(|id| id == provider_id)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NativeWriteMode {
+    #[default]
+    Disabled,
+    ApprovalRequired,
 }
 
 /// Session and optional per-attempt paid inference ceilings in micro-USD units.
@@ -331,6 +377,7 @@ impl WorkbenchConfiguration {
                 global_deny: Vec::new(),
                 production_mutations: ProductionMutations::ApprovalRequired,
                 cost: None,
+                provider_native_writes: ProviderNativeWritePolicy::default(),
             },
             storage: Storage {
                 encryption: Encryption::Required,

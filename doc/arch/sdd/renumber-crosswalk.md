@@ -9,3 +9,4 @@
 | 100 | 013 | compose-tls-https-client-for-non-loopback-mcp-endpoints-so | renumber | 2026-07-25T11:55:45.627604Z |
 | 100 | 012 | attach-acp-agent-stdio-to-running-daemon | renumber | 2026-07-25T12:40:00.000000Z |
 | 100 | 014 | durable-cost-ledger-and-openrouter-live-https | renumber | 2026-07-25T13:00:00.000000Z |
+| 100 | 015 | provider-native-write-tools-under-central-policy | renumber | 2026-07-25T14:00:00.000000Z |

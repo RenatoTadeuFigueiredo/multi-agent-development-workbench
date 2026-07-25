@@ -14,7 +14,7 @@ use tokio::{
 use crate::{
     CodexError, CodexErrorKind,
     codec::FrameReader,
-    protocol::{Inbound, parse_inbound},
+    protocol::{Inbound, parse_inbound_with_policy},
 };
 
 const DEFAULT_PREFLIGHT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -31,6 +31,8 @@ pub struct CodexLaunchProfile {
     workspace: PathBuf,
     preflight_timeout: Duration,
     shutdown_grace: Duration,
+    /// When true, launches with workspace-write sandbox under central policy.
+    native_writes: bool,
 }
 
 impl CodexLaunchProfile {
@@ -40,6 +42,7 @@ impl CodexLaunchProfile {
             workspace: workspace.into(),
             preflight_timeout: DEFAULT_PREFLIGHT_TIMEOUT,
             shutdown_grace: DEFAULT_SHUTDOWN_GRACE,
+            native_writes: false,
         }
     }
 
@@ -47,6 +50,18 @@ impl CodexLaunchProfile {
     pub const fn preflight_timeout(mut self, timeout: Duration) -> Self {
         self.preflight_timeout = timeout;
         self
+    }
+
+    /// Enables workspace-write sandbox and `file_change` observation.
+    #[must_use]
+    pub const fn native_writes(mut self, enabled: bool) -> Self {
+        self.native_writes = enabled;
+        self
+    }
+
+    #[must_use]
+    pub const fn native_writes_enabled(&self) -> bool {
+        self.native_writes
     }
 
     #[must_use]
@@ -67,6 +82,7 @@ pub(crate) struct CodexProcess {
     reader: FrameReader<tokio::process::ChildStdout>,
     stderr: JoinHandle<()>,
     shutdown_grace: Duration,
+    native_writes: bool,
 }
 
 impl CodexProcess {
@@ -86,7 +102,11 @@ impl CodexProcess {
                 "--json",
                 "--ephemeral",
                 "--sandbox",
-                "read-only",
+                if profile.native_writes {
+                    "workspace-write"
+                } else {
+                    "read-only"
+                },
                 "-C",
                 workspace_arg.as_str(),
                 "-m",
@@ -112,15 +132,17 @@ impl CodexProcess {
             reader: FrameReader::new(stdout),
             stderr: spawn_stderr_drain(stderr),
             shutdown_grace: profile.shutdown_grace,
+            native_writes: profile.native_writes,
         })
     }
 
     pub(crate) async fn next(&mut self) -> Result<Option<Inbound>, CodexError> {
+        let native_writes = self.native_writes;
         self.reader
             .next_frame()
             .await?
             .as_ref()
-            .map(parse_inbound)
+            .map(|value| parse_inbound_with_policy(value, native_writes))
             .transpose()
     }
 

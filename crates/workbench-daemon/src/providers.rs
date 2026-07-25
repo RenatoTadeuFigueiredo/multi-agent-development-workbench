@@ -203,14 +203,25 @@ impl ProviderRuntime {
         let secrets: Arc<dyn SecretSource> = Arc::new(PlatformSecretSource::new());
 
         for (name, descriptor) in descriptors {
-            let (adapter, owned) =
-                match connect_descriptor(&descriptor, workspace, cancellation_deadline).await {
-                    Ok(connected) => connected,
-                    Err(error) => {
-                        cleanup_after_startup_error(&managed, &error).await?;
-                        return Err(error.into());
-                    }
-                };
+            let native_writes = startup
+                .resolved
+                .policies
+                .provider_native_writes
+                .allows(descriptor.provider_id.as_str());
+            let (adapter, owned) = match connect_descriptor(
+                &descriptor,
+                workspace,
+                cancellation_deadline,
+                native_writes,
+            )
+            .await
+            {
+                Ok(connected) => connected,
+                Err(error) => {
+                    cleanup_after_startup_error(&managed, &error).await?;
+                    return Err(error.into());
+                }
+            };
             let capabilities = match adapter.capabilities().await {
                 Ok(capabilities) => capabilities,
                 Err(error) => {
@@ -372,6 +383,7 @@ async fn connect_descriptor(
     descriptor: &ProviderDescriptor,
     workspace: &Path,
     cancellation_deadline: Duration,
+    native_writes: bool,
 ) -> Result<(Arc<dyn ProviderAdapter>, ManagedAdapter), CoreError> {
     match descriptor.kind {
         AdapterProbeKind::Acp => {
@@ -397,7 +409,8 @@ async fn connect_descriptor(
                     descriptor.provider_id.clone(),
                     descriptor.version.clone(),
                     ClaudeLaunchProfile::new(&descriptor.executable, workspace)
-                        .initialization_timeout(initialization_timeout),
+                        .initialization_timeout(initialization_timeout)
+                        .native_writes(native_writes),
                     cancellation_deadline,
                 )
                 .await?,
@@ -415,7 +428,8 @@ async fn connect_descriptor(
                     descriptor.provider_id.clone(),
                     descriptor.version.clone(),
                     CodexLaunchProfile::new(&descriptor.executable, workspace)
-                        .preflight_timeout(preflight_timeout),
+                        .preflight_timeout(preflight_timeout)
+                        .native_writes(native_writes),
                     cancellation_deadline,
                 )
                 .await?,
