@@ -3,6 +3,8 @@
 #![allow(clippy::manual_let_else)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
 
 use serde_json::json;
 use time::{Duration, OffsetDateTime};
@@ -103,6 +105,8 @@ fn every_binding_names_executable_repository_evidence() {
 #[test]
 fn durable_spend_survives_storage_reopen_and_denies_budget() {
     let directory = tempfile::tempdir().expect("tempdir");
+    fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700))
+        .expect("private storage directory");
     let database = directory.path().join("spend.sqlite");
     let session_id = Uuid::now_v7();
 
