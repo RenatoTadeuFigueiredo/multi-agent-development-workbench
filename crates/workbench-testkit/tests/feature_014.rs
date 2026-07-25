@@ -1,4 +1,4 @@
-//! Feature 014 acceptance: durable cost ledger and OpenRouter live HTTPS.
+//! Feature 014 acceptance: durable cost ledger and `OpenRouter` live HTTPS.
 
 #![allow(clippy::manual_let_else)]
 
