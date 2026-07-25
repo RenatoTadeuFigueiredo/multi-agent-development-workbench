@@ -32,8 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`3e14943` (issue #31 / PR #37). Features 001–015 ship after this change
-(Feature 015 provider-native write tools under central policy; issue #32).
+`00db188` (issue #32 / PR #38). Features 001–016 ship after gap-zero completion
+(Feature 016 WorkbenchBackend terminal integration MVP; issue #33).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -52,45 +52,28 @@ The last reviewed `main` checkpoint is merge commit
 | 013 | Non-loopback HTTPS MCP TLS client (`rustls` + native roots) | Issue #30 |
 | 014 | Durable session cost ledger + opt-in OpenRouter live HTTPS | Issue #31 |
 | 015 | Claude/Codex provider-native write tools under central policy | Issue #32 |
-
-Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
-credential_ref resolution, `policies.cost` fail-closed budgets, daemon API
-provider composition, and ignored live smoke.
-
-Feature 011 MVP exposes ACP v1 agent stdio (`workbench agent stdio` via
-`workbench-acp-server`) that bridges to the daemon/fake application path
-without embedding Grok.
-
-Feature 012 production `workbench agent stdio` attaches to the workspace-local
-daemon Unix socket (`DaemonSocketBackend`). Missing daemons fail closed.
-`InProcessBackend::offline_fake` remains for Feature 011 offline acceptance.
-
-Feature 013 composes `rustls` / `tokio-rustls` / `rustls-native-certs` in
-`workbench-mcp` so pinned non-loopback `https://` MCP endpoints dial over TLS.
-Offline fakes and loopback cleartext HTTP remain; an offline local TLS fixture
-and an ignored live HTTPS smoke cover the path. Production daemon attach uses
-the network HTTP/TLS client.
-
-Feature 014 persists redacted per-session `spend_usd_micros` and restores the
-OpenRouter cost ledger via `DurableSpendStore`. Default transport remains
-offline fake; `OpenRouterTransport::live_https` is explicit opt-in with an
-ignored live smoke.
+| 016 | WorkbenchBackend terminal launch surface (`workbench agent stdio`) | Issue #33 |
 
 Feature 015 adds fail-closed `policies.provider_native_writes` (default
 disabled). When `mode: approval-required` and a provider id is allowlisted,
 Claude may launch Write/Edit and Codex may use workspace-write sandbox with
 `file_change` observation. Shared tools stay on the MCP gateway.
 
+Feature 016 delivers `workbench-terminal-backend::WorkbenchBackend`, the
+selectable external ACP backend that plans `workbench agent stdio` with
+absolute paths for the Grok-derived terminal integration. The full Grok pager
+fork and dual-upstream rebase remain in the `grok-build` repository.
+
 ## Active Work
 
-- **Branch:** `015-provider-native-write-tools-under-central-policy`
-- **Issue:** [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) — Claude/Codex native write tools under policy
-- **Next ready after merge:** gap-zero sequence #33 (see Known Gaps)
+- **Branch:** `main`
+- **Issue:** none — gap-zero monorepo backlog cleared
+- **Next ready after merge:** none (maintenance / new roadmap only)
 
 ## Ordered Roadmap
 
-- **Planned 001–011 slice:** complete. Residual work is gap follow-ups only
-  (see Known Gaps), not new numbered roadmap features.
+- **Planned 001–011 slice:** complete. Gap follow-ups #28–#33 delivered for the
+  monorepo scope.
 
 | Order | Issue | Increment | Dependency |
 |---|---|---|---|
@@ -101,6 +84,7 @@ Claude may launch Write/Edit and Codex may use workspace-write sandbox with
 | done | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | ACP agent stdio attach to running daemon | Feature 011 stdio MVP |
 | done | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | Durable cost ledger + OpenRouter live HTTPS | Feature 010 cost controls |
 | done | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | Claude/Codex provider-native write tools under policy | Feature 007 + 005/006 |
+| done | [#33](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/33) | WorkbenchBackend terminal integration MVP | Feature 011/012 ACP stdio |
 
 ## Known Gaps
 
@@ -108,13 +92,17 @@ Tracked open issues (gap-zero backlog):
 
 | Gap | Issue | Size | Speckit? |
 |---|---|---|---|
-| Grok-derived terminal pager WorkbenchBackend | [#33](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/33) | XL | Yes |
+| *(none in monorepo)* | — | — | — |
+
+Residual (out of tree, not a monorepo Known Gap):
+
+- Full Grok Build pager fork dual-upstream rebase, PTY snapshot suite, and fork
+  SHA pin publication remain in the `grok-build` repository. This monorepo
+  ships the `WorkbenchBackend` launch contract those patches call
+  (`GROK_BUILD_FORK_COMPATIBILITY_PIN` is empty until the fork publishes a pin).
 
 Detail:
 
-- **Grok-derived terminal pager fork** remains deferred (#33). Feature 011 ships
-  the ACP agent stdio bridge (`workbench agent stdio`) only; it does not modify
-  the upstream Grok Build pager or add a WorkbenchBackend PTY path.
 - Feature 012 attaches production `workbench agent stdio` to the running
   workspace daemon socket (#29). Offline Feature 011 harnesses keep
   `InProcessBackend`.
@@ -124,7 +112,7 @@ Detail:
   package registries and public HTTPS smoke remain opt-in / ignored.
 - Feature 015 enables Claude/Codex provider-native writes only under
   `policies.provider_native_writes` allowlist + approval-required mode (#32).
-  Default remains disabled; reverse permission UI is residual.
+- Feature 016 delivers WorkbenchBackend MVP for terminal integration (#33).
 - Speckit corpus `verifyHealth` stays 0 because Speckit's executable registry is
   binary-local (ADR-0020) and cannot load external Rust acceptance runners.
   Repository-owned inventory is delivered (#28): `make test-acceptance-bindings`

@@ -35,6 +35,7 @@ workbench-acp-server = { path = "../workbench-acp-server" }
 workbench-openrouter = { path = "../workbench-openrouter" }
 workbench-protocol = { path = "../workbench-protocol" }
 workbench-storage = { path = "../workbench-storage" }
+workbench-terminal-backend = { path = "../workbench-terminal-backend" }
 
 [[bin]]
 name = "fake_mcp"

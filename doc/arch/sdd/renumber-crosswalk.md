@@ -10,3 +10,4 @@
 | 100 | 012 | attach-acp-agent-stdio-to-running-daemon | renumber | 2026-07-25T12:40:00.000000Z |
 | 100 | 014 | durable-cost-ledger-and-openrouter-live-https | renumber | 2026-07-25T13:00:00.000000Z |
 | 100 | 015 | provider-native-write-tools-under-central-policy | renumber | 2026-07-25T14:00:00.000000Z |
+| 100 | 016 | grok-terminal-workbench-backend-mvp | renumber | 2026-07-25T15:00:00.000000Z |
