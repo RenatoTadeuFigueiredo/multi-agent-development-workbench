@@ -32,7 +32,7 @@ pub struct Provider {
     pub credential_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub privacy: Option<Privacy>,
-    /// Optional API base URL. OpenRouter defaults when absent for API providers.
+    /// Optional API base URL. Defaults to the OpenRouter endpoint for API providers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
 }
