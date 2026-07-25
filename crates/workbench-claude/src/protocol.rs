@@ -68,6 +68,8 @@ pub(crate) fn user_message(session_id: &str, text: &str) -> Value {
     })
 }
 
+/// Fail-closed read-only parser (default native writes off).
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, ClaudeError> {
     parse_inbound_with_policy(value, false)
 }

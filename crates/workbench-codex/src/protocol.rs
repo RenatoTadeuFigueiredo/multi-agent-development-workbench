@@ -32,6 +32,8 @@ pub(crate) enum Inbound {
     Ignored,
 }
 
+/// Fail-closed read-only parser (default native writes off).
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn parse_inbound(value: &Value) -> Result<Inbound, CodexError> {
     parse_inbound_with_policy(value, false)
 }

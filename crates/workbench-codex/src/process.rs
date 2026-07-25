@@ -52,7 +52,7 @@ impl CodexLaunchProfile {
         self
     }
 
-    /// Enables workspace-write sandbox and file_change observation.
+    /// Enables workspace-write sandbox and `file_change` observation.
     #[must_use]
     pub const fn native_writes(mut self, enabled: bool) -> Self {
         self.native_writes = enabled;
