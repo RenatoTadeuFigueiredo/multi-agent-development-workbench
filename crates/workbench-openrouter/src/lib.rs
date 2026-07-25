@@ -1,6 +1,7 @@
 //! `OpenRouter` Chat Completions adapter with credential and cost controls.
 //!
 //! Protocol identity: `openrouter-chat-completions/1`.
+//! Live HTTPS and durable spend restore are Feature 014.
 
 #![forbid(unsafe_code)]
 
