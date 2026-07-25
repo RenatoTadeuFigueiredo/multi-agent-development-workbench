@@ -17,6 +17,7 @@ const STATUS: &str = include_str!("../../../docs/project/STATUS.md");
 
 struct ScenarioBinding {
     case_name: &'static str,
+    #[allow(dead_code)]
     fingerprint: u64,
     evidence_test: &'static str,
 }
