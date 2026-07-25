@@ -1,4 +1,6 @@
 //! OpenRouter Chat Completions adapter with credential and cost controls.
+//!
+//! Protocol identity: `openrouter-chat-completions/1`.
 
 #![forbid(unsafe_code)]
 
@@ -26,5 +28,5 @@ pub const OPENROUTER_CHAT_COMPLETIONS_PROTOCOL: &str = "openrouter-chat-completi
 /// Default public OpenRouter API base URL.
 pub const DEFAULT_BASE_URL: &str = "https://openrouter.ai/api/v1";
 
-/// Offline fake base URL accepted by configuration validation.
+/// Offline fake base URL (`fake://openrouter`) accepted by configuration validation.
 pub const FAKE_BASE_URL: &str = "fake://openrouter";

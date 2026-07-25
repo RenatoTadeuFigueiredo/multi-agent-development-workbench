@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use futures_util::stream;
-use tokio::sync::{Mutex as AsyncMutex, oneshot};
+use tokio::sync::Mutex as AsyncMutex;
 use uuid::Uuid;
 use workbench_core::{
     AttemptId, CoreError, FailureCategory,
@@ -43,7 +43,6 @@ struct LocalSession {
 struct ActiveAttempt {
     attempt_id: AttemptId,
     cancel: Arc<AtomicBool>,
-    respond: Arc<Mutex<Option<oneshot::Sender<CancellationStatus>>>>,
 }
 
 /// Construction inputs for [`OpenRouterProviderAdapter::connect`].
@@ -60,7 +59,7 @@ pub struct OpenRouterConnect {
     pub require_secret_at_connect: bool,
 }
 
-/// Provider-port implementation for OpenRouter Chat Completions.
+/// Provider-port implementation for OpenRouter Chat Completions streaming.
 pub struct OpenRouterProviderAdapter {
     adapter_id: ProviderId,
     adapter_version: String,
@@ -82,7 +81,7 @@ impl OpenRouterProviderAdapter {
     ///
     /// Returns when configuration is invalid. Missing secrets leave auth
     /// unavailable but still allow constructing the adapter for fail-closed
-    /// prompt paths when `require_secret_at_connect` is false.
+    /// prompt paths when `require_secret_at_connect` is `false`.
     pub fn connect(input: OpenRouterConnect) -> Result<Self, CoreError> {
         if input.cancellation_deadline.is_zero()
             || input.adapter_version.is_empty()
@@ -216,6 +215,7 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
         })
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn prompt_stream(
         &self,
         handle: &ProviderSessionHandle,
@@ -269,16 +269,16 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
             *active = Some(ActiveAttempt {
                 attempt_id: prompt.attempt_id,
                 cancel: Arc::clone(&cancel),
-                respond: Arc::new(Mutex::new(None)),
             });
         }
 
-        if session
+        let cancelled_before_dispatch = session
             .pending_cancellations
             .lock()
-            .map(|pending| pending.contains(&prompt.attempt_id))
-            .unwrap_or(false)
-        {
+            .ok()
+            .is_some_and(|pending| pending.contains(&prompt.attempt_id));
+        if cancelled_before_dispatch {
+
             clear_active(&session, prompt.attempt_id);
             return Err(OpenRouterError::new(
                 OpenRouterErrorKind::Cancelled,

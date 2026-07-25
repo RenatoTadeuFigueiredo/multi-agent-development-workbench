@@ -32,7 +32,7 @@ pub struct Provider {
     pub credential_ref: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub privacy: Option<Privacy>,
-    /// Optional API base URL. OpenRouter defaults when absent for `type: api`.
+    /// Optional API base URL. OpenRouter defaults when absent for API providers.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub base_url: Option<String>,
 }
@@ -228,13 +228,13 @@ pub struct Policies {
     pub cost: Option<CostPolicy>,
 }
 
-/// Session and optional per-attempt paid inference ceilings in micro-USD.
+/// Session and optional per-attempt paid inference ceilings in micro-USD units.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CostPolicy {
-    /// Hard session ceiling in micro-USD (1 USD = 1_000_000 micros).
+    /// Hard session ceiling in micro-USD (`1_000_000` micros = one USD).
     pub max_session_usd_micros: u64,
-    /// Optional single-attempt estimate ceiling in micro-USD.
+    /// Optional single-attempt estimate ceiling in micro-USD units.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_attempt_usd_micros: Option<u64>,
 }

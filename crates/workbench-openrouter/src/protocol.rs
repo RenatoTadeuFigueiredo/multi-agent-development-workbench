@@ -116,13 +116,20 @@ fn f64_to_usd_micros(cost_usd: f64) -> u64 {
         return 0;
     }
     let micros = (cost_usd * 1_000_000.0).round();
-    if micros >= u64::MAX as f64 {
-        u64::MAX
-    } else if micros <= 0.0 {
-        0
-    } else {
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        {
+    if micros <= 0.0 {
+        return 0;
+    }
+    // Bound before cast so precision loss cannot overflow `u64`.
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
+    {
+        let max_safe = (u64::MAX / 4) as f64;
+        if micros >= max_safe {
+            u64::MAX / 4
+        } else {
             micros as u64
         }
     }

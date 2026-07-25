@@ -14,7 +14,7 @@ use crate::{
     protocol::{UsageSummary, extract_usage, normalize_sse_data, split_sse_data},
 };
 
-/// Offline-injectable HTTP behavior for tests.
+/// Offline-injectable HTTP behavior for OpenRouter fake transport tests.
 #[derive(Clone, Debug)]
 pub enum FakeHttpMode {
     Stream { events: Vec<String>, usage: Value },
