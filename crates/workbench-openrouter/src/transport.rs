@@ -23,7 +23,7 @@ use crate::{
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
-const READ_TIMEOUT: Duration = Duration::from_secs(60);
+const READ_TIMEOUT: Duration = Duration::from_mins(1);
 
 /// Offline-injectable HTTP behavior for `OpenRouter` fake transport tests.
 #[derive(Clone, Debug)]
@@ -267,6 +267,33 @@ async fn live_chat_completion(
     model: &str,
     prompt: &str,
 ) -> Result<TransportResult, OpenRouterError> {
+    let (host, port, path) = parse_live_endpoint(base_url)?;
+    let body = json!({
+        "model": model,
+        "stream": true,
+        "messages": [{ "role": "user", "content": prompt }]
+    })
+    .to_string();
+    let request = format!(
+        "POST {path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: {authorization}\r\nContent-Type: application/json\r\nAccept: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
+    let response = live_https_exchange(&host, port, &request).await?;
+    let body = split_http_body(&response)?;
+    if body.len() > MAX_BODY_BYTES {
+        return Err(OpenRouterError::new(
+            OpenRouterErrorKind::ResponseTooLarge,
+            "OpenRouter response exceeds the encoded body ceiling",
+        ));
+    }
+    let usage = extract_usage_from_sse(body);
+    Ok(TransportResult {
+        body: body.to_vec(),
+        usage,
+    })
+}
+
+fn parse_live_endpoint(base_url: &str) -> Result<(String, u16, String), OpenRouterError> {
     // Parse https://host[:port][/path] without a URL crate dependency.
     let stripped = base_url.strip_prefix("https://").ok_or_else(|| {
         OpenRouterError::new(
@@ -287,7 +314,8 @@ async fn live_chat_completion(
                 OpenRouterErrorKind::InvalidConfig,
                 "OpenRouter base_url host is missing",
             )
-        })?;
+        })?
+        .to_owned();
     let port = host_port
         .split_once(':')
         .and_then(|(_, port)| port.parse::<u16>().ok())
@@ -301,17 +329,14 @@ async fn live_chat_completion(
     } else {
         format!("{base_path}/chat/completions")
     };
-    let body = json!({
-        "model": model,
-        "stream": true,
-        "messages": [{ "role": "user", "content": prompt }]
-    })
-    .to_string();
-    let request = format!(
-        "POST {path} HTTP/1.1\r\nHost: {host}\r\nAuthorization: {authorization}\r\nContent-Type: application/json\r\nAccept: text/event-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-        body.len()
-    );
+    Ok((host, port, path))
+}
 
+async fn live_https_exchange(
+    host: &str,
+    port: u16,
+    request: &str,
+) -> Result<Vec<u8>, OpenRouterError> {
     let server_name = ServerName::try_from(host.to_owned()).map_err(|_| {
         OpenRouterError::new(
             OpenRouterErrorKind::InvalidConfig,
@@ -342,7 +367,6 @@ async fn live_chat_completion(
     tls.flush().await.map_err(|_| {
         OpenRouterError::new(OpenRouterErrorKind::Transport, "OpenRouter flush failed")
     })?;
-
     let mut response = Vec::new();
     let mut buf = [0_u8; 8192];
     loop {
@@ -365,19 +389,7 @@ async fn live_chat_completion(
             ));
         }
     }
-
-    let body = split_http_body(&response)?;
-    if body.len() > MAX_BODY_BYTES {
-        return Err(OpenRouterError::new(
-            OpenRouterErrorKind::ResponseTooLarge,
-            "OpenRouter response exceeds the encoded body ceiling",
-        ));
-    }
-    let usage = extract_usage_from_sse(body);
-    Ok(TransportResult {
-        body: body.to_vec(),
-        usage,
-    })
+    Ok(response)
 }
 
 fn split_http_body(response: &[u8]) -> Result<&[u8], OpenRouterError> {
