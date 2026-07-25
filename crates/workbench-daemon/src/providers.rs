@@ -36,8 +36,8 @@ use workbench_core::{
     value::ProviderId,
 };
 use workbench_openrouter::{
-    CostPolicyConfig, OpenRouterConnect, OpenRouterProviderAdapter, PlatformSecretSource,
-    SecretSource, SessionCostLedger,
+    CostPolicyConfig, DurableSpendStore, OpenRouterConnect, OpenRouterProviderAdapter,
+    PlatformSecretSource, SecretSource, SessionCostLedger,
 };
 
 use crate::StartupConfiguration;
@@ -147,6 +147,22 @@ impl ProviderRuntime {
         workspace: &Path,
         snapshot_root: &Path,
     ) -> Result<Self, ProviderRuntimeError> {
+        Self::bootstrap_with_spend_store(startup, workspace, snapshot_root, None).await
+    }
+
+    /// Starts providers with an optional durable `OpenRouter` spend store.
+    ///
+    /// # Errors
+    ///
+    /// Returns a redacted provider error when an adapter cannot initialize or
+    /// the durable spend store fails to restore.
+    #[allow(clippy::too_many_lines)]
+    pub async fn bootstrap_with_spend_store(
+        startup: &StartupConfiguration,
+        workspace: &Path,
+        snapshot_root: &Path,
+        durable_spend: Option<Arc<dyn DurableSpendStore>>,
+    ) -> Result<Self, ProviderRuntimeError> {
         if !startup.lock_is_verified() {
             return Err(ProviderRuntimeError::Incompatible(
                 "provider startup requires a verified repository lock",
@@ -178,7 +194,12 @@ impl ProviderRuntime {
         let cancellation_deadline = provider_cancellation_budget(Duration::from_millis(
             startup.resolved.protocol.cancellation_deadline_ms,
         ))?;
-        let openrouter_ledger = SessionCostLedger::new();
+        let openrouter_ledger = match durable_spend {
+            Some(store) => SessionCostLedger::with_durable_store(store).map_err(|_| {
+                ProviderRuntimeError::Incompatible("durable cost ledger restore failed")
+            })?,
+            None => SessionCostLedger::new(),
+        };
         let secrets: Arc<dyn SecretSource> = Arc::new(PlatformSecretSource::new());
 
         for (name, descriptor) in descriptors {

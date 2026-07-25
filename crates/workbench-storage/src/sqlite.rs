@@ -11,6 +11,7 @@ use zeroize::Zeroizing;
 use crate::{AssociatedData, EncryptedPayload, KeyManager, KeyStore, SecretKey, StorageError};
 
 const MIGRATION_001: &str = include_str!("../migrations/0001_initial.sql");
+const MIGRATION_002: &str = include_str!("../migrations/0002_session_spend.sql");
 const TERMINAL_KINDS: &[&str] = &[
     "session_completed",
     "session_failed",
@@ -202,8 +203,12 @@ impl<K: KeyStore> SqliteStorage<K> {
 
         let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
         match version {
-            0 => connection.execute_batch(MIGRATION_001)?,
-            1 => {}
+            0 => {
+                connection.execute_batch(MIGRATION_001)?;
+                connection.execute_batch(MIGRATION_002)?;
+            }
+            1 => connection.execute_batch(MIGRATION_002)?,
+            2 => {}
             _ => {
                 return Err(StorageError::InvalidInput(
                     "unsupported storage schema version",
@@ -505,6 +510,57 @@ impl<K: KeyStore> SqliteStorage<K> {
             return Err(StorageError::StorageUnavailable(None));
         }
         Ok(())
+    }
+
+    /// Loads redacted paid-inference spend micros for one session (0 if unset).
+    pub fn load_session_spend_usd_micros(&self, session_id: Uuid) -> Result<u64, StorageError> {
+        let value: i64 = self
+            .connection
+            .query_row(
+                "SELECT spend_usd_micros FROM sessions WHERE session_id = ?1",
+                [session_id.to_string()],
+                |row| row.get(0),
+            )
+            .optional()?
+            .ok_or(StorageError::SessionNotFound)?;
+        u64::try_from(value).map_err(|_| StorageError::InvalidInput("spend_usd_micros overflow"))
+    }
+
+    /// Persists redacted paid-inference spend micros for one session.
+    pub fn store_session_spend_usd_micros(
+        &self,
+        session_id: Uuid,
+        spend_usd_micros: u64,
+    ) -> Result<(), StorageError> {
+        let spend = i64::try_from(spend_usd_micros)
+            .map_err(|_| StorageError::InvalidInput("spend_usd_micros overflow"))?;
+        let updated = self.connection.execute(
+            "UPDATE sessions SET spend_usd_micros = ?1 WHERE session_id = ?2",
+            params![spend, session_id.to_string()],
+        )?;
+        if updated != 1 {
+            return Err(StorageError::SessionNotFound);
+        }
+        Ok(())
+    }
+
+    /// Loads all redacted per-session spend rows for ledger restore after restart.
+    pub fn load_all_session_spends(&self) -> Result<Vec<(Uuid, u64)>, StorageError> {
+        let mut statement = self.connection.prepare(
+            "SELECT session_id, spend_usd_micros FROM sessions WHERE spend_usd_micros > 0",
+        )?;
+        let rows = statement.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+        })?;
+        let mut spends = Vec::new();
+        for row in rows {
+            let (session_id, spend) = row?;
+            let session_id = parse_uuid(&session_id)?;
+            let spend = u64::try_from(spend)
+                .map_err(|_| StorageError::InvalidInput("spend_usd_micros overflow"))?;
+            spends.push((session_id, spend));
+        }
+        Ok(spends)
     }
 
     pub fn load_session(&self, session_id: Uuid) -> Result<StoredSession, StorageError> {

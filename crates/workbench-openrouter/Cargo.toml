@@ -9,10 +9,14 @@ repository.workspace = true
 [dependencies]
 async-trait.workspace = true
 futures-util.workspace = true
+rustls.workspace = true
+rustls-native-certs.workspace = true
+rustls-pki-types.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
+tokio-rustls.workspace = true
 uuid.workspace = true
 workbench-core = { path = "../workbench-core" }
 zeroize.workspace = true

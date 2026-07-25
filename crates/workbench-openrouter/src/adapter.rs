@@ -117,7 +117,20 @@ impl OpenRouterProviderAdapter {
     #[must_use]
     pub fn transport_for_base_url(base_url: Option<&str>) -> OpenRouterTransport {
         let base = base_url.unwrap_or(DEFAULT_BASE_URL);
-        OpenRouterTransport::offline(base)
+        if base.starts_with("fake://") || base.starts_with("offline://") {
+            OpenRouterTransport::offline(base)
+        } else if base.starts_with("https://") {
+            // Live HTTPS path; still offline-fake unless `with_live_https` is used.
+            OpenRouterTransport::offline(base)
+        } else {
+            OpenRouterTransport::offline(base)
+        }
+    }
+
+    /// Live HTTPS Chat Completions transport (credential-gated; not default CI).
+    #[must_use]
+    pub fn live_https_transport(base_url: Option<&str>) -> OpenRouterTransport {
+        OpenRouterTransport::live_https(base_url.unwrap_or(DEFAULT_BASE_URL))
     }
 
     #[must_use]
@@ -257,7 +270,12 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
             .map_err(|error| error.into_provider_failure(true))?;
 
         let estimate = estimate_attempt_usd_micros(self.policy);
-        let decision = evaluate_budget(self.policy, &self.ledger, estimate);
+        let decision = evaluate_budget(
+            self.policy,
+            &self.ledger,
+            prompt.session_id.as_uuid(),
+            estimate,
+        );
         deny_error(decision).map_err(|error| error.into_provider_failure(true))?;
 
         let cancel = Arc::new(AtomicBool::new(false));
@@ -286,9 +304,10 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
             .into_provider_failure(true));
         }
 
-        let transport_result =
-            self.transport
-                .chat_completion(&secret, &prompt.runtime_model, prompt.content.as_str());
+        let transport_result = self
+            .transport
+            .chat_completion(&secret, &prompt.runtime_model, prompt.content.as_str())
+            .await;
         drop(secret);
 
         let result = match transport_result {
@@ -339,7 +358,9 @@ impl ProviderAdapter for OpenRouterProviderAdapter {
 
         if completed {
             let spend = result.usage.cost_usd_micros.max(1);
-            self.ledger.record_spend(spend);
+            self.ledger
+                .record_spend(prompt.session_id.as_uuid(), spend)
+                .map_err(|error| error.into_provider_failure(true))?;
             outputs.push(ProviderOutput::Completed {
                 summary: "openrouter completed".to_owned(),
             });

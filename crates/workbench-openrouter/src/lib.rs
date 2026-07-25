@@ -1,6 +1,7 @@
 //! `OpenRouter` Chat Completions adapter with credential and cost controls.
 //!
 //! Protocol identity: `openrouter-chat-completions/1`.
+//! Live HTTPS and durable spend restore are Feature 014.
 
 #![forbid(unsafe_code)]
 
@@ -13,7 +14,9 @@ mod protocol;
 mod transport;
 
 pub use adapter::{OpenRouterConnect, OpenRouterProviderAdapter};
-pub use budget::{BudgetDecision, CostPolicyConfig, SessionCostLedger};
+pub use budget::{
+    BudgetDecision, CostPolicyConfig, DurableSpendStore, SessionCostLedger, evaluate_budget,
+};
 pub use credential::{MemorySecretSource, SecretSource};
 pub use error::{OpenRouterError, OpenRouterErrorKind};
 pub use platform_secret::PlatformSecretSource;

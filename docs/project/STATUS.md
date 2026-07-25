@@ -32,8 +32,8 @@ Use this precedence when sources disagree:
 ## Delivered Baseline
 
 The last reviewed `main` checkpoint is merge commit
-`fff5f61` (issue #28 / PR #35). Features 001–013 are on `main` after this change
-(Feature 012 attaches ACP agent stdio to a running daemon; issue #29).
+`d9852a7` (issue #29 / PR #36). Features 001–014 are on `main` after this change
+(Feature 014 durable cost ledger + OpenRouter live HTTPS; issue #31).
 
 | Feature | Delivered capability | Change |
 |---|---|---|
@@ -50,6 +50,7 @@ The last reviewed `main` checkpoint is merge commit
 | 011 | Workbench ACP agent stdio bridge MVP (`workbench agent stdio`) | Issue #17 / PR #26 |
 | 012 | ACP agent stdio attach to running daemon endpoint | Issue #29 |
 | 013 | Non-loopback HTTPS MCP TLS client (`rustls` + native roots) | Issue #30 |
+| 014 | Durable session cost ledger + opt-in OpenRouter live HTTPS | Issue #31 |
 
 Feature 010 adds `workbench-openrouter` Chat Completions offline fake, OS
 credential_ref resolution, `policies.cost` fail-closed budgets, daemon API
@@ -69,11 +70,16 @@ Offline fakes and loopback cleartext HTTP remain; an offline local TLS fixture
 and an ignored live HTTPS smoke cover the path. Production daemon attach uses
 the network HTTP/TLS client.
 
+Feature 014 persists redacted per-session `spend_usd_micros` and restores the
+OpenRouter cost ledger via `DurableSpendStore`. Default transport remains
+offline fake; `OpenRouterTransport::live_https` is explicit opt-in with an
+ignored live smoke.
+
 ## Active Work
 
-- **Branch:** `012-attach-acp-agent-stdio-to-running-daemon`
-- **Issue:** [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) — ACP attach to running daemon
-- **Next ready after merge:** gap-zero sequence #31 → #32 → #33 (see Known Gaps)
+- **Branch:** `014-durable-cost-ledger-openrouter-live-https`
+- **Issue:** [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) — Durable cost ledger + OpenRouter live HTTPS
+- **Next ready after merge:** gap-zero sequence #32 → #33 (see Known Gaps)
 
 ## Ordered Roadmap
 
@@ -87,6 +93,7 @@ the network HTTP/TLS client.
 | done | [#30](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/30) | Non-loopback HTTPS MCP TLS client | Feature 007 MCP gateway |
 | done | [#28](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/28) | Speckit acceptance-binding inventory (tooling) | Features 001–011, 013 harnesses |
 | done | [#29](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/29) | ACP agent stdio attach to running daemon | Feature 011 stdio MVP |
+| done | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | Durable cost ledger + OpenRouter live HTTPS | Feature 010 cost controls |
 
 ## Known Gaps
 
@@ -94,7 +101,6 @@ Tracked open issues (gap-zero backlog):
 
 | Gap | Issue | Size | Speckit? |
 |---|---|---|---|
-| Durable cost ledger + opt-in OpenRouter live HTTPS | [#31](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/31) | M–L | Yes |
 | Claude/Codex provider-native write tools under policy | [#32](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/32) | L | Yes |
 | Grok-derived terminal pager WorkbenchBackend | [#33](https://github.com/RenatoTadeuFigueiredo/multi-agent-development-workbench/issues/33) | XL | Yes |
 
@@ -106,9 +112,8 @@ Detail:
 - Feature 012 attaches production `workbench agent stdio` to the running
   workspace daemon socket (#29). Offline Feature 011 harnesses keep
   `InProcessBackend`.
-- OpenRouter live HTTPS client remains opt-in / ignored; default path is offline
-  fake only. Process-local session cost ledger does not survive daemon restart
-  (#31).
+- Feature 014 durable per-session spend + opt-in OpenRouter live HTTPS are
+  delivered (#31). Default CI remains offline fake.
 - Feature 007 non-loopback HTTPS MCP TLS is composed (Feature 013 / #30). Live
   package registries and public HTTPS smoke remain opt-in / ignored.
 - Claude and Codex provider-native write tools remain disabled; shared tools go

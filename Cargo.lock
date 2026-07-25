@@ -3343,11 +3343,15 @@ dependencies = [
  "async-trait",
  "futures-util",
  "keyring",
+ "rustls",
+ "rustls-native-certs",
+ "rustls-pki-types",
  "serde",
  "serde_json",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",
+ "tokio-rustls",
  "uuid",
  "workbench-core",
  "zeroize",
@@ -3425,6 +3429,7 @@ dependencies = [
  "workbench-openrouter",
  "workbench-protocol",
  "workbench-storage",
+ "zeroize",
 ]
 
 [[package]]

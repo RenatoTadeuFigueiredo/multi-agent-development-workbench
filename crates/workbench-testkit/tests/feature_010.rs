@@ -193,8 +193,10 @@ async fn offline_happy_path_and_budget_gates() {
     );
 
     let handle = provider.start_session().await.expect("session");
+    let happy = prompt("offline openrouter acceptance");
+    let happy_session = happy.session_id.as_uuid();
     let mut stream = provider
-        .prompt_stream(&handle, prompt("offline openrouter acceptance"))
+        .prompt_stream(&handle, happy)
         .await
         .expect("stream");
     let mut saw_content = false;
@@ -207,7 +209,7 @@ async fn offline_happy_path_and_budget_gates() {
         }
     }
     assert!(saw_content && saw_completed);
-    assert!(ledger.spend_usd_micros() > 0);
+    assert!(ledger.spend_usd_micros(happy_session) > 0);
 
     let missing = MemorySecretSource::new();
     let missing_provider = connect(Arc::new(missing), SessionCostLedger::new(), 5_000_000, None);
@@ -237,13 +239,11 @@ async fn offline_happy_path_and_budget_gates() {
     assert_eq!(empty_provider.transport().fake().call_count(), 0);
 
     let exhausted = SessionCostLedger::new();
-    exhausted.seed_spend(5_000_000);
+    let over_budget = prompt("over session budget");
+    exhausted.seed_spend(over_budget.session_id.as_uuid(), 5_000_000);
     let budgeted = connect(secrets.clone(), exhausted, 5_000_000, Some(500_000));
     let handle = budgeted.start_session().await.expect("session");
-    let err = match budgeted
-        .prompt_stream(&handle, prompt("over session budget"))
-        .await
-    {
+    let err = match budgeted.prompt_stream(&handle, over_budget).await {
         Ok(_) => panic!("session budget"),
         Err(error) => error,
     };

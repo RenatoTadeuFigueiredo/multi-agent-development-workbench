@@ -45,11 +45,12 @@ async fn offline_stream_completes_and_records_spend() {
     let ledger = SessionCostLedger::new();
     let provider = adapter(secrets, ledger.clone());
     let handle = provider.start_session().await.expect("session");
+    let session_id = SessionId::new();
     let mut stream = provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
-                session_id: SessionId::new(),
+                session_id,
                 attempt_id: AttemptId::new(),
                 runtime_model: "test/model".to_owned(),
                 content: NonEmptyText::parse("hello openrouter").expect("prompt"),
@@ -62,7 +63,7 @@ async fn offline_stream_completes_and_records_spend() {
         items.push(item.expect("item"));
     }
     assert!(items.len() >= 2);
-    assert!(ledger.spend_usd_micros() > 0);
+    assert!(ledger.spend_usd_micros(session_id.as_uuid()) > 0);
     assert_eq!(
         provider.transport().fake().call_count(),
         1,
@@ -126,14 +127,15 @@ async fn session_budget_fails_before_http() {
     let secrets = Arc::new(MemorySecretSource::new());
     secrets.put("platform:openrouter", "test-key");
     let ledger = SessionCostLedger::new();
-    ledger.seed_spend(5_000_000);
+    let session_id = SessionId::new();
+    ledger.seed_spend(session_id.as_uuid(), 5_000_000);
     let provider = adapter(secrets, ledger);
     let handle = provider.start_session().await.expect("session");
     let error = match provider
         .prompt_stream(
             &handle,
             ProviderPrompt {
-                session_id: SessionId::new(),
+                session_id,
                 attempt_id: AttemptId::new(),
                 runtime_model: "test/model".to_owned(),
                 content: NonEmptyText::parse("over budget").expect("prompt"),

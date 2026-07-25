@@ -7,6 +7,7 @@ pub mod ipc;
 pub mod providers;
 pub mod runtime;
 pub mod runtime_paths;
+mod spend_store;
 pub mod startup;
 mod storage_backend;
 mod subscription;
