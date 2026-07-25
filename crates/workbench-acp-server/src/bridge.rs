@@ -23,7 +23,7 @@ use workbench_protocol::{
 use workbench_storage::{MemoryKeyStore, SqliteStorage};
 
 use crate::{
-    AGENT_NAME, ACP_PROTOCOL_VERSION, AcpServerError, AcpServerErrorKind, decode_line,
+    ACP_PROTOCOL_VERSION, AGENT_NAME, AcpServerError, AcpServerErrorKind, decode_line,
     encode_message,
 };
 
@@ -207,15 +207,13 @@ impl BridgeBackend for InProcessBackend {
             AcpServerError::new(AcpServerErrorKind::Backend, "history unavailable")
         })?;
         let approval_id = history.iter().rev().find_map(|event| {
-            if event.kind == "approval_requested" {
+            (event.kind == "approval_requested").then_some(()).and_then(|()| {
                 event
                     .payload
                     .get("approval_id")
                     .and_then(Value::as_str)
                     .and_then(|value| Uuid::parse_str(value).ok())
-            } else {
-                None
-            }
+            })
         });
         let Some(approval_id) = approval_id else {
             return Ok(());

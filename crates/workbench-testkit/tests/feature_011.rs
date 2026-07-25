@@ -6,12 +6,13 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use serde_json::{Value, json};
 use workbench_acp_server::{
-    AGENT_NAME, ACP_PROTOCOL_VERSION, AcpAgentServer, AcpServerErrorKind, InProcessBackend,
+    ACP_PROTOCOL_VERSION, AGENT_NAME, AcpAgentServer, AcpServerErrorKind, InProcessBackend,
     MAX_FRAME_BYTES, decode_line,
 };
 
-const FEATURE: &str =
-    include_str!("../../../doc/arch/specs/features/workbench-acp-server-and-terminal-client.feature");
+const FEATURE: &str = include_str!(
+    "../../../doc/arch/specs/features/workbench-acp-server-and-terminal-client.feature"
+);
 const BRIDGE: &str = include_str!("../../workbench-acp-server/src/bridge.rs");
 const LIB: &str = include_str!("../../workbench-acp-server/src/lib.rs");
 const MAKEFILE: &str = include_str!("../../../Makefile");
