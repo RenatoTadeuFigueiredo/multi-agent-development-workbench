@@ -4937,6 +4937,10 @@ mod tests {
             zero_data_retention: true,
             data_collection: workbench_config::model::DataCollection::Deny,
         });
+        configuration.policies.cost = Some(workbench_config::model::CostPolicy {
+            max_session_usd_micros: 1_000_000,
+            max_attempt_usd_micros: Some(100_000),
+        });
         configuration.providers.insert(
             "fallback".to_owned(),
             workbench_config::model::Provider {
@@ -4945,6 +4949,7 @@ mod tests {
                 executable: None,
                 credential_ref: None,
                 privacy: None,
+                base_url: None,
             },
         );
         configuration.models.insert(

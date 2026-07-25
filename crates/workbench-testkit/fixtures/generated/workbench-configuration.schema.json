@@ -137,6 +137,11 @@
         },
         "privacy": {
           "$ref": "#/$defs/privacy"
+        },
+        "base_url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
         }
       },
       "allOf": [
@@ -592,6 +597,28 @@
         },
         "production_mutations": {
           "const": "approval-required"
+        },
+        "cost": {
+          "$ref": "#/$defs/costPolicy"
+        }
+      }
+    },
+    "costPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_session_usd_micros"
+      ],
+      "properties": {
+        "max_session_usd_micros": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000000
+        },
+        "max_attempt_usd_micros": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000000000
         }
       }
     },

@@ -1703,6 +1703,7 @@ fn preflight_fixture(
             executable: None,
             credential_ref: None,
             privacy: None,
+            base_url: None,
         },
     );
     configuration.models.insert(

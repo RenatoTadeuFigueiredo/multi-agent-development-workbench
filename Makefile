@@ -64,6 +64,10 @@ test-workflow: ## Run the deterministic offline workflow executor profile
 test-vscode-controls: ## Run the deterministic offline VS Code workflow control profile
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_009 --locked
 
+test-openrouter: ## Run the deterministic offline OpenRouter profile
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_010 --locked
+	$(CARGO_OFFLINE) test -p workbench-openrouter --locked
+
 test-acceptance: ## Run all committed feature acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_001 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_002 --locked
@@ -74,6 +78,7 @@ test-acceptance: ## Run all committed feature acceptance harnesses
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_007 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_008 --locked
 	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_009 --locked
+	$(CARGO_OFFLINE) test -p workbench-testkit --test feature_010 --locked
 
 test-slo: ## Run serialized feature 001 SLO measurements
 	$(CARGO_OFFLINE) test -p workbench-testkit --test slo_001 --locked -- \
