@@ -104,11 +104,12 @@ Residual (out of tree, not a monorepo Known Gap):
 - Full Grok Build pager dual-upstream rebase automation and expanded PTY
   snapshot suite remain in the `grok-build` repository. This monorepo ships
   the `WorkbenchBackend` launch contract and publishes
-  `GROK_BUILD_FORK_COMPATIBILITY_PIN` to the fork `renato/main` WorkbenchBackend
-  feat-equivalent after grok-build PR #1 merge
-  (`85989c9f543e66387a088fc24d8ea83d9771a7ce`). Mode C
-  operator path (Grok TUI → `workbench agent stdio` → daemon, same-session
-  VS Code attach):
+  `GROK_BUILD_FORK_COMPATIBILITY_PIN` to the recommended Mode C binary:
+  **fcustom + Mode C** (`feature/fcustom-mode-c` tip
+  `f8468e52db1aeca4804341cc4ec88de57e496407` — Fabricio custom line +
+  WorkbenchBackend). Previous pin `85989c9…` was monorepo-sync Mode C only.
+  Mode C operator path (Grok TUI → `workbench agent stdio` → daemon,
+  same-session VS Code attach):
   [`docs/operations/mode-c-grok-tui-workbench.md`](../operations/mode-c-grok-tui-workbench.md).
 
 Detail:
