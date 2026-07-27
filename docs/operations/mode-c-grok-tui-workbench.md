@@ -68,6 +68,28 @@ policy, and provider supervision remain in the daemon.
 Default automation and CI stay offline and quota-free. Live providers are
 opt-in only.
 
+## Offline precondition smoke
+
+Before a live Mode C launch, run the offline path/pin checks (no daemon, no
+models, no network):
+
+```bash
+# from the Workbench monorepo root
+make smoke-mode-c
+# equivalent: ./scripts/smoke-mode-c.sh
+```
+
+Optional env:
+
+| Variable | Purpose |
+|---|---|
+| `WORKBENCH_EXECUTABLE` | Absolute workbench CLI (defaults to `target/{debug,release}/workbench` when built) |
+| `GROK_BUILD_ROOT` | Fork checkout (defaults to `~/Projects/grok-build` when present) |
+| `SMOKE_MODE_C_STRICT=1` | Treat soft warnings as failures |
+
+Soft warnings (backend env unset, no daemon socket, etc.) are expected in a
+cold workspace; fix them before a live attach.
+
 ## Exact environment and commands
 
 ### 1. Start Workbench (workspace A)
@@ -124,6 +146,50 @@ grok --workbench-executable /absolute/path/to/workbench --no-leader
 
 Leader mode is forced off when the Workbench backend is selected (avoid global
 leader session sharing across workspaces).
+
+### Workstation layout example (`~/Projects`)
+
+When the Workbench monorepo is `~/Projects/ide` and the Grok Build fork is
+`~/Projects/grok-build`, use the **fork** pager binary (not a stock
+`~/.grok/bin/grok` install — that build lacks selectable `WorkbenchBackend`).
+
+**Terminal 1 — daemon (workspace under test):**
+
+```bash
+export PATH="${HOME}/Projects/ide/target/debug:${PATH}"
+cd /absolute/path/to/workspace   # same absolute root for VS Code + TUI
+workbench config lock
+workbench config validate
+workbench daemon
+```
+
+**Terminal 2 — Mode C TUI:**
+
+```bash
+export GROK_HOME="${HOME}/.grokdev"
+export GROK_LEADER_SOCKET="${GROK_HOME}/leader.sock"
+export GROK_DISABLE_AUTOUPDATER=1
+export WORKBENCH_TERMINAL_BACKEND=1
+export WORKBENCH_EXECUTABLE="${HOME}/Projects/ide/target/debug/workbench"
+mkdir -p "${GROK_HOME}" && chmod 0700 "${GROK_HOME}"
+
+cd /absolute/path/to/workspace
+"${HOME}/Projects/grok-build/target/debug/xai-grok-pager" --no-leader --no-auto-update
+```
+
+One-liner equivalent (after daemon is up, same workspace cwd):
+
+```bash
+GROK_HOME="${HOME}/.grokdev" GROK_LEADER_SOCKET="${HOME}/.grokdev/leader.sock" \
+GROK_DISABLE_AUTOUPDATER=1 WORKBENCH_TERMINAL_BACKEND=1 \
+WORKBENCH_EXECUTABLE="${HOME}/Projects/ide/target/debug/workbench" \
+"${HOME}/Projects/grok-build/target/debug/xai-grok-pager" --no-leader --no-auto-update
+```
+
+If the fork was built with the dev target dir (`target-dev`), swap the pager
+path to `${HOME}/Projects/grok-build/target-dev/debug/xai-grok-pager`. Rebuild
+the fork at or after `GROK_BUILD_FORK_COMPATIBILITY_PIN` when the binary is
+missing or pin-less.
 
 ### 3. Child process contract (what the TUI launches)
 
@@ -217,4 +283,5 @@ attach path, and Mode C operator documentation.
 - [Grok Build terminal integration](../architecture/grok-build-terminal-integration.md) — architecture decision
 - [Grok ACP provider](grok-acp-provider.md) — official `grok` **provider** boundary (Mode B/C daemon side; not the TUI)
 - [Project status](../project/STATUS.md) — delivered baseline and residual
+- Offline Mode C smoke: [`scripts/smoke-mode-c.sh`](../../scripts/smoke-mode-c.sh) (`make smoke-mode-c`)
 - Feature 011/012/016 specs under `doc/arch/sdd/`
