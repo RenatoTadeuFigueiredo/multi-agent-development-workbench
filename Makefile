@@ -12,7 +12,7 @@
 	test-acceptance test-acceptance-bindings test-acp test-acp-attach test-claude \
 	test-codex test-mcp-tls test-openrouter-durable test-provider-writes \
 	test-terminal-backend test-slo check spec-gate validate verify analyze \
-	spec-status smoke-mode-c
+	spec-status smoke-mode-c live-mode-c-smoke
 
 CARGO_OFFLINE := CARGO_NET_OFFLINE=true cargo
 
@@ -28,6 +28,9 @@ test-context: ## Validate the project-context entry point without network access
 
 smoke-mode-c: ## Offline Mode C precondition smoke (paths, pin, optional fork)
 	@./scripts/smoke-mode-c.sh
+
+live-mode-c-smoke: ## LIVE Mode C protocol smoke (daemon, session, ACP stdio; no inference)
+	@./scripts/live-mode-c-smoke.sh
 
 build: ## Build every Rust workspace crate
 	$(CARGO_OFFLINE) build --workspace --locked
