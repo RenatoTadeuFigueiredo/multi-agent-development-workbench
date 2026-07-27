@@ -30,7 +30,7 @@ use thiserror::Error;
 /// Current pin: recommended Mode C binary is **fcustom + Mode C**
 /// (`feature/fcustom-mode-c` tip `f8468e5…`) — Fabricio custom line
 /// (Claude CLI, providers) plus `WorkbenchBackend`. Previous pin
-/// `85989c9…` was monorepo-sync Mode C only (WorkbenchBackend without
+/// `85989c9…` was monorepo-sync Mode C only (`WorkbenchBackend` without
 /// the fcustom stack). See
 /// <https://github.com/RenatoTadeuFigueiredo/grok-build>.
 pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "f8468e52db1aeca4804341cc4ec88de57e496407";
