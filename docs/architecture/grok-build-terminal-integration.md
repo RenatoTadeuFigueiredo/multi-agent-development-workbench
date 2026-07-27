@@ -158,10 +158,11 @@ Update it when the dual-upstream patch stack is rebased and verified.
 
 ## Current Baseline
 
-Feature 016 ships the monorepo launch contract. The Grok Build fork branch
-`feature/workbench-backend` adds the selectable external backend beside
-`GrokShellBackend` (see fork `docs/workbench-backend.md`). Full dual-upstream
-rebase automation and expanded PTY snapshots remain residual in `grok-build`.
+Feature 016 ships the monorepo launch contract. The Grok Build fork
+(`renato/main` after grok-build PR #1) adds the selectable external backend
+beside `GrokShellBackend` (see fork `docs/workbench-backend.md`). Full
+dual-upstream rebase automation and expanded PTY snapshots remain residual in
+`grok-build`.
 Feature 004 provides deterministic offline coverage for the separately
 supervised official Grok **provider** boundary. The handshake-only
 production-path smoke passed on the recorded macOS host with Grok Build

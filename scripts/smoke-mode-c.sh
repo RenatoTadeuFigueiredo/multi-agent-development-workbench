@@ -197,7 +197,7 @@ if [ -n "$GROK_BUILD_ROOT" ]; then
 		if [ -f "$WB_MOD" ]; then
 			ok "fork WorkbenchBackend module present"
 		else
-			warn "fork missing workbench_backend.rs (need feature/workbench-backend or later)"
+			warn "fork missing workbench_backend.rs (need pin SHA / renato/main after grok-build PR #1)"
 		fi
 		if [ -n "${PIN:-}" ] && command -v git >/dev/null 2>&1; then
 			if git -C "$GROK_BUILD_ROOT" cat-file -e "${PIN}^{commit}" 2>/dev/null; then

@@ -245,7 +245,7 @@ different workspace path than the VS Code window.
 | Provider unavailable | Provider binary or auth missing | Use provider runbooks under `docs/operations/`; authenticate outside Workbench; re-lock |
 | VS Code and TUI show different sessions | Different workspace roots or two daemons | Align folder paths; stop extra daemons; reattach |
 | Credentials bleed between Grok solo and fork | Shared `~/.grok` | Use isolated `GROK_HOME=~/.grokdev` for the fork |
-| Fork binary lacks Workbench backend | Built from pin-less main | Checkout pin SHA or `feature/workbench-backend` (see below), rebuild |
+| Fork binary lacks Workbench backend | Built from pin-less revision | Checkout pin SHA (`renato/main` after grok-build PR #1; see below), rebuild |
 | Dual orchestration confusion | Grok local workflows + daemon workflows both active | Product workflow = daemon only in Mode C; keep Grok shell workflows for Mode A |
 
 Never bypass fail-closed path validation, binary pins, or policy gates by
@@ -260,12 +260,13 @@ crates/workbench-terminal-backend/src/lib.rs
 GROK_BUILD_FORK_COMPATIBILITY_PIN
 ```
 
-Current published value is the Grok Build commit that lands selectable
-`WorkbenchBackend` (`feat(acp): selectable Workbench external ACP backend` on
-branch `feature/workbench-backend`). Operators and the fork sync job update
+Current published value is the Grok Build `renato/main` WorkbenchBackend
+feat-equivalent after grok-build PR #1 merge/rewrite
+(`feat(acp): selectable Workbench external ACP backend`, pin SHA in
+`GROK_BUILD_FORK_COMPATIBILITY_PIN`). Operators and the fork sync job update
 this SHA when the dual-upstream patch stack is rebased.
 
-Fork-side docs (on that branch): `docs/workbench-backend.md` in
+Fork-side docs: `docs/workbench-backend.md` in
 [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build).
 
 ## Residual (out of tree)

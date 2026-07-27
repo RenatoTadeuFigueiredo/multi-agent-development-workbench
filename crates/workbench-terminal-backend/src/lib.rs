@@ -27,10 +27,10 @@ use thiserror::Error;
 /// the downstream patch stack is rebased. Empty means "integration contract
 /// only; fork pin not yet published from a dual-upstream rebase".
 ///
-/// Current pin: `feature/workbench-backend` commit that adds selectable
-/// `WorkbenchBackend` (`feat(acp): selectable Workbench external ACP backend`)
+/// Current pin: `renato/main` WorkbenchBackend feat-equivalent after grok-build
+/// PR #1 merge/rewrite (`feat(acp): selectable Workbench external ACP backend`)
 /// in <https://github.com/RenatoTadeuFigueiredo/grok-build>.
-pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "0da6c56f43b1ac1c5468d83f02e8ef4a4f24856c";
+pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "85989c9f543e66387a088fc24d8ea83d9771a7ce";
 
 /// Documented CLI subcommand the terminal launches.
 pub const WORKBENCH_AGENT_STDIO_ARGS: &[&str] = &["agent", "stdio"];
