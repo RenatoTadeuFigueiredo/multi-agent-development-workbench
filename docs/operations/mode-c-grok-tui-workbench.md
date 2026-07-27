@@ -245,7 +245,7 @@ different workspace path than the VS Code window.
 | Provider unavailable | Provider binary or auth missing | Use provider runbooks under `docs/operations/`; authenticate outside Workbench; re-lock |
 | VS Code and TUI show different sessions | Different workspace roots or two daemons | Align folder paths; stop extra daemons; reattach |
 | Credentials bleed between Grok solo and fork | Shared `~/.grok` | Use isolated `GROK_HOME=~/.grokdev` for the fork |
-| Fork binary lacks Workbench backend | Built from pin-less revision | Checkout pin SHA (`renato/main` after grok-build PR #1; see below), rebuild |
+| Fork binary lacks Workbench backend | Built from pin-less revision | Checkout pin SHA (`feature/fcustom-mode-c` tip; see below), rebuild |
 | Dual orchestration confusion | Grok local workflows + daemon workflows both active | Product workflow = daemon only in Mode C; keep Grok shell workflows for Mode A |
 
 Never bypass fail-closed path validation, binary pins, or policy gates by
@@ -260,11 +260,15 @@ crates/workbench-terminal-backend/src/lib.rs
 GROK_BUILD_FORK_COMPATIBILITY_PIN
 ```
 
-Current published value is the Grok Build `renato/main` WorkbenchBackend
-feat-equivalent after grok-build PR #1 merge/rewrite
-(`feat(acp): selectable Workbench external ACP backend`, pin SHA in
-`GROK_BUILD_FORK_COMPATIBILITY_PIN`). Operators and the fork sync job update
-this SHA when the dual-upstream patch stack is rebased.
+Recommended Mode C binary: **fcustom + Mode C** (`feature/fcustom-mode-c`
+tip `f8468e52db1aeca4804341cc4ec88de57e496407` — pin SHA in
+`GROK_BUILD_FORK_COMPATIBILITY_PIN`). That tip carries the Fabricio custom
+line (Claude CLI, providers) **and** selectable `WorkbenchBackend`.
+
+Previous pin `85989c9f543e66387a088fc24d8ea83d9771a7ce` was monorepo-sync
+Mode C only (`WorkbenchBackend` without the fcustom stack). Operators and
+the fork sync job update this SHA when the dual-upstream patch stack is
+rebased.
 
 Fork-side docs: `docs/workbench-backend.md` in
 [grok-build](https://github.com/RenatoTadeuFigueiredo/grok-build).
