@@ -33,8 +33,7 @@ use thiserror::Error;
 /// `85989c9…` was monorepo-sync Mode C only (WorkbenchBackend without
 /// the fcustom stack). See
 /// <https://github.com/RenatoTadeuFigueiredo/grok-build>.
-pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str =
-    "f8468e52db1aeca4804341cc4ec88de57e496407";
+pub const GROK_BUILD_FORK_COMPATIBILITY_PIN: &str = "f8468e52db1aeca4804341cc4ec88de57e496407";
 
 /// Documented CLI subcommand the terminal launches.
 pub const WORKBENCH_AGENT_STDIO_ARGS: &[&str] = &["agent", "stdio"];
