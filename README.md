@@ -269,6 +269,8 @@ Build and exercise the offline vertical slice:
 
 ```bash
 make build
+# optional: copy examples/workbench.yaml.example → .workbench/workbench.yaml
+# and set absolute, versioned provider executable paths (never PATH symlinks)
 cargo run -p workbench-cli -- config lock
 cargo run -p workbench-cli -- config validate
 cargo run -p workbench-cli -- daemon
