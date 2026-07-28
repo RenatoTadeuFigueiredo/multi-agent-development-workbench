@@ -39,6 +39,22 @@ Notes:
 - Run `config lock` after installing or updating provider executables so digests
   and capability pins match the binaries on disk.
 - Never commit secrets, provider sessions, or the lock file.
+- On macOS, keep Unix socket paths short (for example `export TMPDIR="$HOME/w"`)
+  for both `workbench daemon` and clients.
+
+### Default example file
+
+Copy the repository template and replace every absolute executable path:
+
+```bash
+mkdir -p .workbench
+cp examples/workbench.yaml.example .workbench/workbench.yaml
+# edit .workbench/workbench.yaml — use versioned binaries, never PATH symlinks
+chmod 600 .workbench/workbench.yaml
+```
+
+Full annotated template:
+[`examples/workbench.yaml.example`](../../examples/workbench.yaml.example).
 
 Example repository-layer fragment (adjust absolute paths and only declare
 providers you have installed):
@@ -50,17 +66,20 @@ providers:
   claude:
     type: subscription-cli
     driver: claude-code
-    executable: /absolute/path/to/claude
+    executable: /absolute/path/to/versioned/claude
   codex:
     type: subscription-cli
     driver: codex
-    executable: /absolute/path/to/codex
+    executable: /absolute/path/to/versioned/codex
   grok:
     type: acp
-    executable: /absolute/path/to/grok
+    executable: /absolute/path/to/versioned/grok
   openrouter:
     type: api
     credential_ref: platform:openrouter
+    privacy:
+      zero_data_retention: true
+      data_collection: deny
 
 policies:
   default_tool_mode: read-only

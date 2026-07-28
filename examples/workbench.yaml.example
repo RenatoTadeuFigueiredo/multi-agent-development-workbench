@@ -1,0 +1,115 @@
+# Workbench repository-layer configuration example
+# -----------------------------------------------------------------------------
+# Copy into your project as `.workbench/workbench.yaml`, then replace every
+# `/absolute/path/to/...` with a real, versioned executable file.
+#
+# Hard requirements for `executable`:
+# - absolute path
+# - regular file owned by you (not a PATH wrapper)
+# - no symbolic link on any path component
+# - not group/world-writable
+#
+# Workbench never discovers claude/codex/grok via PATH.
+# Authenticate each CLI outside Workbench before `workbench config lock`.
+#
+# After editing:
+#   export TMPDIR="$HOME/w"   # recommended on macOS (short Unix socket paths)
+#   workbench config lock
+#   workbench config validate
+#   workbench daemon
+#
+# See also:
+# - docs/operations/operator-e2e-quickstart.md
+# - docs/operations/claude-code-provider.md
+# - docs/operations/codex-provider.md
+# - docs/operations/grok-acp-provider.md
+# - docs/operations/openrouter-provider.md
+# -----------------------------------------------------------------------------
+
+version: 1
+
+providers:
+  claude:
+    type: subscription-cli
+    driver: claude-code
+    # Prefer a versioned pin, e.g. .../claude/versions/2.1.220
+    # Do NOT use ~/.local/bin/claude if it is a symlink.
+    executable: /absolute/path/to/versioned/claude
+
+  codex:
+    type: subscription-cli
+    driver: codex
+    # Prefer .../codex/packages/standalone/releases/<ver>-*/bin/codex
+    # Do NOT use ~/.local/bin/codex if it is a symlink.
+    executable: /absolute/path/to/versioned/codex
+
+  grok:
+    type: acp
+    # Prefer a versioned download, e.g. .../grok/downloads/grok-0.2.111-macos-aarch64
+    # Do NOT use ~/.local/bin/grok or the updater "current" symlink name.
+    # This is the official Grok ACP provider for the daemon — not the Mode C TUI binary.
+    executable: /absolute/path/to/versioned/grok
+
+  # Optional API provider (credentials stay in the OS keychain).
+  # openrouter:
+  #   type: api
+  #   credential_ref: platform:openrouter
+  #   privacy:
+  #     zero_data_retention: true
+  #     data_collection: deny
+
+models:
+  # Aliases used by roles — change runtime_model without rewriting workflows.
+  specification:
+    provider: claude
+    runtime_model: fable
+  review:
+    provider: codex
+    runtime_model: gpt-5.4
+  implementation:
+    provider: grok
+    runtime_model: grok-4.5
+
+roles:
+  workspace-coordinator:
+    model: specification
+    tools: []
+    data_sources: []
+    required_capabilities: []
+    fallback_models: []
+  product-architect:
+    model: specification
+    tools: []
+    data_sources: []
+    required_capabilities: []
+    fallback_models: []
+  reviewer:
+    model: review
+    tools: []
+    data_sources: []
+    required_capabilities: []
+    fallback_models: []
+  implementer:
+    model: implementation
+    tools: []
+    data_sources: []
+    required_capabilities: []
+    fallback_models: []
+
+routing:
+  default_role: workspace-coordinator
+  confidence_threshold: 0.85
+
+policies:
+  default_tool_mode: read-only
+  global_deny: []
+  production_mutations: approval-required
+  # Optional cost ceilings (micros of USD). Uncomment when using OpenRouter or
+  # other metered adapters that report usage.
+  # cost:
+  #   max_session_usd_micros: 5000000
+  #   max_attempt_usd_micros: 500000
+  # Optional provider-native writes (default is fail-closed / disabled).
+  # provider_native_writes:
+  #   mode: approval-required
+  #   allowlist: [claude, codex]
